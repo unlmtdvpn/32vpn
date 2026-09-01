@@ -37,7 +37,7 @@ export default {
   publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
   shortId: "abbcd128",
   fingerprint: "qq",
-  remarks: "🇷🇺 Мобильная связь #1",
+  remarks: "🇷🇺 Белый список 🏳️",
   network: "grpc",
   flow: "",               // можно оставить пустым или удалить
   serviceName: "ads.x5.ru", // добавить
