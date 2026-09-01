@@ -62,7 +62,6 @@ export default {
   serverName: "sun9-38.userapi.com",
   publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
   shortId: "abbcd128",
-  fingerprint: "",
   remarks: "🇹🇷 Турция",
   network: "tcp",
   flow: "xtls-rprx-vision"
