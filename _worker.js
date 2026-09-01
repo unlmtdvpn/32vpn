@@ -42,31 +42,6 @@ export default {
   flow: "xtls-rprx-vision"
 },
 {
-  tag: "ru-1",
-  address: "ru.datanode-internal.net",
-  port: 443,
-  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-  serverName: "sun9-38.userapi.com",
-  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-  shortId: "abbcd128",
-  fingerprint: "qq",
-  remarks: "🇷🇺 Россия",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
-  tag: "tr-1",
-  address: "tr.datanode-internal.net",
-  port: 443,
-  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-  serverName: "sun9-38.userapi.com",
-  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-  shortId: "abbcd128",
-  remarks: "🇹🇷 Турция",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
   tag: "ru-mobile-1",
   address: "hole-nn.datanode-internal.net",
   port: 443,
