@@ -93,7 +93,6 @@ export default {
   network: "tcp",
   flow: "xtls-rprx-vision"
 },
-
 {
   tag: "ru-mobile-1",
   address: "hole-nn.datanode-internal.net",
@@ -105,11 +104,11 @@ export default {
   fingerprint: "qq",
   remarks: "🇷🇺 Белый список 🏳️",
   network: "grpc",
-  flow: "",               // можно оставить пустым или удалить
-  serviceName: "ads.x5.ru", // добавить
-  mode: "gun"              // добавить
-}
-      {
+  flow: "",
+  serviceName: "ads.x5.ru",
+  mode: "gun"
+},   // ← запятая добавлена
+{
   tag: "de-2",
   address: "friendlynode.site",
   port: 443,
@@ -122,7 +121,6 @@ export default {
   network: "xhttp",
   flow: ""
 }
-    ];
 
     // ---- ФУНКЦИЯ ПОСТРОЕНИЯ ПОЛНОГО КОНФИГА ----
     function buildConfig(node) {
