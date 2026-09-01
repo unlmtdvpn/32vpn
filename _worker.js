@@ -117,7 +117,7 @@ export default {
   publicKey: "",
   shortId: "",
   fingerprint: "firefox",
-  remarks: "de Белый список 🏳️",
+  remarks: "🇩🇪 Белый список 🏳️",
   network: "xhttp",
   flow: ""
 } ]
