@@ -123,146 +123,171 @@ export default {
 } ]
 
     // ---- ФУНКЦИЯ ПОСТРОЕНИЯ ПОЛНОГО КОНФИГА ----
-    function buildConfig(node) {
-      // Базовый outbound
-      const outbound = {
-        tag: "proxy",
-        protocol: "vless",
-        settings: {
-          vnext: [{
-            address: node.address,
-            port: node.port,
-            users: [{
-              id: node.id,
-              encryption: "none",
-              level: 8,
-              security: "auto"
-            }]
-          }]
-        },
-        streamSettings: {
-          network: node.network,
-          security: "reality",
-          realitySettings: {
-            serverName: node.serverName,
-            show: false,
-            publicKey: node.publicKey,
-            shortId: node.shortId,
-            fingerprint: node.fingerprint || "chrome", // если пусто, ставим chrome
-            spiderX: "/",
-            allowInsecure: false
-          }
-        },
-        mux: {
-          enabled: false,
-          concurrency: -1,
-          xudpConcurrency: 8,
-          xudpProxyUDP443: ""
-        }
-      };
-
-      // Добавляем flow, если есть
-      if (node.flow) {
-        outbound.settings.vnext[0].users[0].flow = node.flow;
-      }
-
-      // Настройки для конкретного network
-      if (node.network === "grpc") {
-        outbound.streamSettings.grpcSettings = {
-          serviceName: node.serviceName || "",
-          multiMode: false,
-          idle_timeout: 60,
-          health_check_timeout: 20,
-          permit_without_stream: false,
-          initial_windows_size: 0,
-          authority: ""
-        };
-        // Для grpc не добавляем tcpSettings
-      } else {
-        // TCP
-        outbound.streamSettings.tcpSettings = {
-          header: { type: "none" }
-        };
-      }
-
-      // Полный конфиг
-      return {
-        log: { loglevel: "warning" },
-        dns: {
-          hosts: { "domain:googleapis.cn": "googleapis.com" },
-          queryStrategy: "UseIPv4",
-          servers: [
-            "1.1.1.1",
-            { address: "1.1.1.1", port: 53, domains: [] },
-            { address: "8.8.8.8", port: 53, domains: [] }
-          ]
-        },
-        inbounds: [
-          {
-            tag: "socks",
-            port: 10808,
-            listen: "127.0.0.1",
-            protocol: "socks",
-            settings: { auth: "noauth", udp: true, userLevel: 8 },
-            sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
-          },
-          {
-            tag: "http",
-            port: 10809,
-            listen: "127.0.0.1",
-            protocol: "http",
-            settings: { userLevel: 8 },
-            sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
-          },
-          {
-            tag: "metrics_in",
-            port: 11111,
-            listen: "127.0.0.1",
-            protocol: "dokodemo-door",
-            settings: { address: "127.0.0.1" }
-          }
-        ],
-        outbounds: [
-          outbound,
-          {
-            tag: "direct",
-            protocol: "freedom",
-            settings: { domainStrategy: "UseIP" }
-          },
-          {
-            tag: "block",
-            protocol: "blackhole",
-            settings: { response: { type: "http" } }
-          }
-        ],
-        routing: {
-          domainStrategy: "IPIfNonMatch",
-          rules: [
-            { inboundTag: ["metrics_in"], outboundTag: "metrics_out" },
-            { inboundTag: ["socks"], outboundTag: "proxy", port: "53" },
-            { ip: ["1.1.1.1"], outboundTag: "proxy", port: "53" },
-            { ip: ["8.8.8.8"], outboundTag: "direct", port: "53" }
-          ]
-        },
-        policy: {
-          levels: {
-            "0": { statsUserDownlink: true, statsUserUplink: true },
-            "8": { connIdle: 300, downlinkOnly: 1, handshake: 4, uplinkOnly: 1 }
-          },
-          system: {
-            statsInboundDownlink: true,
-            statsInboundUplink: true,
-            statsOutboundDownlink: true,
-            statsOutboundUplink: true
-          }
-        },
-        metrics: { tag: "metrics_out" },
-        stats: {},
-        remarks: node.remarks,
-        meta: null // добавляем для единообразия (как в примере мобильного)
-      };
+function buildConfig(node) {
+  const outbound = {
+    tag: "proxy",
+    protocol: "vless",
+    settings: {
+      vnext: [{
+        address: node.address,
+        port: node.port,
+        users: [{
+          id: node.id,
+          encryption: "none",
+          level: 8,
+          security: "auto"
+        }]
+      }]
+    },
+    streamSettings: {
+      network: node.network
+    },
+    mux: {
+      enabled: false,
+      concurrency: -1,
+      xudpConcurrency: 8,
+      xudpProxyUDP443: ""
     }
+  };
 
+  if (node.flow) {
+    outbound.settings.vnext[0].users[0].flow = node.flow;
+  }
+
+  // --- Настройка streamSettings в зависимости от network ---
+  switch (node.network) {
+    case "xhttp":
+      outbound.streamSettings.security = "tls";
+      outbound.streamSettings.tlsSettings = {
+        alpn: ["h2", "http/1.1"],
+        fingerprint: node.fingerprint || "firefox",
+        serverName: node.serverName
+      };
+      outbound.streamSettings.xhttpSettings = {
+        host: node.serverName,
+        mode: "packet-up",       // можно параметризовать
+        path: "/api/v2/feed"      // можно параметризовать
+      };
+      break;
+
+    case "grpc":
+      outbound.streamSettings.security = "tls"; // или "reality", если точно нужно
+      outbound.streamSettings.tlsSettings = {
+        fingerprint: node.fingerprint || "firefox",
+        serverName: node.serverName
+      };
+      outbound.streamSettings.grpcSettings = {
+        serviceName: node.serviceName || "",
+        multiMode: false,
+        idle_timeout: 60,
+        health_check_timeout: 20,
+        permit_without_stream: false,
+        initial_windows_size: 0,
+        authority: ""
+      };
+      break;
+
+    default: // "tcp" и другие
+      outbound.streamSettings.security = "reality";
+      outbound.streamSettings.realitySettings = {
+        serverName: node.serverName,
+        show: false,
+        publicKey: node.publicKey,
+        shortId: node.shortId,
+        fingerprint: node.fingerprint || "chrome",
+        spiderX: "/",
+        allowInsecure: false
+      };
+      outbound.streamSettings.tcpSettings = {
+        header: { type: "none" }
+      };
+  }
+
+  // --- Добавляем недостающий outbound metrics_out ---
+  const outbounds = [
+    outbound,
+    {
+      tag: "direct",
+      protocol: "freedom",
+      settings: { domainStrategy: "UseIP" }
+    },
+    {
+      tag: "block",
+      protocol: "blackhole",
+      settings: { response: { type: "http" } }
+    },
+    {
+      tag: "metrics_out",          // добавлен!
+      protocol: "freedom",
+      settings: {}
+    }
+  ];
+
+  // --- Полный конфиг (inbounds, routing и т.д.) ---
+  return {
+    log: { loglevel: "warning" },
+    dns: {
+      hosts: { "domain:googleapis.cn": "googleapis.com" },
+      queryStrategy: "UseIPv4",
+      servers: [
+        "1.1.1.1",
+        { address: "1.1.1.1", port: 53, domains: [] },
+        { address: "8.8.8.8", port: 53, domains: [] }
+      ]
+    },
+    inbounds: [
+      {
+        tag: "socks",
+        port: 10808,
+        listen: "127.0.0.1",
+        protocol: "socks",
+        settings: { auth: "noauth", udp: true, userLevel: 8 },
+        sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
+      },
+      {
+        tag: "http",
+        port: 10809,
+        listen: "127.0.0.1",
+        protocol: "http",
+        settings: { userLevel: 8, accounts: [] }, // ← добавил accounts
+        sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
+      },
+      {
+        tag: "metrics_in",
+        port: 11111,
+        listen: "127.0.0.1",
+        protocol: "dokodemo-door",
+        settings: { address: "127.0.0.1" }
+      }
+    ],
+    outbounds: outbounds, // ← используем массив с metrics_out
+    routing: {
+      domainStrategy: "IPIfNonMatch",
+      rules: [
+        { inboundTag: ["metrics_in"], outboundTag: "metrics_out" },
+        { inboundTag: ["socks"], outboundTag: "proxy", port: "53" },
+        { ip: ["1.1.1.1"], outboundTag: "proxy", port: "53" },
+        { ip: ["8.8.8.8"], outboundTag: "direct", port: "53" }
+      ]
+    },
+    policy: {
+      levels: {
+        "0": { statsUserDownlink: true, statsUserUplink: true },
+        "8": { connIdle: 300, downlinkOnly: 1, handshake: 4, uplinkOnly: 1 }
+      },
+      system: {
+        statsInboundDownlink: true,
+        statsInboundUplink: true,
+        statsOutboundDownlink: true,
+        statsOutboundUplink: true
+      }
+    },
+    metrics: { tag: "metrics_out" },
+    stats: {},
+    remarks: node.remarks,
+    meta: null
+  };
+}
     // ---- ГЕНЕРИРУЕМ МАССИВ КОНФИГОВ ----
     const configs = realNodes.map(n => buildConfig(n));
 
