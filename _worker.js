@@ -29,19 +29,6 @@ export default {
   flow: "xtls-rprx-vision"
 },
 {
-  tag: "pl-1",
-  address: "pl.datanode-internal.net",
-  port: 443,
-  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-  serverName: "sun9-35.userapi.com",
-  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-  shortId: "abbcd128",
-  fingerprint: "qq",
-  remarks: "🇵🇱 Польша",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
   tag: "ru-mobile-1",
   address: "hole-nn.datanode-internal.net",
   port: 443,
