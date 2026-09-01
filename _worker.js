@@ -2,87 +2,87 @@ export default {
   async fetch(request, env, ctx) {
     // ---- СЕРВЕРЫ (7 ШТУК) с вашими данными ----
     const realNodes = [
-  {
-    "tag": "de-1",
-    "address": "de-new.datanode-internal.net",
-    "port": 443,
-    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
-    "serverName": "ads.x5.ru",
-    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-    "shortId": "abbcd128",
-    "fingerprint": "qq",
-    "remarks": "🇩🇪 Германия",
-    "network": "tcp",
-    "flow": "xtls-rprx-vision"
-  },
-  {
-    "tag": "se-1",
-    "address": "se-new.datanode-internal.net",
-    "port": 443,
-    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
-    "serverName": "ads.x5.ru",
-    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-    "shortId": "abbcd128",
-    "fingerprint": "qq",
-    "remarks": "🇸🇪 Швеция",
-    "network": "tcp",
-    "flow": "xtls-rprx-vision"
-  },
-  {
-    "tag": "pl-1",
-    "address": "pl.datanode-internal.net",
-    "port": 443,
-    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
-    "serverName": "sun9-35.userapi.com",
-    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-    "shortId": "abbcd128",
-    "fingerprint": "qq",
-    "remarks": "🇵🇱 Польша",
-    "network": "tcp",
-    "flow": "xtls-rprx-vision"
-  },
-  {
-    "tag": "ru-1",
-    "address": "ru.datanode-internal.net",
-    "port": 443,
-    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
-    "serverName": "sun9-38.userapi.com",
-    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-    "shortId": "abbcd128",
-    "fingerprint": "qq",
-    "remarks": "🇷🇺 Россия",
-    "network": "tcp",
-    "flow": "xtls-rprx-vision"
-  },
-  {
-    "tag": "tr-1",
-    "address": "tr.datanode-internal.net",
-    "port": 443,
-    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
-    "serverName": "sun9-38.userapi.com",
-    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-    "shortId": "abbcd128",
-    "fingerprint": "",
-    "remarks": "🇹🇷 Турция",
-    "network": "tcp",
-    "flow": "xtls-rprx-vision"
-  },
-  {
-    "tag": "mobile-1",
-    "address": "hole-nn.datanode-internal.net",
-    "port": 443,
-    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
-    "serverName": "ads.x5.ru",
-    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-    "shortId": "abbcd128",
-    "fingerprint": "qq",
-    "remarks": "🇷🇺 Мобильная связь #1",
-    "network": "grpc",
-    "flow": "xtls-rprx-vision",
-    "serviceName": "ads.x5.ru",
-    "mode": "gun"
-  }
-];
+      {
+        "tag": "de-1",
+        "address": "de-new.datanode-internal.net",
+        "port": 443,
+        "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+        "serverName": "ads.x5.ru",
+        "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+        "shortId": "abbcd128",
+        "fingerprint": "qq",
+        "remarks": "🇩🇪 Германия",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision"
+      },
+      {
+        "tag": "se-1",
+        "address": "se-new.datanode-internal.net",
+        "port": 443,
+        "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+        "serverName": "ads.x5.ru",
+        "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+        "shortId": "abbcd128",
+        "fingerprint": "qq",
+        "remarks": "🇸🇪 Швеция",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision"
+      },
+      {
+        "tag": "pl-1",
+        "address": "pl.datanode-internal.net",
+        "port": 443,
+        "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+        "serverName": "sun9-35.userapi.com",
+        "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+        "shortId": "abbcd128",
+        "fingerprint": "qq",
+        "remarks": "🇵🇱 Польша",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision"
+      },
+      {
+        "tag": "ru-1",
+        "address": "ru.datanode-internal.net",
+        "port": 443,
+        "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+        "serverName": "sun9-38.userapi.com",
+        "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+        "shortId": "abbcd128",
+        "fingerprint": "qq",
+        "remarks": "🇷🇺 Россия",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision"
+      },
+      {
+        "tag": "tr-1",
+        "address": "tr.datanode-internal.net",
+        "port": 443,
+        "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+        "serverName": "sun9-38.userapi.com",
+        "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+        "shortId": "abbcd128",
+        "fingerprint": "",
+        "remarks": "🇹🇷 Турция",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision"
+      },
+      {
+        "tag": "mobile-1",
+        "address": "hole-nn.datanode-internal.net",
+        "port": 443,
+        "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+        "serverName": "ads.x5.ru",
+        "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+        "shortId": "abbcd128",
+        "fingerprint": "qq",
+        "remarks": "🇷🇺 Мобильная связь #1",
+        "network": "grpc",
+        "flow": "xtls-rprx-vision",
+        "serviceName": "ads.x5.ru",
+        "mode": "gun"
+      }
+    ];
 
     // ---- ФУНКЦИЯ СОЗДАНИЯ OUTBOUND (без изменений) ----
     function makeOutbound(n) {
@@ -165,16 +165,15 @@ export default {
     const configs = realNodes.map(n => makeFullConfig(n));
 
     return new Response(JSON.stringify(configs, null, 2), {
-headers: {
-  "Content-Type": "application/json; charset=utf-8",
-  "Access-Control-Allow-Origin": "*",
-  "Profile-Title": "wlvpn",
-  "Subscription-Status": "active",
-  "Subscription-Traffic": "1496 GB",
-  "Subscription-Expire": "1899589200",
-  "subscription-userinfo": "upload=0; download=0; total=1606343895040; expire=1899589200",
-  "announce": "🏳 wlvpn - стабильный VPN сервис."   // ← добавлено обратно
-}
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Access-Control-Allow-Origin": "*",
+        "Profile-Title": "wlvpn ",
+        "Subscription-Status": "active",
+        "Subscription-Traffic": "2141 GB / ∞",
+        "Subscription-Expire": "1899589200",
+        "subscription-userinfo": "upload=0; download=0; total=0; expire=1899589200", // ← была пропущена запятая
+        "announce": "vpnerfwfj"
       }
     });
   }
