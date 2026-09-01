@@ -165,15 +165,16 @@ export default {
     const configs = realNodes.map(n => makeFullConfig(n));
 
     return new Response(JSON.stringify(configs, null, 2), {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
-        "Profile-Title": "wlvpn ",               // ← изменено
-        "Subscription-Status": "active",
-        "Subscription-Traffic": "2141 GB / ∞",
-        "Subscription-Expire": "1899589200",
-        "subscription-userinfo": "upload=0; download=0; total=0; expire=1899589200"
-        "announce": vpn
+headers: {
+  "Content-Type": "application/json; charset=utf-8",
+  "Access-Control-Allow-Origin": "*",
+  "Profile-Title": "wlvpn",
+  "Subscription-Status": "active",
+  "Subscription-Traffic": "1496 GB",
+  "Subscription-Expire": "1899589200",
+  "subscription-userinfo": "upload=0; download=0; total=1606343895040; expire=1899589200",
+  "announce": "🏳 wlvpn - стабильный VPN сервис."   // ← добавлено обратно
+}
       }
     });
   }
