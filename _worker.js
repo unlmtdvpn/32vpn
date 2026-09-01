@@ -29,6 +29,19 @@ export default {
   flow: "xtls-rprx-vision"
 },
 {
+  tag: "nl",
+  address: "31.76.49.57",
+  port: 8771,
+  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
+  serverName: "www.booking.com",
+  publicKey: "ARdBi_ODGv_zZHyU6dy3V3XQVyqDhMf5C_IIu_VeUlc",
+  shortId: "40a3df2b06bc00a4",
+  fingerprint: "firefox",
+  remarks: "🇳🇱 Нидерланды",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
   tag: "ru-mobile-1",
   address: "hole-nn.datanode-internal.net",
   port: 443,
