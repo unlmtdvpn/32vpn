@@ -2,85 +2,84 @@ export default {
   async fetch(request, env, ctx) {
     // ---- ИСХОДНЫЕ ДАННЫЕ УЗЛОВ (7 ШТУК) ----
     const realNodes = [
-      {
-        tag: "de-1",
-        address: "de-new.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        serverName: "ads.x5.ru",
-        publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        shortId: "abbcd128",
-        fingerprint: "qq",
-        remarks: "🇩🇪 Германия",
-        network: "tcp",
-        flow: "xtls-rprx-vision"
-      },
-      {
-        tag: "se-1",
-        address: "se-new.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        serverName: "ads.x5.ru",
-        publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        shortId: "abbcd128",
-        fingerprint: "qq",
-        remarks: "🇸🇪 Швеция",
-        network: "tcp",
-        flow: "xtls-rprx-vision"
-      },
-      {
-        tag: "pl-1",
-        address: "pl.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        serverName: "sun9-35.userapi.com",
-        publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        shortId: "abbcd128",
-        fingerprint: "qq",
-        remarks: "🇵🇱 Польша",
-        network: "tcp",
-        flow: "xtls-rprx-vision"
-      },
-      {
-        tag: "ru-1",
-        address: "ru.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        serverName: "sun9-38.userapi.com",
-        publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        shortId: "abbcd128",
-        fingerprint: "qq",
-        remarks: "🇷🇺 Россия",
-        network: "tcp",
-        flow: "xtls-rprx-vision"
-      },
-      {
-        tag: "tr-1",
-        address: "tr.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        serverName: "sun9-38.userapi.com",
-        publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        shortId: "abbcd128",
-        fingerprint: "", // пустая строка, как в примере
-        remarks: "🇹🇷 Турция",
-        network: "tcp",
-        flow: "xtls-rprx-vision"
-      },
-      {
-        tag: "mobile-1",
-        address: "hole-nn.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        serverName: "ads.x5.ru",
-        publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        shortId: "abbcd128",
-        fingerprint: "qq",
-        remarks: "🇷🇺 Мобильная связь #1",
-        network: "grpc",
-        serviceName: "ads.x5.ru",
-        // flow отсутствует для grpc
-      }
+{
+  tag: "proxy",
+  address: "de-new.datanode-internal.net",
+  port: 443,
+  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
+  serverName: "ads.x5.ru",
+  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+  shortId: "abbcd128",
+  fingerprint: "qq",
+  remarks: "🇩🇪 Германия",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "se-1",
+  address: "se-new.datanode-internal.net",
+  port: 443,
+  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
+  serverName: "ads.x5.ru",
+  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+  shortId: "abbcd128",
+  fingerprint: "qq",
+  remarks: "🇸🇪 Швеция",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "pl-1",
+  address: "pl.datanode-internal.net",
+  port: 443,
+  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
+  serverName: "sun9-35.userapi.com",
+  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+  shortId: "abbcd128",
+  fingerprint: "qq",
+  remarks: "🇵🇱 Польша",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "ru-1",
+  address: "ru.datanode-internal.net",
+  port: 443,
+  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
+  serverName: "sun9-38.userapi.com",
+  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+  shortId: "abbcd128",
+  fingerprint: "qq",
+  remarks: "🇷🇺 Россия",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "tr-1",
+  address: "tr.datanode-internal.net",
+  port: 443,
+  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
+  serverName: "sun9-38.userapi.com",
+  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+  shortId: "abbcd128",
+  fingerprint: "",
+  remarks: "🇹🇷 Турция",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "ru-mobile-1",
+  address: "hole-nn.datanode-internal.net",
+  port: 443,
+  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
+  serverName: "ads.x5.ru",
+  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+  shortId: "abbcd128",
+  fingerprint: "qq",
+  remarks: "🇷🇺 Мобильная связь #1",
+  network: "grpc",
+  flow: ""
+}
     ];
 
     // ---- ФУНКЦИЯ ПОСТРОЕНИЯ ПОЛНОГО КОНФИГА ----
