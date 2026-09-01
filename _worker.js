@@ -1,38 +1,6 @@
 export default {
   async fetch(request) {
-    // 1. Получаем User-Agent
-    const userAgent = request.headers.get('User-Agent') || '';
-
-    // 2. Список ключевых слов клиентов (можно дополнять)
-    const clientKeywords = [
-      'Hiddify',
-      'v2ray',
-      'V2Ray',
-      'clash',
-      'Clash',
-      'nekoray',
-      'NekoRay',
-      'sing-box',
-      'singbox',
-      'Nekoray',
-      'Mihomo',   // Clash Meta
-      'Stash',
-      'Karing',
-      'Shadowrocket',
-      'happ',
-      'incy',
-      'Loon'
-    ];
-
-    // 3. Проверяем, содержит ли User-Agent хотя бы одно ключевое слово
-    const isClient = clientKeywords.some(keyword => userAgent.includes(keyword));
-
-    // 4. Если это НЕ клиент – возвращаем 404 (или пустой ответ)
-    if (!isClient) {
-      return new Response('Not Found', { status: 404 });
-    }
-
-    // 5. Формируем подписку для клиента
+    // Формируем подписку (ваши сервера)
     const config = `#announce: 🏳 wlvpn - стабильный VPN сервис.
 #profile-title: wlvpn
 #profile-update-interval: 1
@@ -44,12 +12,12 @@ vless://31dac09f-78ee-49ca-9566-d20aea578fdc@tr.datanode-internal.net:443?flow=x
 vless://31dac09f-78ee-49ca-9566-d20aea578fdc@hole-nn.datanode-internal.net:443?type=grpc&security=reality&fp=qq&sni=ads.x5.ru&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#🇷🇺 Мобильная связь #1
 `;
 
-    // 6. Возвращаем конфиг с правильными заголовками
+    // Отдаём конфиг с правильными заголовками
     return new Response(config, {
       headers: {
         'Content-Type': 'text/plain; charset=utf-8',
         'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*' // опционально, если нужно
+        'Access-Control-Allow-Origin': '*' // разрешаем доступ с любых сайтов
       }
     });
   }
