@@ -168,11 +168,12 @@ export default {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Access-Control-Allow-Origin": "*",
-        "Profile-Title": "wlvpn",               // ← изменено
+        "Profile-Title": "wlvpn ",               // ← изменено
         "Subscription-Status": "active",
-        "Subscription-Traffic": "0 GB / ∞",
+        "Subscription-Traffic": "2141 GB / ∞",
         "Subscription-Expire": "1899589200",
         "subscription-userinfo": "upload=0; download=0; total=0; expire=1899589200"
+        "announce": "vpnerfwfj"
       }
     });
   }
