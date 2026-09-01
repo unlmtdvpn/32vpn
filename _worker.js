@@ -120,7 +120,7 @@ export default {
   remarks: "de Белый список 🏳️",
   network: "xhttp",
   flow: ""
-}
+} ]
 
     // ---- ФУНКЦИЯ ПОСТРОЕНИЯ ПОЛНОГО КОНФИГА ----
     function buildConfig(node) {
