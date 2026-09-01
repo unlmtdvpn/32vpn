@@ -41,6 +41,59 @@ export default {
   network: "tcp",
   flow: "xtls-rprx-vision"
 },
+      {
+  tag: "ru-1",
+  address: "gw-4d184c.vless.monster",
+  port: 8790,
+  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
+  serverName: "gw-4d184c.vless.monster",
+  publicKey: "oDiqoKvCLhB5VGctDUsRwEAnuuZE8YBO5PlYBLh3Zw4",
+  shortId: "4b498e2075eda029",
+  fingerprint: "firefox",
+  remarks: "🇷🇺 Россия",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "gr-1",
+  address: "cdn-279d4a.vless.monster",
+  port: 443,
+  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
+  serverName: "cdn-279d4a.vless.monster",
+  publicKey: "HUw_49W36g87SNkx7BomL8u7WoATpEwxauwlo84t5Bk",
+  shortId: "b6344cc2ddb26812",
+  fingerprint: "firefox",
+  remarks: "🇬🇷 Греция",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "pl-2",
+  address: "edge-f9d842.vless.monster",
+  port: 443,
+  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
+  serverName: "edge-f9d842.vless.monster",
+  publicKey: "iccA0H08sCFQOgutajVfZJsIkJ37gHLqboO1mZwUzAA",
+  shortId: "ccc23e223ba30f0d",
+  fingerprint: "firefox",
+  remarks: "🇵🇱 Польша",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+{
+  tag: "us-1",
+  address: "45.91.138.170",
+  port: 8765,
+  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
+  serverName: "www.yahoo.com",
+  publicKey: "CrAcf2VE4MoZnwgxyWb0iwik1YrG5VC0vPFv1AlxsTQ",
+  shortId: "6a7c9d833bd2",
+  fingerprint: "firefox",
+  remarks: "🇺🇸 США",
+  network: "tcp",
+  flow: "xtls-rprx-vision"
+},
+
 {
   tag: "ru-mobile-1",
   address: "hole-nn.datanode-internal.net",
@@ -55,6 +108,19 @@ export default {
   flow: "",               // можно оставить пустым или удалить
   serviceName: "ads.x5.ru", // добавить
   mode: "gun"              // добавить
+}
+      {
+  tag: "de-2",
+  address: "friendlynode.site",
+  port: 443,
+  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
+  serverName: "friendlynode.site",
+  publicKey: "",
+  shortId: "",
+  fingerprint: "firefox",
+  remarks: "de Белый список 🏳️",
+  network: "xhttp",
+  flow: ""
 }
     ];
 
