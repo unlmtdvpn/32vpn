@@ -78,7 +78,9 @@ export default {
   fingerprint: "qq",
   remarks: "🇷🇺 Мобильная связь #1",
   network: "grpc",
-  flow: ""
+  flow: "",               // можно оставить пустым или удалить
+  serviceName: "ads.x5.ru", // добавить
+  mode: "gun"              // добавить
 }
     ];
 
