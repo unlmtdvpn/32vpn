@@ -2,125 +2,271 @@ export default {
   async fetch(request, env, ctx) {
     // ---- ИСХОДНЫЕ ДАННЫЕ УЗЛОВ (7 ШТУК) ----
     const realNodes = [
-{
-  tag: "proxy",
-  address: "de-new.datanode-internal.net",
-  port: 443,
-  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-  serverName: "ads.x5.ru",
-  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-  shortId: "abbcd128",
-  fingerprint: "qq",
-  remarks: "🇩🇪 Германия",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
-  tag: "se-1",
-  address: "se-new.datanode-internal.net",
-  port: 443,
-  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-  serverName: "ads.x5.ru",
-  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-  shortId: "abbcd128",
-  fingerprint: "qq",
-  remarks: "🇸🇪 Швеция",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
-  tag: "nl",
-  address: "31.76.49.57",
-  port: 8771,
-  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
-  serverName: "www.booking.com",
-  publicKey: "ARdBi_ODGv_zZHyU6dy3V3XQVyqDhMf5C_IIu_VeUlc",
-  shortId: "40a3df2b06bc00a4",
-  fingerprint: "firefox",
-  remarks: "🇳🇱 Нидерланды",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
+  {
+    "remarks": "🇩🇪 Германия",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
       {
-  tag: "ru-1",
-  address: "gw-4d184c.vless.monster",
-  port: 8790,
-  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
-  serverName: "gw-4d184c.vless.monster",
-  publicKey: "oDiqoKvCLhB5VGctDUsRwEAnuuZE8YBO5PlYBLh3Zw4",
-  shortId: "4b498e2075eda029",
-  fingerprint: "firefox",
-  remarks: "🇷🇺 Россия",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
-  tag: "gr-1",
-  address: "cdn-279d4a.vless.monster",
-  port: 443,
-  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
-  serverName: "cdn-279d4a.vless.monster",
-  publicKey: "HUw_49W36g87SNkx7BomL8u7WoATpEwxauwlo84t5Bk",
-  shortId: "b6344cc2ddb26812",
-  fingerprint: "firefox",
-  remarks: "🇬🇷 Греция",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
-  tag: "pl-2",
-  address: "edge-f9d842.vless.monster",
-  port: 443,
-  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
-  serverName: "edge-f9d842.vless.monster",
-  publicKey: "iccA0H08sCFQOgutajVfZJsIkJ37gHLqboO1mZwUzAA",
-  shortId: "ccc23e223ba30f0d",
-  fingerprint: "firefox",
-  remarks: "🇵🇱 Польша",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
-  tag: "us-1",
-  address: "45.91.138.170",
-  port: 8765,
-  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
-  serverName: "www.yahoo.com",
-  publicKey: "CrAcf2VE4MoZnwgxyWb0iwik1YrG5VC0vPFv1AlxsTQ",
-  shortId: "6a7c9d833bd2",
-  fingerprint: "firefox",
-  remarks: "🇺🇸 США",
-  network: "tcp",
-  flow: "xtls-rprx-vision"
-},
-{
-  tag: "ru-mobile-1",
-  address: "hole-nn.datanode-internal.net",
-  port: 443,
-  id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-  serverName: "ads.x5.ru",
-  publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-  shortId: "abbcd128",
-  fingerprint: "qq",
-  remarks: "🇷🇺 Белый список 🏳️",
-  network: "grpc",
-  flow: "",
-  serviceName: "ads.x5.ru",
-  mode: "gun"
-},   // ← запятая добавлена
-{
-  tag: "de-2",
-  address: "friendlynode.site",
-  port: 443,
-  id: "0b0de525-4da4-44b4-a068-27583ccfa8e5",
-  serverName: "friendlynode.site",
-  publicKey: "",
-  shortId: "",
-  fingerprint: "firefox",
-  remarks: "🇩🇪 Белый список 🏳️",
-  network: "xhttp",
-  flow: ""
-} ]
+        "tag": "tl-10-1-mmun7m626es",
+        "address": "de-new.datanode-internal.net",
+        "port": 443,
+        "serverName": "openwrt.lan",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      },
+      {
+        "tag": "tl-10-2-jaev4f0ivl",
+        "address": "res.datanode-internal.net",
+        "port": 443,
+        "serverName": "ads.x5.ru",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      }
+    ],
+    "balancer": {
+      "tag": "bal_10",
+      "selector": ["tl-10-1-mmun7m626es"],
+      "fallbackTag": "tl-10-2-jaev4f0ivl",
+      "strategy": {
+        "type": "leastLoad",
+        "settings": {
+          "baselines": ["4s"],
+          "costs": [
+            { "match": "tl-10-1-mmun7m626es", "regexp": false, "value": 1 },
+            { "match": "tl-10-2-jaev4f0ivl", "regexp": false, "value": 1000000 }
+          ],
+          "expected": 1,
+          "maxRTT": "6s"
+        }
+      }
+    }
+  },
+  {
+    "remarks": "LTE АВТО",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
+      {
+        "tag": "tl-8-1-3993jb7obnk",
+        "address": "res.datanode-internal.net",
+        "port": 443,
+        "serverName": "ads.x5.ru",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      },
+      {
+        "tag": "tl-8-2-j0sn29k3pss",
+        "address": "hole-nn.datanode-internal.net",
+        "port": 443,
+        "serverName": "ads.x5.ru",
+        "network": "grpc",
+        "flow": "",
+        "fingerprint": "qq",
+        "serviceName": "ads.x5.ru",
+        "mode": false
+      },
+      {
+        "tag": "tl-8-3-qtoghahk09g",
+        "address": "de-new.datanode-internal.net",
+        "port": 443,
+        "serverName": "openwrt.lan",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      }
+    ],
+    "balancer": {
+      "tag": "bal_8",
+      "selector": ["tl-8-1-3993jb7obnk", "tl-8-3-qtoghahk09g"],
+      "fallbackTag": "tl-8-2-j0sn29k3pss",
+      "strategy": {
+        "type": "leastLoad",
+        "settings": {
+          "baselines": ["4s"],
+          "costs": [
+            { "match": "tl-8-1-3993jb7obnk", "regexp": false, "value": 10000 },
+            { "match": "tl-8-2-j0sn29k3pss", "regexp": false, "value": 20000000 },
+            { "match": "tl-8-3-qtoghahk09g", "regexp": false, "value": 1 }
+          ],
+          "expected": 1,
+          "maxRTT": "6s"
+        }
+      }
+    }
+  },
+  {
+    "remarks": "🇸🇪 Швеция",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
+      {
+        "tag": "tl-12-1-rk2dnp28jdk",
+        "address": "res.datanode-internal.net",
+        "port": 443,
+        "serverName": "ads.x5.ru",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      },
+      {
+        "tag": "tl-12-2-24lalbb784c",
+        "address": "se-new.datanode-internal.net",
+        "port": 443,
+        "serverName": "openwrt.lan",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      }
+    ],
+    "balancer": {
+      "tag": "bal_12",
+      "selector": ["tl-12-2-24lalbb784c"],
+      "fallbackTag": "tl-12-1-rk2dnp28jdk",
+      "strategy": {
+        "type": "leastLoad",
+        "settings": {
+          "baselines": ["4s"],
+          "costs": [
+            { "match": "tl-12-1-rk2dnp28jdk", "regexp": false, "value": 1000000 },
+            { "match": "tl-12-2-24lalbb784c", "regexp": false, "value": 1 }
+          ],
+          "expected": 1,
+          "maxRTT": "6s"
+        }
+      }
+    }
+  },
+  {
+    "remarks": "🇵🇱 Польша",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
+      {
+        "tag": "proxy",
+        "address": "pl.datanode-internal.net",
+        "port": 443,
+        "serverName": "openwrt.lan",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      }
+    ]
+  },
+  {
+    "remarks": "🇫🇮 Финляндия",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
+      {
+        "tag": "proxy",
+        "address": "fi.datanode-internal.net",
+        "port": 443,
+        "serverName": "openwrt.lan",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      }
+    ]
+  },
+  {
+    "remarks": "🇷🇺 Россия",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
+      {
+        "tag": "proxy",
+        "address": "ru.datanode-internal.net",
+        "port": 443,
+        "serverName": "openwrt.lan",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      }
+    ]
+  },
+  {
+    "remarks": "🇹🇷 Турция",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
+      {
+        "tag": "proxy",
+        "address": "tr.datanode-internal.net",
+        "port": 443,
+        "serverName": "sun9-38.userapi.com",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": ""
+      }
+    ]
+  },
+  {
+    "remarks": "🇩🇪 Мобильная связь #1",
+    "id": "31dac09f-78ee-49ca-9566-d20aea578fdc",
+    "publicKey": "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
+    "shortId": "abbcd128",
+    "servers": [
+      {
+        "tag": "tl-13-1-p7lfh5gqob4",
+        "address": "res.datanode-internal.net",
+        "port": 443,
+        "serverName": "ads.x5.ru",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      },
+      {
+        "tag": "tl-13-2-d3qvnhsk0fs",
+        "address": "de-new.datanode-internal.net",
+        "port": 443,
+        "serverName": "openwrt.lan",
+        "network": "tcp",
+        "flow": "xtls-rprx-vision",
+        "fingerprint": "qq"
+      },
+      {
+        "tag": "tl-13-3-64krq83drn4",
+        "address": "hole-nn.datanode-internal.net",
+        "port": 443,
+        "serverName": "ads.x5.ru",
+        "network": "grpc",
+        "flow": "",
+        "fingerprint": "qq",
+        "serviceName": "ads.x5.ru",
+        "mode": false
+      }
+    ],
+    "balancer": {
+      "tag": "bal_13",
+      "selector": ["tl-13-1-p7lfh5gqob4", "tl-13-2-d3qvnhsk0fs"],
+      "fallbackTag": "tl-13-3-64krq83drn4",
+      "strategy": {
+        "type": "leastLoad",
+        "settings": {
+          "baselines": ["4s"],
+          "costs": [
+            { "match": "tl-13-1-p7lfh5gqob4", "regexp": false, "value": 100000 },
+            { "match": "tl-13-2-d3qvnhsk0fs", "regexp": false, "value": 1 },
+            { "match": "tl-13-3-64krq83drn4", "regexp": false, "value": 1000000 }
+          ],
+          "expected": 1,
+          "maxRTT": "6s"
+        }
+      }
+    }
+  }
+]
 
     // ---- ФУНКЦИЯ ПОСТРОЕНИЯ ПОЛНОГО КОНФИГА ----
 function buildConfig(node) {
