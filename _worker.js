@@ -2,7 +2,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const TRAFFIC_SOURCE_URL = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
-    const FAKE_UA = 'Happ/4.3.0/Android';
+    const FAKE_UA = 'INCY/3.6.5/android';
 
     let sourceStatus = 0;
     let rawHeaders = {};
@@ -43,7 +43,6 @@ export default {
       rawBody = "FETCH ERROR: " + e.message;
     }
 
-    // ---- /debug ----
     if (url.pathname === "/debug" || url.searchParams.get("debug") === "1") {
       return new Response(JSON.stringify({
         sourceStatus,
@@ -54,7 +53,6 @@ export default {
       });
     }
 
-    // ---- Отдаём тело ровно как пришло ----
     const outHeaders = {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
