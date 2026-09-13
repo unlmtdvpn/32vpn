@@ -1,5 +1,11 @@
 const APP_NAME = "WLVPN";
 
+const DEFAULT_SOURCE_URL =
+  "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
+
+const DEFAULT_UA =
+  "INCY/3.6.5/android";
+
 const SESSION_TTL =
   60 * 60 * 24 * 7;
 
@@ -25,7 +31,7 @@ export default {
       return new Response(
         null,
         {
-          headers: cors()
+          headers: corsHeaders()
         }
       );
 
@@ -81,13 +87,23 @@ export default {
   },
 
 
-  // CRON
+  async scheduled(event, env, ctx) {
 
-  async scheduled(
-    event,
-    env,
-    ctx
-  ) {
+    // Source update
+
+    if (
+      event.cron ===
+      "*/30 * * * *"
+    ) {
+
+      ctx.waitUntil(
+        updateSourceCache(env)
+      );
+
+    }
+
+
+    // Daily traffic
 
     if (
       event.cron ===
@@ -100,41 +116,16 @@ export default {
 
     }
 
-
-    if (
-      event.cron ===
-      "*/5 * * * *"
-    ) {
-
-      ctx.waitUntil(
-        checkServers(env)
-      );
-
-    }
-
-
-    if (
-      event.cron ===
-      "0 * * * *"
-    ) {
-
-      ctx.waitUntil(
-        cleanupSessions(env)
-      );
-
-    }
-
   }
 
 };
-
 
 
 // =====================================================
 // CORS
 // =====================================================
 
-function cors() {
+function corsHeaders() {
 
   return {
 
@@ -142,18 +133,14 @@ function cors() {
       "*",
 
     "Access-Control-Allow-Methods":
-
       "GET,POST,PATCH,DELETE,OPTIONS",
 
-
     "Access-Control-Allow-Headers":
-
       "Content-Type"
 
   };
 
 }
-
 
 
 // =====================================================
@@ -171,22 +158,20 @@ async function apiRouter(
     url.pathname;
 
 
-  // ===============================================
   // PUBLIC STATUS
-  // ===============================================
 
   if (
     path === "/api/status"
   ) {
 
-    return publicStatus(env);
+    return publicStatus(
+      env
+    );
 
   }
 
 
-  // ===============================================
   // LOGIN
-  // ===============================================
 
   if (
     path === "/api/login" &&
@@ -201,9 +186,7 @@ async function apiRouter(
   }
 
 
-  // ===============================================
   // LOGOUT
-  // ===============================================
 
   if (
     path === "/api/logout" &&
@@ -218,36 +201,32 @@ async function apiRouter(
   }
 
 
-  // ===============================================
   // AUTH CHECK
-  // ===============================================
 
   if (
     path === "/api/admin/check"
   ) {
 
-    const authorized =
-      await auth(
+    const ok =
+      await isAdmin(
         request,
         env
       );
 
 
-    return Response.json({
+    return json({
 
-      authorized
+      authorized: ok
 
     });
 
   }
 
 
-  // ===============================================
-  // AUTH REQUIRED
-  // ===============================================
+  // ALL BELOW ADMIN ONLY
 
   if (
-    !await auth(
+    !await isAdmin(
       request,
       env
     )
@@ -261,23 +240,90 @@ async function apiRouter(
   }
 
 
-  // ===============================================
   // DASHBOARD
-  // ===============================================
 
   if (
     path ===
     "/api/admin/dashboard"
   ) {
 
-    return dashboard(env);
+    return dashboard(
+      env
+    );
 
   }
 
 
-  // ===============================================
+  // ==============================
+  // SOURCE
+  // ==============================
+
+
+  if (
+    path ===
+    "/api/admin/source"
+  ) {
+
+    if (
+      request.method === "GET"
+    ) {
+
+      return sourceInfo(
+        env
+      );
+
+    }
+
+
+    if (
+      request.method === "POST"
+    ) {
+
+      return updateSourceSettings(
+        request,
+        env
+      );
+
+    }
+
+  }
+
+
+  if (
+    path ===
+    "/api/admin/source/update" &&
+    request.method === "POST"
+  ) {
+
+    const result =
+      await updateSourceCache(
+        env
+      );
+
+
+    return json(
+      result
+    );
+
+  }
+
+
+  if (
+    path ===
+    "/api/admin/source/preview"
+  ) {
+
+    return sourcePreview(
+      env
+    );
+
+  }
+
+
+  // ==============================
   // SUBSCRIPTIONS
-  // ===============================================
+  // ==============================
+
 
   if (
     path ===
@@ -309,22 +355,16 @@ async function apiRouter(
   }
 
 
-  // ===============================================
-  // SUBSCRIPTION ACTIONS
-  // ===============================================
-
-  const sub =
+  const subMatch =
     path.match(
-
       /^\/api\/admin\/subscriptions\/([^/]+)$/
-
     );
 
 
-  if (sub) {
+  if (subMatch) {
 
     const id =
-      sub[1];
+      subMatch[1];
 
 
     if (
@@ -366,45 +406,58 @@ async function apiRouter(
   }
 
 
-  // ===============================================
-  // SUBSCRIPTION TRAFFIC
-  // ===============================================
+  // SUB TRAFFIC
 
-  const traffic =
+  const trafficMatch =
     path.match(
-
       /^\/api\/admin\/subscriptions\/([^/]+)\/traffic$/
-
     );
 
 
   if (
-    traffic &&
+    trafficMatch &&
     request.method === "POST"
   ) {
 
-    return changeTraffic(
+    return addTraffic(
       request,
       env,
-      traffic[1]
+      trafficMatch[1]
     );
 
   }
 
 
-  // ===============================================
-  // SUBSCRIPTION SERVERS
-  // ===============================================
+  // SUB REGENERATE TOKEN
 
-  const subServers =
+  const regenerateMatch =
     path.match(
-
-      /^\/api\/admin\/subscriptions\/([^/]+)\/servers$/
-
+      /^\/api\/admin\/subscriptions\/([^/]+)\/regenerate$/
     );
 
 
-  if (subServers) {
+  if (
+    regenerateMatch &&
+    request.method === "POST"
+  ) {
+
+    return regenerateToken(
+      env,
+      regenerateMatch[1]
+    );
+
+  }
+
+
+  // SUB SERVERS
+
+  const subServersMatch =
+    path.match(
+      /^\/api\/admin\/subscriptions\/([^/]+)\/servers$/
+    );
+
+
+  if (subServersMatch) {
 
     if (
       request.method === "GET"
@@ -412,7 +465,7 @@ async function apiRouter(
 
       return getSubscriptionServers(
         env,
-        subServers[1]
+        subServersMatch[1]
       );
 
     }
@@ -425,7 +478,7 @@ async function apiRouter(
       return setSubscriptionServers(
         request,
         env,
-        subServers[1]
+        subServersMatch[1]
       );
 
     }
@@ -433,9 +486,10 @@ async function apiRouter(
   }
 
 
-  // ===============================================
+  // ==============================
   // SERVERS
-  // ===============================================
+  // ==============================
+
 
   if (
     path ===
@@ -446,7 +500,9 @@ async function apiRouter(
       request.method === "GET"
     ) {
 
-      return getServers(env);
+      return getServers(
+        env
+      );
 
     }
 
@@ -465,19 +521,13 @@ async function apiRouter(
   }
 
 
-  // ===============================================
-  // SINGLE SERVER
-  // ===============================================
-
-  const server =
+  const serverMatch =
     path.match(
-
       /^\/api\/admin\/servers\/([^/]+)$/
-
     );
 
 
-  if (server) {
+  if (serverMatch) {
 
     if (
       request.method === "PATCH"
@@ -486,7 +536,7 @@ async function apiRouter(
       return updateServer(
         request,
         env,
-        server[1]
+        serverMatch[1]
       );
 
     }
@@ -498,7 +548,7 @@ async function apiRouter(
 
       return deleteServer(
         env,
-        server[1]
+        serverMatch[1]
       );
 
     }
@@ -506,26 +556,18 @@ async function apiRouter(
   }
 
 
-  // ===============================================
-  // SERVER CHECK
-  // ===============================================
+  // IMPORT
 
   if (
     path ===
-    "/api/admin/check-servers" &&
+    "/api/admin/servers/import" &&
     request.method === "POST"
   ) {
 
-    ctx.waitUntil(
-      checkServers(env)
+    return importServers(
+      request,
+      env
     );
-
-
-    return Response.json({
-
-      success: true
-
-    });
 
   }
 
@@ -538,7 +580,6 @@ async function apiRouter(
 }
 
 
-
 // =====================================================
 // AUTH
 // =====================================================
@@ -548,12 +589,26 @@ async function login(
   env
 ) {
 
-  const body =
-    await request.json();
+  const data =
+    await safeJson(
+      request
+    );
 
 
   if (
-    body.password !==
+    !env.ADMIN_PASSWORD
+  ) {
+
+    return error(
+      "ADMIN_PASSWORD secret not configured",
+      500
+    );
+
+  }
+
+
+  if (
+    data.password !==
     env.ADMIN_PASSWORD
   ) {
 
@@ -571,7 +626,7 @@ async function login(
 
   await env.KV.put(
 
-    `session:${session}`,
+    "session:" + session,
 
     "1",
 
@@ -585,7 +640,7 @@ async function login(
   );
 
 
-  await log(
+  await adminLog(
 
     env,
 
@@ -596,7 +651,7 @@ async function login(
   );
 
 
-  return Response.json(
+  return json(
 
     {
 
@@ -604,25 +659,23 @@ async function login(
 
     },
 
+    200,
+
     {
 
-      headers: {
+      "Set-Cookie":
 
-        "Set-Cookie":
+        `session=${session}; ` +
 
-          `session=${session}; ` +
+        "HttpOnly; " +
 
-          "HttpOnly; " +
+        "Secure; " +
 
-          "Secure; " +
+        "SameSite=Strict; " +
 
-          "SameSite=Strict; " +
+        "Path=/; " +
 
-          "Path=/; " +
-
-          `Max-Age=${SESSION_TTL}`
-
-      }
+        `Max-Age=${SESSION_TTL}`
 
     }
 
@@ -631,26 +684,27 @@ async function login(
 }
 
 
-
 async function logout(
   request,
   env
 ) {
 
-  const session =
-    sessionId(request);
+  const id =
+    getSessionId(
+      request
+    );
 
 
-  if (session) {
+  if (id) {
 
     await env.KV.delete(
-      `session:${session}`
+      "session:" + id
     );
 
   }
 
 
-  return Response.json({
+  return json({
 
     success: true
 
@@ -659,38 +713,43 @@ async function logout(
 }
 
 
-
-async function auth(
+async function isAdmin(
   request,
   env
 ) {
 
   const id =
-    sessionId(request);
-
-
-  if (!id)
-    return false;
-
-
-  const value =
-    await env.KV.get(
-      `session:${id}`
+    getSessionId(
+      request
     );
 
 
-  return !!value;
+  if (!id) {
+
+    return false;
+
+  }
+
+
+  const session =
+    await env.KV.get(
+      "session:" + id
+    );
+
+
+  return !!session;
 
 }
 
 
-
-function sessionId(
+function getSessionId(
   request
 ) {
 
   const cookie =
-    request.headers.get("Cookie") || "";
+    request.headers.get(
+      "Cookie"
+    ) || "";
 
 
   const match =
@@ -706,1063 +765,359 @@ function sessionId(
 }
 
 
-
 // =====================================================
-// SUBSCRIPTION ROUTER
-// =====================================================
-
-async function subscriptionRouter(
-  request,
-  env,
-  url
-) {
-
-  const parts =
-    url.pathname
-      .split("/")
-      .filter(Boolean);
-
-
-  const token =
-    parts[1];
-
-
-  const format =
-    parts[2] || "auto";
-
-
-  const subscription =
-    await env.DB.prepare(
-
-      `
-      SELECT *
-      FROM subscriptions
-      WHERE token=?
-      `
-
-    )
-    .bind(token)
-    .first();
-
-
-  if (!subscription) {
-
-    return new Response(
-
-      "Subscription not found",
-
-      {
-
-        status: 404
-
-      }
-
-    );
-
-  }
-
-
-  // ===============================================
-  // DISABLED
-  // ===============================================
-
-  if (
-    subscription.status !==
-    "active"
-  ) {
-
-    return disabledResponse(
-      format
-    );
-
-  }
-
-
-  // ===============================================
-  // EXPIRED
-  // ===============================================
-
-  if (
-    subscription.expires_at
-  ) {
-
-    const expire =
-      new Date(
-        subscription.expires_at
-      );
-
-
-    if (
-      expire < new Date()
-    ) {
-
-      return expiredResponse(
-        format
-      );
-
-    }
-
-  }
-
-
-  // ===============================================
-  // TRAFFIC LIMIT
-  // ===============================================
-
-  if (
-
-    subscription.traffic_limit_gb > 0 &&
-
-    subscription.traffic_used_gb >=
-    subscription.traffic_limit_gb
-
-  ) {
-
-    return limitResponse(
-      format
-    );
-
-  }
-
-
-  // ===============================================
-  // GET SERVERS
-  // ===============================================
-
-  const servers =
-    await getServersForSubscription(
-
-      env,
-
-      subscription.id
-
-    );
-
-
-  // ===============================================
-  // SING-BOX
-  // ===============================================
-
-  if (
-    format === "singbox"
-  ) {
-
-    return singboxResponse(
-
-      subscription,
-
-      servers
-
-    );
-
-  }
-
-
-  // ===============================================
-  // JSON
-  // ===============================================
-
-  if (
-    format === "json"
-  ) {
-
-    return Response.json({
-
-      subscription,
-
-      servers,
-
-      configs:
-
-        servers.map(
-
-          server =>
-
-            buildVless(
-
-              subscription,
-              server
-
-            )
-
-        )
-
-    });
-
-  }
-
-
-  // ===============================================
-  // INFO
-  // ===============================================
-
-  if (
-    format === "info"
-  ) {
-
-    return subscriptionInfo(
-      subscription
-    );
-
-  }
-
-
-  // ===============================================
-  // VLESS
-  // ===============================================
-
-  const configs =
-    servers.map(
-
-      server =>
-
-        buildVless(
-
-          subscription,
-
-          server
-
-        )
-
-    );
-
-
-  const text =
-    configs.join("\\n");
-
-
-  // ===============================================
-  // BASE64
-  // ===============================================
-
-  if (
-    format === "base64"
-  ) {
-
-    return new Response(
-
-      toBase64(text),
-
-      {
-
-        headers:
-
-          subscriptionHeaders(
-            subscription
-          )
-
-      }
-
-    );
-
-  }
-
-
-  // ===============================================
-  // NORMAL
-  // ===============================================
-
-  return new Response(
-
-    text,
-
-    {
-
-      headers:
-
-        subscriptionHeaders(
-          subscription
-        )
-
-    }
-
-  );
-
-}
-
-
-
-// =====================================================
-// GET SERVERS FOR USER
+// SOURCE SETTINGS
 // =====================================================
 
-async function getServersForSubscription(
-  env,
-  subscriptionId
-) {
-
-  const assigned =
-    await env.DB.prepare(
-
-      `
-      SELECT
-
-        s.*
-
-      FROM vpn_servers s
-
-      INNER JOIN
-      subscription_servers ss
-
-      ON
-
-        ss.server_id=s.id
-
-      WHERE
-
-        ss.subscription_id=?
-
-      AND
-
-        s.enabled=1
-
-      ORDER BY
-
-        s.priority ASC
-      `
-
-    )
-    .bind(subscriptionId)
-    .all();
-
-
-  // Если серверы не назначены
-  // использовать все активные
-
-  if (
-    assigned.results.length > 0
-  ) {
-
-    return assigned.results;
-
-  }
-
-
-  const all =
-    await env.DB.prepare(
-
-      `
-      SELECT *
-
-      FROM vpn_servers
-
-      WHERE enabled=1
-
-      ORDER BY priority ASC
-      `
-
-    )
-    .all();
-
-
-  return all.results;
-
-}
-
-
-
-// =====================================================
-// BUILD VLESS
-// =====================================================
-
-function buildVless(
-  subscription,
-  server
-) {
-
-  const uuid =
-    subscription.user_uuid;
-
-
-  const name =
-    encodeURIComponent(
-
-      `${server.country} ${server.name}`
-
-    );
-
-
-  const params =
-    new URLSearchParams();
-
-
-  params.set(
-
-    "encryption",
-
-    server.encryption || "none"
-
-  );
-
-
-  if (
-    server.flow
-  ) {
-
-    params.set(
-      "flow",
-      server.flow
-    );
-
-  }
-
-
-  params.set(
-
-    "type",
-
-    server.network || "tcp"
-
-  );
-
-
-  params.set(
-
-    "security",
-
-    server.security || "none"
-
-  );
-
-
-  // ===============================================
-  // REALITY
-  // ===============================================
-
-  if (
-    server.security ===
-    "reality"
-  ) {
-
-    params.set(
-
-      "pbk",
-
-      server.public_key
-
-    );
-
-
-    if (
-      server.short_id
-    ) {
-
-      params.set(
-
-        "sid",
-
-        server.short_id
-
-      );
-
-    }
-
-
-    if (
-      server.sni
-    ) {
-
-      params.set(
-
-        "sni",
-
-        server.sni
-
-      );
-
-    }
-
-
-    params.set(
-
-      "fp",
-
-      server.fingerprint ||
-      "chrome"
-
-    );
-
-  }
-
-
-  // ===============================================
-  // TLS
-  // ===============================================
-
-  if (
-
-    server.security === "tls" &&
-
-    server.sni
-
-  ) {
-
-    params.set(
-      "sni",
-      server.sni
-    );
-
-  }
-
-
-  // ===============================================
-  // WS
-  // ===============================================
-
-  if (
-    server.network === "ws"
-  ) {
-
-    if (
-      server.path
-    ) {
-
-      params.set(
-        "path",
-        server.path
-      );
-
-    }
-
-
-    if (
-      server.host
-    ) {
-
-      params.set(
-        "host",
-        server.host
-      );
-
-    }
-
-  }
-
-
-  // ===============================================
-  // GRPC
-  // ===============================================
-
-  if (
-    server.network === "grpc"
-  ) {
-
-    if (
-      server.service_name
-    ) {
-
-      params.set(
-
-        "serviceName",
-
-        server.service_name
-
-      );
-
-    }
-
-  }
-
-
-  // ===============================================
-  // ALPN
-  // ===============================================
-
-  if (
-    server.alpn
-  ) {
-
-    params.set(
-      "alpn",
-      server.alpn
-    );
-
-  }
-
-
-  return (
-
-    `vless://` +
-
-    `${uuid}@` +
-
-    `${server.address}:` +
-
-    `${server.port}` +
-
-    `?${params.toString()}` +
-
-    `#${name}`
-
-  );
-
-}
-
-
-
-// =====================================================
-// SING-BOX
-// =====================================================
-
-function singboxResponse(
-  subscription,
-  servers
-) {
-
-  const outbounds =
-    servers.map(
-
-      server =>
-
-        buildSingboxOutbound(
-
-          subscription,
-
-          server
-
-        )
-
-    );
-
-
-  const config = {
-
-    log: {
-
-      level:
-        "info"
-
-    },
-
-
-    outbounds,
-
-
-    route: {
-
-      auto_detect_interface:
-        true
-
-    }
-
-  };
-
-
-  return Response.json(
-
-    config,
-
-    {
-
-      headers: {
-
-        "Content-Disposition":
-
-          `attachment; filename="${safeName(subscription.name)}.json"`,
-
-        "Cache-Control":
-          "no-store"
-
-      }
-
-    }
-
-  );
-
-}
-
-
-
-// =====================================================
-// BUILD SINGBOX OUTBOUND
-// =====================================================
-
-function buildSingboxOutbound(
-  subscription,
-  server
-) {
-
-  const outbound = {
-
-    type:
-      "vless",
-
-
-    tag:
-
-      `${server.country} ${server.name}`,
-
-
-    server:
-      server.address,
-
-
-    server_port:
-      Number(server.port),
-
-
-    uuid:
-      subscription.user_uuid,
-
-
-    flow:
-      server.flow || ""
-
-
-  };
-
-
-  // ===============================================
-  // TLS
-  // ===============================================
-
-  if (
-
-    server.security === "tls" ||
-
-    server.security === "reality"
-
-  ) {
-
-    outbound.tls = {
-
-      enabled:
-        true,
-
-      server_name:
-        server.sni || ""
-
-    };
-
-
-  }
-
-
-  // ===============================================
-  // REALITY
-  // ===============================================
-
-  if (
-    server.security ===
-    "reality"
-  ) {
-
-    outbound.tls.reality = {
-
-      enabled:
-        true,
-
-      public_key:
-        server.public_key,
-
-
-      short_id:
-        server.short_id
-
-    };
-
-
-    outbound.tls.utls = {
-
-      enabled:
-        true,
-
-      fingerprint:
-
-        server.fingerprint ||
-        "chrome"
-
-    };
-
-  }
-
-
-  // ===============================================
-  // TRANSPORT
-  // ===============================================
-
-  if (
-    server.network ===
-    "ws"
-  ) {
-
-    outbound.transport = {
-
-      type:
-        "ws",
-
-      path:
-        server.path || "/",
-
-
-      headers: {}
-
-    };
-
-
-    if (
-      server.host
-    ) {
-
-      outbound.transport.headers.Host =
-        server.host;
-
-    }
-
-  }
-
-
-  if (
-    server.network ===
-    "grpc"
-  ) {
-
-    outbound.transport = {
-
-      type:
-        "grpc",
-
-      service_name:
-        server.service_name || ""
-
-    };
-
-  }
-
-
-  return outbound;
-
-}
-
-
-
-// =====================================================
-// SUBSCRIPTION HEADERS
-// =====================================================
-
-function subscriptionHeaders(
-  subscription
-) {
-
-  const total =
-    Math.round(
-
-      subscription.traffic_limit_gb *
-
-      1024 *
-
-      1024 *
-
-      1024
-
-    );
-
-
-  const used =
-    Math.round(
-
-      subscription.traffic_used_gb *
-
-      1024 *
-
-      1024 *
-
-      1024
-
-    );
-
-
-  return {
-
-    "Content-Type":
-
-      "text/plain; charset=utf-8",
-
-
-    "Profile-Title":
-
-      subscription.name,
-
-
-    "Subscription-Userinfo":
-
-      `upload=0; ` +
-
-      `download=${used}; ` +
-
-      `total=${total}; ` +
-
-      `expire=${subscription.expires_at ? Math.floor(new Date(subscription.expires_at).getTime()/1000) : 0}`,
-
-
-    "Profile-Update-Interval":
-      "24",
-
-
-    "Cache-Control":
-      "no-store"
-
-  };
-
-}
-
-
-
-// =====================================================
-// CREATE SUBSCRIPTION
-// =====================================================
-
-async function createSubscription(
-  request,
+async function getSourceUrl(
   env
 ) {
 
-  const data =
-    await request.json();
+  const result =
+    await env.DB.prepare(
 
-
-  const id =
-    crypto.randomUUID();
-
-
-  const token =
-    generateToken();
-
-
-  const userUUID =
-    crypto.randomUUID();
-
-
-  const name =
-    String(
-
-      data.name ||
-      "WLVPN User"
-
-    );
-
-
-  const trafficLimit =
-    Number(
-
-      data.traffic_limit_gb || 0
-
-    );
-
-
-  const deviceLimit =
-    Number(
-
-      data.device_limit || 1
-
-    );
-
-
-  const expires =
-    data.expires_at || null;
-
-
-  await env.DB.prepare(
-
-    `
-    INSERT INTO subscriptions (
-
-      id,
-
-      token,
-
-      name,
-
-      user_uuid,
-
-      traffic_limit_gb,
-
-      device_limit,
-
-      expires_at,
-
-      status
+      `
+      SELECT value
+      FROM settings
+      WHERE key='source_url'
+      `
 
     )
-
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
-    `
-
-  )
-  .bind(
-
-    id,
-
-    token,
-
-    name,
-
-    userUUID,
-
-    trafficLimit,
-
-    deviceLimit,
-
-    expires
-
-  )
-  .run();
+    .first();
 
 
-  await log(
+  return result?.value ||
+    DEFAULT_SOURCE_URL;
 
-    env,
-
-    "SUB_CREATED",
-
-    name
-
-  );
+}
 
 
-  return Response.json({
+async function getSourceUA(
+  env
+) {
 
-    success:
-      true,
+  const result =
+    await env.DB.prepare(
 
+      `
+      SELECT value
+      FROM settings
+      WHERE key='source_ua'
+      `
 
-    subscription: {
-
-      id,
-
-      token,
-
-      name,
-
-      uuid:
-        userUUID,
-
-
-      url:
-
-        `/sub/${token}`,
+    )
+    .first();
 
 
-      singbox:
+  return result?.value ||
+    DEFAULT_UA;
 
-        `/sub/${token}/singbox`,
+}
 
 
-      base64:
+// =====================================================
+// UPDATE SOURCE CACHE
+// =====================================================
 
-        `/sub/${token}/base64`
+async function updateSourceCache(
+  env
+) {
 
+  const sourceUrl =
+    await getSourceUrl(
+      env
+    );
+
+
+  const ua =
+    await getSourceUA(
+      env
+    );
+
+
+  try {
+
+    const response =
+      await fetch(
+        sourceUrl,
+        {
+
+          headers: {
+
+            "User-Agent":
+              ua,
+
+            "Accept":
+              "*/*"
+
+          },
+
+          cf: {
+
+            cacheTtl: 0
+
+          }
+
+        }
+      );
+
+
+    const text =
+      await response.text();
+
+
+    if (
+      !response.ok
+    ) {
+
+      return {
+
+        success: false,
+
+        status:
+          response.status
+
+      };
 
     }
+
+
+    await env.KV.put(
+
+      "source:configs",
+
+      text
+
+    );
+
+
+    await env.KV.put(
+
+      "source:meta",
+
+      JSON.stringify({
+
+        status:
+          response.status,
+
+        updated_at:
+
+          new Date()
+          .toISOString(),
+
+        size:
+          text.length,
+
+        configs:
+          countConfigs(text)
+
+      })
+
+    );
+
+
+    await adminLog(
+
+      env,
+
+      "SOURCE_UPDATE",
+
+      `Configs: ${countConfigs(text)}`
+
+    );
+
+
+    return {
+
+      success: true,
+
+      status:
+        response.status,
+
+      configs:
+        countConfigs(text)
+
+    };
+
+  }
+
+  catch (e) {
+
+    return {
+
+      success: false,
+
+      error:
+        e.message
+
+    };
+
+  }
+
+}
+
+
+// =====================================================
+// SOURCE INFO
+// =====================================================
+
+async function sourceInfo(
+  env
+) {
+
+  const meta =
+    await env.KV.get(
+      "source:meta"
+    );
+
+
+  return json({
+
+    url:
+      await getSourceUrl(env),
+
+    meta:
+
+      meta
+        ? JSON.parse(meta)
+        : null
 
   });
 
 }
 
 
+// =====================================================
+// UPDATE SOURCE SETTINGS
+// =====================================================
+
+async function updateSourceSettings(
+  request,
+  env
+) {
+
+  const data =
+    await safeJson(
+      request
+    );
+
+
+  if (
+    data.url
+  ) {
+
+    await setSetting(
+
+      env,
+
+      "source_url",
+
+      data.url
+
+    );
+
+  }
+
+
+  if (
+    data.user_agent
+  ) {
+
+    await setSetting(
+
+      env,
+
+      "source_ua",
+
+      data.user_agent
+
+    );
+
+  }
+
+
+  return json({
+
+    success: true
+
+  });
+
+}
+
 
 // =====================================================
-// GET SUBSCRIPTIONS
+// SOURCE PREVIEW
+// =====================================================
+
+async function sourcePreview(
+  env
+) {
+
+  const text =
+    await env.KV.get(
+      "source:configs"
+    );
+
+
+  return json({
+
+    exists:
+      !!text,
+
+    configs:
+      text
+        ? countConfigs(text)
+        : 0,
+
+    preview:
+      text
+        ? text.slice(0, 3000)
+        : ""
+
+  });
+
+}
+
+
+// =====================================================
+// SETTINGS
+// =====================================================
+
+async function setSetting(
+  env,
+  key,
+  value
+) {
+
+  await env.DB.prepare(
+
+    `
+    INSERT INTO settings (
+      key,
+      value
+    )
+
+    VALUES (?, ?)
+
+    ON CONFLICT(key)
+
+    DO UPDATE SET
+
+    value=excluded.value
+    `
+
+  )
+  .bind(
+    key,
+    value
+  )
+  .run();
+
+}
+
+
+// =====================================================
+// SUBSCRIPTIONS
 // =====================================================
 
 async function getSubscriptions(
@@ -1786,17 +1141,12 @@ async function getSubscriptions(
     .all();
 
 
-  return Response.json(
+  return json(
     result.results
   );
 
 }
 
-
-
-// =====================================================
-// GET SUBSCRIPTION
-// =====================================================
 
 async function getSubscription(
   env,
@@ -1804,19 +1154,10 @@ async function getSubscription(
 ) {
 
   const result =
-    await env.DB.prepare(
-
-      `
-      SELECT *
-
-      FROM subscriptions
-
-      WHERE id=?
-      `
-
-    )
-    .bind(id)
-    .first();
+    await getSub(
+      env,
+      id
+    );
 
 
   if (!result) {
@@ -1829,17 +1170,122 @@ async function getSubscription(
   }
 
 
-  return Response.json(
+  return json(
     result
   );
 
 }
 
 
+async function createSubscription(
+  request,
+  env
+) {
 
-// =====================================================
-// UPDATE SUBSCRIPTION
-// =====================================================
+  const data =
+    await safeJson(
+      request
+    );
+
+
+  const id =
+    crypto.randomUUID();
+
+
+  const token =
+    generateToken();
+
+
+  const name =
+    String(
+      data.name ||
+      "WLVPN User"
+    );
+
+
+  const limit =
+    Number(
+      data.traffic_limit_gb || 0
+    );
+
+
+  const useSource =
+    data.use_source === false
+      ? 0
+      : 1;
+
+
+  await env.DB.prepare(
+
+    `
+    INSERT INTO subscriptions (
+
+      id,
+
+      token,
+
+      name,
+
+      traffic_limit_gb,
+
+      expires_at,
+
+      use_source
+
+    )
+
+    VALUES (
+
+      ?,?,?,?,?,?
+
+    )
+    `
+
+  )
+  .bind(
+
+    id,
+
+    token,
+
+    name,
+
+    limit,
+
+    data.expires_at || null,
+
+    useSource
+
+  )
+  .run();
+
+
+  await adminLog(
+
+    env,
+
+    "SUB_CREATE",
+
+    name
+
+  );
+
+
+  return json({
+
+    success: true,
+
+    id,
+
+    token,
+
+    url:
+      `/sub/${token}`
+
+  });
+
+}
+
 
 async function updateSubscription(
   request,
@@ -1848,192 +1294,8 @@ async function updateSubscription(
 ) {
 
   const data =
-    await request.json();
-
-
-  const current =
-    await getSub(
-      env,
-      id
-    );
-
-
-  if (!current) {
-
-    return error(
-      "Not found",
-      404
-    );
-
-  }
-
-
-  const name =
-    data.name ??
-    current.name;
-
-
-  const status =
-    data.status ??
-    current.status;
-
-
-  const limit =
-    data.traffic_limit_gb ??
-    current.traffic_limit_gb;
-
-
-  const deviceLimit =
-    data.device_limit ??
-    current.device_limit;
-
-
-  const expires =
-    data.expires_at ??
-    current.expires_at;
-
-
-  await env.DB.prepare(
-
-    `
-    UPDATE subscriptions
-
-    SET
-
-      name=?,
-
-      status=?,
-
-      traffic_limit_gb=?,
-
-      device_limit=?,
-
-      expires_at=?,
-
-      updated_at=CURRENT_TIMESTAMP
-
-    WHERE id=?
-    `
-
-  )
-  .bind(
-
-    name,
-
-    status,
-
-    limit,
-
-    deviceLimit,
-
-    expires,
-
-    id
-
-  )
-  .run();
-
-
-  await log(
-
-    env,
-
-    "SUB_UPDATED",
-
-    name
-
-  );
-
-
-  return Response.json({
-
-    success: true
-
-  });
-
-}
-
-
-
-// =====================================================
-// DELETE SUB
-// =====================================================
-
-async function deleteSubscription(
-  env,
-  id
-) {
-
-  await env.DB.batch([
-
-    env.DB.prepare(
-
-      `
-      DELETE FROM
-      subscription_servers
-
-      WHERE subscription_id=?
-      `
-
-    )
-    .bind(id),
-
-
-    env.DB.prepare(
-
-      `
-      DELETE FROM
-      traffic_history
-
-      WHERE subscription_id=?
-      `
-
-    )
-    .bind(id),
-
-
-    env.DB.prepare(
-
-      `
-      DELETE FROM
-      subscriptions
-
-      WHERE id=?
-      `
-
-    )
-    .bind(id)
-
-  ]);
-
-
-  return Response.json({
-
-    success: true
-
-  });
-
-}
-
-
-
-// =====================================================
-// CHANGE TRAFFIC
-// =====================================================
-
-async function changeTraffic(
-  request,
-  env,
-  id
-) {
-
-  const data =
-    await request.json();
-
-
-  const amount =
-    Number(
-      data.amount_gb
+    await safeJson(
+      request
     );
 
 
@@ -2054,22 +1316,227 @@ async function changeTraffic(
   }
 
 
-  const newTraffic =
-    Math.max(
+  const name =
+    data.name ??
+    sub.name;
 
-      0,
 
-      Number(
-        sub.traffic_used_gb
-      ) +
+  const status =
+    data.status ??
+    sub.status;
 
-      amount
 
-    );
+  const limit =
+    data.traffic_limit_gb ??
+    sub.traffic_limit_gb;
 
+
+  const expires =
+    data.expires_at ??
+    sub.expires_at;
+
+
+  const useSource =
+
+    data.use_source !== undefined
+
+      ? (
+          data.use_source
+            ? 1
+            : 0
+        )
+
+      : sub.use_source;
+
+
+  await env.DB.prepare(
+
+    `
+    UPDATE subscriptions
+
+    SET
+
+      name=?,
+
+      status=?,
+
+      traffic_limit_gb=?,
+
+      expires_at=?,
+
+      use_source=?,
+
+      updated_at=CURRENT_TIMESTAMP
+
+    WHERE id=?
+    `
+
+  )
+  .bind(
+
+    name,
+
+    status,
+
+    limit,
+
+    expires,
+
+    useSource,
+
+    id
+
+  )
+  .run();
+
+
+  await adminLog(
+
+    env,
+
+    "SUB_UPDATE",
+
+    name
+
+  );
+
+
+  return json({
+
+    success: true
+
+  });
+
+}
+
+
+async function deleteSubscription(
+  env,
+  id
+) {
 
   await env.DB.batch([
 
+    env.DB.prepare(
+
+      `
+      DELETE FROM subscription_servers
+      WHERE subscription_id=?
+      `
+
+    )
+    .bind(id),
+
+
+    env.DB.prepare(
+
+      `
+      DELETE FROM traffic_history
+      WHERE subscription_id=?
+      `
+
+    )
+    .bind(id),
+
+
+    env.DB.prepare(
+
+      `
+      DELETE FROM subscriptions
+      WHERE id=?
+      `
+
+    )
+    .bind(id)
+
+  ]);
+
+
+  return json({
+
+    success: true
+
+  });
+
+}
+
+
+async function regenerateToken(
+  env,
+  id
+) {
+
+  const token =
+    generateToken();
+
+
+  await env.DB.prepare(
+
+    `
+    UPDATE subscriptions
+
+    SET
+
+      token=?,
+
+      updated_at=CURRENT_TIMESTAMP
+
+    WHERE id=?
+    `
+
+  )
+  .bind(
+    token,
+    id
+  )
+  .run();
+
+
+  return json({
+
+    success: true,
+
+    token
+
+  });
+
+}
+
+
+// =====================================================
+// TRAFFIC
+// =====================================================
+
+async function addTraffic(
+  request,
+  env,
+  id
+) {
+
+  const data =
+    await safeJson(
+      request
+    );
+
+
+  const amount =
+    Number(
+      data.amount_gb
+    );
+
+
+  if (
+    !Number.isFinite(amount)
+  ) {
+
+    return error(
+      "Invalid amount"
+    );
+
+  }
+
+
+  await env.DB.batch([
 
     env.DB.prepare(
 
@@ -2078,18 +1545,16 @@ async function changeTraffic(
 
       SET
 
-        traffic_used_gb=?
+      traffic_bonus_gb =
+      traffic_bonus_gb + ?
 
       WHERE id=?
       `
 
     )
     .bind(
-
-      newTraffic,
-
+      amount,
       id
-
     ),
 
 
@@ -2127,657 +1592,13 @@ async function changeTraffic(
   ]);
 
 
-  return Response.json({
-
-    success: true,
-
-    traffic_used_gb:
-      newTraffic
-
-  });
-
-}
-
-
-
-// =====================================================
-// GET SUB SERVERS
-// =====================================================
-
-async function getSubscriptionServers(
-  env,
-  id
-) {
-
-  const result =
-    await env.DB.prepare(
-
-      `
-      SELECT
-
-        server_id
-
-      FROM
-
-        subscription_servers
-
-      WHERE
-
-        subscription_id=?
-      `
-
-    )
-    .bind(id)
-    .all();
-
-
-  return Response.json(
-    result.results
-  );
-
-}
-
-
-
-// =====================================================
-// SET SUB SERVERS
-// =====================================================
-
-async function setSubscriptionServers(
-  request,
-  env,
-  id
-) {
-
-  const data =
-    await request.json();
-
-
-  const serverIds =
-    Array.isArray(
-      data.server_ids
-    )
-
-      ? data.server_ids
-
-      : [];
-
-
-  const queries = [
-
-    env.DB.prepare(
-
-      `
-      DELETE FROM
-      subscription_servers
-
-      WHERE subscription_id=?
-      `
-
-    )
-    .bind(id)
-
-  ];
-
-
-  for (
-    const serverId
-    of serverIds
-  ) {
-
-    queries.push(
-
-      env.DB.prepare(
-
-        `
-        INSERT INTO
-        subscription_servers (
-
-          subscription_id,
-
-          server_id
-
-        )
-
-        VALUES (?, ?)
-        `
-
-      )
-      .bind(
-
-        id,
-
-        serverId
-
-      )
-
-    );
-
-  }
-
-
-  await env.DB.batch(
-    queries
-  );
-
-
-  return Response.json({
+  return json({
 
     success: true
 
   });
 
 }
-
-
-
-// =====================================================
-// CREATE SERVER
-// =====================================================
-
-async function createServer(
-  request,
-  env
-) {
-
-  const d =
-    await request.json();
-
-
-  const id =
-    crypto.randomUUID();
-
-
-  await env.DB.prepare(
-
-    `
-    INSERT INTO vpn_servers (
-
-      id,
-
-      name,
-
-      country,
-
-      city,
-
-      address,
-
-      port,
-
-      flow,
-
-      network,
-
-      security,
-
-      encryption,
-
-      sni,
-
-      public_key,
-
-      short_id,
-
-      fingerprint,
-
-      path,
-
-      host,
-
-      service_name,
-
-      alpn,
-
-      check_url,
-
-      priority
-
-    )
-
-    VALUES (
-
-      ?,?,?,?,?,?,?,?,?,?,
-      ?,?,?,?,?,?,?,?,?,?
-
-    )
-    `
-
-  )
-  .bind(
-
-    id,
-
-    d.name || "Server",
-
-    d.country || "",
-
-    d.city || "",
-
-    d.address,
-
-    Number(d.port),
-
-    d.flow || "",
-
-    d.network || "tcp",
-
-    d.security || "reality",
-
-    d.encryption || "none",
-
-    d.sni || "",
-
-    d.public_key || "",
-
-    d.short_id || "",
-
-    d.fingerprint || "chrome",
-
-    d.path || "",
-
-    d.host || "",
-
-    d.service_name || "",
-
-    d.alpn || "",
-
-    d.check_url || "",
-
-    Number(d.priority || 1)
-
-  )
-  .run();
-
-
-  return Response.json({
-
-    success: true,
-
-    id
-
-  });
-
-}
-
-
-
-// =====================================================
-// GET SERVERS
-// =====================================================
-
-async function getServers(
-  env
-) {
-
-  const result =
-    await env.DB.prepare(
-
-      `
-      SELECT *
-
-      FROM vpn_servers
-
-      ORDER BY priority ASC
-      `
-
-    )
-    .all();
-
-
-  return Response.json(
-    result.results
-  );
-
-}
-
-
-
-// =====================================================
-// UPDATE SERVER
-// =====================================================
-
-async function updateServer(
-  request,
-  env,
-  id
-) {
-
-  const data =
-    await request.json();
-
-
-  const old =
-    await env.DB.prepare(
-
-      `
-      SELECT *
-
-      FROM vpn_servers
-
-      WHERE id=?
-      `
-
-    )
-    .bind(id)
-    .first();
-
-
-  if (!old) {
-
-    return error(
-      "Not found",
-      404
-    );
-
-  }
-
-
-  const fields = [
-
-    "name",
-
-    "country",
-
-    "city",
-
-    "enabled",
-
-    "priority",
-
-    "address",
-
-    "port",
-
-    "flow",
-
-    "network",
-
-    "security",
-
-    "encryption",
-
-    "sni",
-
-    "public_key",
-
-    "short_id",
-
-    "fingerprint",
-
-    "path",
-
-    "host",
-
-    "service_name",
-
-    "alpn",
-
-    "check_url"
-
-  ];
-
-
-  const values =
-    fields.map(
-
-      key =>
-
-        data[key] ??
-        old[key]
-
-    );
-
-
-  await env.DB.prepare(
-
-    `
-    UPDATE vpn_servers
-
-    SET
-
-      name=?,
-      country=?,
-      city=?,
-      enabled=?,
-      priority=?,
-      address=?,
-      port=?,
-      flow=?,
-      network=?,
-      security=?,
-      encryption=?,
-      sni=?,
-      public_key=?,
-      short_id=?,
-      fingerprint=?,
-      path=?,
-      host=?,
-      service_name=?,
-      alpn=?,
-      check_url=?
-
-    WHERE id=?
-    `
-
-  )
-  .bind(
-
-    ...values,
-
-    id
-
-  )
-  .run();
-
-
-  return Response.json({
-
-    success: true
-
-  });
-
-}
-
-
-
-// =====================================================
-// DELETE SERVER
-// =====================================================
-
-async function deleteServer(
-  env,
-  id
-) {
-
-  await env.DB.batch([
-
-    env.DB.prepare(
-
-      `
-      DELETE FROM
-      subscription_servers
-
-      WHERE server_id=?
-      `
-
-    )
-    .bind(id),
-
-
-    env.DB.prepare(
-
-      `
-      DELETE FROM
-      vpn_servers
-
-      WHERE id=?
-      `
-
-    )
-    .bind(id)
-
-  ]);
-
-
-  return Response.json({
-
-    success: true
-
-  });
-
-}
-
-
-
-// =====================================================
-// SERVER CHECK
-// =====================================================
-
-async function checkServers(
-  env
-) {
-
-  const result =
-    await env.DB.prepare(
-
-      `
-      SELECT *
-
-      FROM vpn_servers
-
-      WHERE enabled=1
-      `
-
-    )
-    .all();
-
-
-  for (
-    const server
-    of result.results
-  ) {
-
-    await checkServer(
-      env,
-      server
-    );
-
-  }
-
-}
-
-
-
-async function checkServer(
-  env,
-  server
-) {
-
-  const target =
-
-    server.check_url ||
-
-    `https://${server.address}`;
-
-
-  const start =
-    Date.now();
-
-
-  let ping = 0;
-
-  let status =
-    "offline";
-
-
-  try {
-
-    const controller =
-      new AbortController();
-
-
-    const timer =
-      setTimeout(
-
-        () =>
-          controller.abort(),
-
-        5000
-
-      );
-
-
-    const response =
-      await fetch(
-
-        target,
-
-        {
-
-          method:
-            "HEAD",
-
-          signal:
-            controller.signal
-
-        }
-
-      );
-
-
-    clearTimeout(timer);
-
-
-    if (
-      response.ok
-    ) {
-
-      ping =
-        Date.now() -
-        start;
-
-
-      status =
-        "online";
-
-    }
-
-  }
-
-  catch {}
-
-
-  await env.DB.prepare(
-
-    `
-    UPDATE vpn_servers
-
-    SET
-
-      last_ping=?,
-
-      last_status=?,
-
-      last_check=CURRENT_TIMESTAMP
-
-    WHERE id=?
-    `
-
-  )
-  .bind(
-
-    ping,
-
-    status,
-
-    server.id
-
-  )
-  .run();
-
-}
-
 
 
 // =====================================================
@@ -2803,6 +1624,9 @@ async function addDailyTraffic(
     .all();
 
 
+  const queries = [];
+
+
   for (
     const sub
     of result.results
@@ -2812,8 +1636,7 @@ async function addDailyTraffic(
       randomTraffic();
 
 
-    await env.DB.batch([
-
+    queries.push(
 
       env.DB.prepare(
 
@@ -2822,21 +1645,22 @@ async function addDailyTraffic(
 
         SET
 
-          traffic_added_gb=
-          traffic_added_gb + ?
+        traffic_bonus_gb =
+        traffic_bonus_gb + ?
 
         WHERE id=?
         `
 
       )
       .bind(
-
         amount,
-
         sub.id
+      )
 
-      ),
+    );
 
+
+    queries.push(
 
       env.DB.prepare(
 
@@ -2853,7 +1677,7 @@ async function addDailyTraffic(
 
         )
 
-        VALUES (?, ?, ?, 'daily_bonus')
+        VALUES (?, ?, ?, 'daily')
         `
 
       )
@@ -2867,17 +1691,23 @@ async function addDailyTraffic(
 
       )
 
-    ]);
+    );
+
+  }
+
+
+  if (
+    queries.length
+  ) {
+
+    await env.DB.batch(
+      queries
+    );
 
   }
 
 }
 
-
-
-// =====================================================
-// RANDOM TRAFFIC
-// =====================================================
 
 function randomTraffic() {
 
@@ -2892,6 +1722,1159 @@ function randomTraffic() {
 }
 
 
+// =====================================================
+// SERVERS
+// =====================================================
+
+async function getServers(
+  env
+) {
+
+  const result =
+    await env.DB.prepare(
+
+      `
+      SELECT *
+
+      FROM servers
+
+      ORDER BY
+
+      priority ASC,
+
+      created_at DESC
+      `
+
+    )
+    .all();
+
+
+  return json(
+    result.results
+  );
+
+}
+
+
+async function createServer(
+  request,
+  env
+) {
+
+  const data =
+    await safeJson(
+      request
+    );
+
+
+  const vless =
+    String(
+      data.vless_url || ""
+    )
+    .trim();
+
+
+  if (
+    !vless.startsWith(
+      "vless://"
+    )
+  ) {
+
+    return error(
+      "Only vless:// supported"
+    );
+
+  }
+
+
+  const id =
+    crypto.randomUUID();
+
+
+  const name =
+
+    data.name ||
+
+    getVlessName(vless) ||
+
+    "WLVPN Server";
+
+
+  await env.DB.prepare(
+
+    `
+    INSERT INTO servers (
+
+      id,
+
+      name,
+
+      vless_url,
+
+      enabled,
+
+      priority
+
+    )
+
+    VALUES (?, ?, ?, ?, ?)
+    `
+
+  )
+  .bind(
+
+    id,
+
+    name,
+
+    vless,
+
+    data.enabled === false
+      ? 0
+      : 1,
+
+    Number(
+      data.priority || 100
+    )
+
+  )
+  .run();
+
+
+  return json({
+
+    success: true,
+
+    id
+
+  });
+
+}
+
+
+async function updateServer(
+  request,
+  env,
+  id
+) {
+
+  const data =
+    await safeJson(
+      request
+    );
+
+
+  const old =
+    await env.DB.prepare(
+
+      `
+      SELECT *
+
+      FROM servers
+
+      WHERE id=?
+      `
+
+    )
+    .bind(id)
+    .first();
+
+
+  if (!old) {
+
+    return error(
+      "Not found",
+      404
+    );
+
+  }
+
+
+  await env.DB.prepare(
+
+    `
+    UPDATE servers
+
+    SET
+
+      name=?,
+
+      vless_url=?,
+
+      enabled=?,
+
+      priority=?
+
+    WHERE id=?
+    `
+
+  )
+  .bind(
+
+    data.name ??
+      old.name,
+
+
+    data.vless_url ??
+      old.vless_url,
+
+
+    data.enabled !== undefined
+
+      ? (
+          data.enabled
+            ? 1
+            : 0
+        )
+
+      : old.enabled,
+
+
+    data.priority ??
+      old.priority,
+
+
+    id
+
+  )
+  .run();
+
+
+  return json({
+
+    success: true
+
+  });
+
+}
+
+
+async function deleteServer(
+  env,
+  id
+) {
+
+  await env.DB.batch([
+
+    env.DB.prepare(
+
+      `
+      DELETE FROM subscription_servers
+      WHERE server_id=?
+      `
+
+    )
+    .bind(id),
+
+
+    env.DB.prepare(
+
+      `
+      DELETE FROM servers
+      WHERE id=?
+      `
+
+    )
+    .bind(id)
+
+  ]);
+
+
+  return json({
+
+    success: true
+
+  });
+
+}
+
+
+// =====================================================
+// IMPORT SERVERS
+// =====================================================
+
+async function importServers(
+  request,
+  env
+) {
+
+  const data =
+    await safeJson(
+      request
+    );
+
+
+  const text =
+    String(
+      data.text || ""
+    );
+
+
+  const configs =
+    extractVless(
+      text
+    );
+
+
+  const queries = [];
+
+
+  for (
+    const vless
+    of configs
+  ) {
+
+    queries.push(
+
+      env.DB.prepare(
+
+        `
+        INSERT INTO servers (
+
+          id,
+
+          name,
+
+          vless_url
+
+        )
+
+        VALUES (?, ?, ?)
+        `
+
+      )
+      .bind(
+
+        crypto.randomUUID(),
+
+        getVlessName(vless) ||
+          "Imported Server",
+
+        vless
+
+      )
+
+    );
+
+  }
+
+
+  if (
+    queries.length
+  ) {
+
+    await env.DB.batch(
+      queries
+    );
+
+  }
+
+
+  return json({
+
+    success: true,
+
+    imported:
+      configs.length
+
+  });
+
+}
+
+
+// =====================================================
+// SUB SERVERS
+// =====================================================
+
+async function getSubscriptionServers(
+  env,
+  id
+) {
+
+  const result =
+    await env.DB.prepare(
+
+      `
+      SELECT server_id
+
+      FROM subscription_servers
+
+      WHERE subscription_id=?
+      `
+
+    )
+    .bind(id)
+    .all();
+
+
+  return json(
+    result.results
+  );
+
+}
+
+
+async function setSubscriptionServers(
+  request,
+  env,
+  id
+) {
+
+  const data =
+    await safeJson(
+      request
+    );
+
+
+  const ids =
+    Array.isArray(
+      data.server_ids
+    )
+
+      ? data.server_ids
+
+      : [];
+
+
+  const queries = [
+
+    env.DB.prepare(
+
+      `
+      DELETE FROM subscription_servers
+
+      WHERE subscription_id=?
+      `
+
+    )
+    .bind(id)
+
+  ];
+
+
+  for (
+    const serverId
+    of ids
+  ) {
+
+    queries.push(
+
+      env.DB.prepare(
+
+        `
+        INSERT INTO subscription_servers (
+
+          subscription_id,
+
+          server_id
+
+        )
+
+        VALUES (?, ?)
+        `
+
+      )
+      .bind(
+        id,
+        serverId
+      )
+
+    );
+
+  }
+
+
+  await env.DB.batch(
+    queries
+  );
+
+
+  return json({
+
+    success: true
+
+  });
+
+}
+
+
+// =====================================================
+// SUB ROUTER
+// =====================================================
+
+async function subscriptionRouter(
+  request,
+  env,
+  url
+) {
+
+  const parts =
+    url.pathname
+      .split("/")
+      .filter(Boolean);
+
+
+  const token =
+    parts[1];
+
+
+  const format =
+    parts[2] || "vless";
+
+
+  const sub =
+    await env.DB.prepare(
+
+      `
+      SELECT *
+
+      FROM subscriptions
+
+      WHERE token=?
+      `
+
+    )
+    .bind(token)
+    .first();
+
+
+  if (!sub) {
+
+    return new Response(
+
+      "Subscription not found",
+
+      {
+
+        status: 404,
+
+        headers: {
+
+          "Content-Type":
+            "text/plain"
+
+        }
+
+      }
+
+    );
+
+  }
+
+
+  // DISABLED
+
+  if (
+    sub.status !==
+    "active"
+  ) {
+
+    return disabledSubscription();
+
+  }
+
+
+  // EXPIRED
+
+  if (
+    sub.expires_at
+  ) {
+
+    const expires =
+      new Date(
+        sub.expires_at
+      );
+
+
+    if (
+      expires <
+      new Date()
+    ) {
+
+      return simpleSubscriptionResponse(
+
+        "🔴 Subscription expired"
+
+      );
+
+    }
+
+  }
+
+
+  // CONFIGS
+
+  const configs =
+    await buildSubscriptionConfigs(
+      env,
+      sub
+    );
+
+
+  // BASE64
+
+  if (
+    format === "base64"
+  ) {
+
+    return new Response(
+
+      base64(
+        configs.join("\n")
+      ),
+
+      {
+
+        headers:
+
+          subscriptionHeaders(
+            sub
+          )
+
+      }
+
+    );
+
+  }
+
+
+  // JSON
+
+  if (
+    format === "json"
+  ) {
+
+    return json({
+
+      name:
+        sub.name,
+
+      configs
+
+    });
+
+  }
+
+
+  // INFO
+
+  if (
+    format === "info"
+  ) {
+
+    return json({
+
+      name:
+        sub.name,
+
+      status:
+        sub.status,
+
+      traffic_used_gb:
+        sub.traffic_used_gb,
+
+      traffic_bonus_gb:
+        sub.traffic_bonus_gb,
+
+      traffic_limit_gb:
+        sub.traffic_limit_gb,
+
+      expires_at:
+        sub.expires_at,
+
+      configs:
+        configs.length
+
+    });
+
+  }
+
+
+  // SINGBOX
+
+  if (
+    format === "singbox"
+  ) {
+
+    return singboxResponse(
+      configs,
+      sub
+    );
+
+  }
+
+
+  // DEFAULT
+
+  return new Response(
+
+    configs.join("\n"),
+
+    {
+
+      headers:
+
+        subscriptionHeaders(
+          sub
+        )
+
+    }
+
+  );
+
+}
+
+
+// =====================================================
+// BUILD CONFIGS
+// =====================================================
+
+async function buildSubscriptionConfigs(
+  env,
+  sub
+) {
+
+  let configs = [];
+
+
+  // SOURCE
+
+  if (
+    Number(sub.use_source) === 1
+  ) {
+
+    const source =
+      await env.KV.get(
+        "source:configs"
+      );
+
+
+    if (source) {
+
+      configs.push(
+
+        ...extractVless(
+          source
+        )
+
+      );
+
+    }
+
+  }
+
+
+  // PERSONAL SERVERS
+
+  const result =
+    await env.DB.prepare(
+
+      `
+      SELECT
+
+        s.*
+
+      FROM servers s
+
+      INNER JOIN
+      subscription_servers ss
+
+      ON
+
+        ss.server_id=s.id
+
+      WHERE
+
+        ss.subscription_id=?
+
+      AND
+
+        s.enabled=1
+
+      ORDER BY
+
+        s.priority ASC
+      `
+
+    )
+    .bind(sub.id)
+    .all();
+
+
+  for (
+    const server
+    of result.results
+  ) {
+
+    configs.push(
+      server.vless_url
+    );
+
+  }
+
+
+  // Remove duplicates
+
+  configs =
+    [...new Set(configs)];
+
+
+  return configs;
+
+}
+
+
+// =====================================================
+// DISABLED SUB
+// =====================================================
+
+function disabledSubscription() {
+
+  return new Response(
+
+    "# 🔴 Подписка отключена",
+
+    {
+
+      headers: {
+
+        "Content-Type":
+          "text/plain; charset=utf-8",
+
+        "Profile-Title":
+          "🔴 Подписка отключена",
+
+        "Cache-Control":
+          "no-store"
+
+      }
+
+    }
+
+  );
+
+}
+
+
+// =====================================================
+// SUB HEADERS
+// =====================================================
+
+function subscriptionHeaders(
+  sub
+) {
+
+  return {
+
+    "Content-Type":
+      "text/plain; charset=utf-8",
+
+
+    "Profile-Title":
+      sub.name,
+
+
+    "Profile-Update-Interval":
+      "24",
+
+
+    "Cache-Control":
+      "no-store"
+
+  };
+
+}
+
+
+// =====================================================
+// SINGBOX
+// =====================================================
+
+function singboxResponse(
+  configs,
+  sub
+) {
+
+  const outbounds = [];
+
+
+  for (
+    const config
+    of configs
+  ) {
+
+    const outbound =
+      parseVlessForSingbox(
+        config
+      );
+
+
+    if (outbound) {
+
+      outbounds.push(
+        outbound
+      );
+
+    }
+
+  }
+
+
+  return json({
+
+    log: {
+
+      level:
+        "info"
+
+    },
+
+    outbounds,
+
+    route: {
+
+      auto_detect_interface:
+        true
+
+    }
+
+  });
+
+}
+
+
+// =====================================================
+// SIMPLE VLESS -> SINGBOX
+// =====================================================
+
+function parseVlessForSingbox(
+  text
+) {
+
+  try {
+
+    const url =
+      new URL(text);
+
+
+    if (
+      url.protocol !==
+      "vless:"
+    ) {
+
+      return null;
+
+    }
+
+
+    const uuid =
+      url.username;
+
+
+    const tag =
+      decodeURIComponent(
+
+        url.hash
+          .replace("#", "")
+
+      ) || "WLVPN";
+
+
+    const outbound = {
+
+      type:
+        "vless",
+
+      tag,
+
+      server:
+        url.hostname,
+
+      server_port:
+        Number(url.port),
+
+      uuid,
+
+      encryption:
+
+        url.searchParams.get(
+          "encryption"
+        ) || "none"
+
+    };
+
+
+    const flow =
+      url.searchParams.get(
+        "flow"
+      );
+
+
+    if (flow) {
+
+      outbound.flow =
+        flow;
+
+    }
+
+
+    const security =
+      url.searchParams.get(
+        "security"
+      );
+
+
+    if (
+      security === "reality"
+    ) {
+
+      outbound.tls = {
+
+        enabled:
+          true,
+
+        server_name:
+
+          url.searchParams.get(
+            "sni"
+          ) || "",
+
+
+        reality: {
+
+          enabled:
+            true,
+
+          public_key:
+
+            url.searchParams.get(
+              "pbk"
+            ) || "",
+
+
+          short_id:
+
+            url.searchParams.get(
+              "sid"
+            ) || ""
+
+        },
+
+
+        utls: {
+
+          enabled:
+            true,
+
+          fingerprint:
+
+            url.searchParams.get(
+              "fp"
+            ) || "chrome"
+
+        }
+
+      };
+
+    }
+
+
+    if (
+      security === "tls"
+    ) {
+
+      outbound.tls = {
+
+        enabled:
+          true,
+
+        server_name:
+
+          url.searchParams.get(
+            "sni"
+          ) || ""
+
+      };
+
+    }
+
+
+    const type =
+      url.searchParams.get(
+        "type"
+      );
+
+
+    if (
+      type === "ws"
+    ) {
+
+      outbound.transport = {
+
+        type:
+          "ws",
+
+        path:
+
+          url.searchParams.get(
+            "path"
+          ) || "/",
+
+
+        headers: {}
+
+      };
+
+
+      const host =
+        url.searchParams.get(
+          "host"
+        );
+
+
+      if (host) {
+
+        outbound.transport
+          .headers
+          .Host = host;
+
+      }
+
+    }
+
+
+    if (
+      type === "grpc"
+    ) {
+
+      outbound.transport = {
+
+        type:
+          "grpc",
+
+        service_name:
+
+          url.searchParams.get(
+            "serviceName"
+          ) || ""
+
+      };
+
+    }
+
+
+    return outbound;
+
+  }
+
+  catch {
+
+    return null;
+
+  }
+
+}
+
 
 // =====================================================
 // DASHBOARD
@@ -2901,11 +2884,12 @@ async function dashboard(
   env
 ) {
 
-  const subscriptions =
+  const total =
     await env.DB.prepare(
 
       `
-      SELECT COUNT(*) count
+      SELECT COUNT(*) AS count
+
       FROM subscriptions
       `
 
@@ -2917,8 +2901,10 @@ async function dashboard(
     await env.DB.prepare(
 
       `
-      SELECT COUNT(*) count
+      SELECT COUNT(*) AS count
+
       FROM subscriptions
+
       WHERE status='active'
       `
 
@@ -2930,31 +2916,27 @@ async function dashboard(
     await env.DB.prepare(
 
       `
-      SELECT COUNT(*) count
-      FROM vpn_servers
+      SELECT COUNT(*) AS count
+
+      FROM servers
+
+      WHERE enabled=1
       `
 
     )
     .first();
 
 
-  const online =
-    await env.DB.prepare(
-
-      `
-      SELECT COUNT(*) count
-      FROM vpn_servers
-      WHERE last_status='online'
-      `
-
-    )
-    .first();
+  const source =
+    await env.KV.get(
+      "source:configs"
+    );
 
 
-  return Response.json({
+  return json({
 
     subscriptions:
-      subscriptions.count,
+      total.count,
 
 
     active:
@@ -2965,13 +2947,15 @@ async function dashboard(
       servers.count,
 
 
-    online:
-      online.count
+    source_configs:
+
+      source
+        ? countConfigs(source)
+        : 0
 
   });
 
 }
-
 
 
 // =====================================================
@@ -2982,25 +2966,19 @@ async function publicStatus(
   env
 ) {
 
-  const result =
+  const own =
     await env.DB.prepare(
 
       `
       SELECT
 
+        id,
+
         name,
 
-        country,
+        enabled
 
-        city,
-
-        last_ping,
-
-        last_status
-
-      FROM vpn_servers
-
-      WHERE enabled=1
+      FROM servers
 
       ORDER BY priority ASC
       `
@@ -3009,27 +2987,1982 @@ async function publicStatus(
     .all();
 
 
-  return Response.json({
+  const source =
+    await env.KV.get(
+      "source:configs"
+    );
 
-    app:
+
+  return json({
+
+    name:
       APP_NAME,
-
 
     status:
       "online",
 
+    own_servers:
+      own.results.map(
+        x => ({
 
-    servers:
-      result.results
+          name:
+            x.name,
+
+          status:
+
+            x.enabled
+              ? "online"
+              : "disabled"
+
+        })
+      ),
+
+    source_configs:
+
+      source
+        ? countConfigs(source)
+        : 0
 
   });
 
 }
 
 
+// =====================================================
+// HOME PAGE
+// =====================================================
+
+function homePage() {
+
+  const html = `
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1">
+
+<title>WLVPN — VPN сервис</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+
+  margin: 0;
+
+  font-family:
+    Arial,
+    sans-serif;
+
+  background:
+    #080b12;
+
+  color:
+    #ffffff;
+
+}
+
+header {
+
+  padding:
+    22px 8%;
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    center;
+
+  border-bottom:
+    1px solid #1e2635;
+
+}
+
+.logo {
+
+  font-size:
+    24px;
+
+  font-weight:
+    bold;
+
+}
+
+.badge {
+
+  padding:
+    8px 14px;
+
+  background:
+    #14261b;
+
+  border:
+    1px solid #234b30;
+
+  border-radius:
+    30px;
+
+}
+
+.hero {
+
+  text-align:
+    center;
+
+  padding:
+    100px 20px;
+
+}
+
+.hero h1 {
+
+  font-size:
+    72px;
+
+  margin:
+    0;
+
+}
+
+.hero p {
+
+  color:
+    #a7b0c0;
+
+  font-size:
+    20px;
+
+}
+
+.stats {
+
+  display:
+    flex;
+
+  justify-content:
+    center;
+
+  gap:
+    20px;
+
+  flex-wrap:
+    wrap;
+
+  padding:
+    30px;
+
+}
+
+.card {
+
+  width:
+    220px;
+
+  background:
+    #101620;
+
+  border:
+    1px solid #1f2a3a;
+
+  border-radius:
+    18px;
+
+  padding:
+    25px;
+
+}
+
+.number {
+
+  font-size:
+    32px;
+
+  font-weight:
+    bold;
+
+}
+
+.servers {
+
+  max-width:
+    900px;
+
+  margin:
+    auto;
+
+  padding:
+    40px 20px;
+
+}
+
+.server {
+
+  background:
+    #101620;
+
+  padding:
+    18px;
+
+  margin:
+    10px 0;
+
+  border-radius:
+    14px;
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+}
+
+footer {
+
+  text-align:
+    center;
+
+  padding:
+    50px;
+
+  color:
+    #718096;
+
+}
+
+@media(max-width:600px) {
+
+  .hero h1 {
+
+    font-size:
+      48px;
+
+  }
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+
+<div class="logo">
+
+🏳 WLVPN
+
+</div>
+
+<div class="badge">
+
+🟢 Online
+
+</div>
+
+</header>
+
+
+<section class="hero">
+
+<h1>
+
+WLVPN
+
+</h1>
+
+<p>
+
+Быстрый и стабильный VPN
+
+</p>
+
+</section>
+
+
+<div class="stats">
+
+<div class="card">
+
+<div>
+
+Серверов
+
+</div>
+
+<div
+class="number"
+id="servers">
+
+—
+
+</div>
+
+</div>
+
+
+<div class="card">
+
+<div>
+
+Source Configs
+
+</div>
+
+<div
+class="number"
+id="configs">
+
+—
+
+</div>
+
+</div>
+
+
+<div class="card">
+
+<div>
+
+Network
+
+</div>
+
+<div
+class="number">
+
+🟢
+
+</div>
+
+</div>
+
+</div>
+
+
+<section class="servers">
+
+<h2>
+
+VPN Серверы
+
+</h2>
+
+<div id="serverList">
+
+Загрузка...
+
+</div>
+
+</section>
+
+
+<footer>
+
+© WLVPN
+
+</footer>
+
+
+<script>
+
+async function loadStatus() {
+
+  try {
+
+    const response =
+      await fetch(
+        "/api/status"
+      );
+
+
+    const data =
+      await response.json();
+
+
+    document
+      .getElementById(
+        "servers"
+      )
+      .textContent =
+
+      data.own_servers.length;
+
+
+    document
+      .getElementById(
+        "configs"
+      )
+      .textContent =
+
+      data.source_configs;
+
+
+    const root =
+      document
+        .getElementById(
+          "serverList"
+        );
+
+
+    root.innerHTML =
+      "";
+
+
+    if (
+      data.own_servers.length === 0
+    ) {
+
+      root.innerHTML =
+
+        "<p>Серверы скоро появятся</p>";
+
+    }
+
+
+    data.own_servers.forEach(
+
+      server => {
+
+        root.innerHTML +=
+
+        '<div class="server">' +
+
+        '<span>' +
+
+        server.name +
+
+        '</span>' +
+
+        '<span>' +
+
+        (
+          server.status === "online"
+
+            ? "🟢 Online"
+
+            : "🔴 Disabled"
+
+        ) +
+
+        '</span>' +
+
+        '</div>';
+
+      }
+
+    );
+
+  }
+
+  catch (e) {
+
+    console.error(e);
+
+  }
+
+}
+
+
+loadStatus();
+
+setInterval(
+  loadStatus,
+  30000
+);
+
+</script>
+
+</body>
+
+</html>
+`;
+
+
+  return new Response(
+
+    html,
+
+    {
+
+      headers: {
+
+        "Content-Type":
+          "text/html; charset=utf-8",
+
+        "Cache-Control":
+          "no-store"
+
+      }
+
+    }
+
+  );
+
+}
+
 
 // =====================================================
-// DAILY SUB HELPERS
+// ADMIN PAGE
+// =====================================================
+
+function adminPage() {
+
+  const html = `
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width,initial-scale=1">
+
+<title>WLVPN Admin</title>
+
+<style>
+
+* {
+  box-sizing:
+    border-box;
+}
+
+body {
+
+  margin:
+    0;
+
+  background:
+    #080b12;
+
+  color:
+    white;
+
+  font-family:
+    Arial,
+    sans-serif;
+
+}
+
+.container {
+
+  max-width:
+    1100px;
+
+  margin:
+    auto;
+
+  padding:
+    20px;
+
+}
+
+.box {
+
+  background:
+    #101620;
+
+  border:
+    1px solid #202b3b;
+
+  border-radius:
+    16px;
+
+  padding:
+    20px;
+
+  margin:
+    15px 0;
+
+}
+
+input,
+textarea,
+select {
+
+  width:
+    100%;
+
+  padding:
+    12px;
+
+  margin:
+    6px 0;
+
+  border:
+    1px solid #29364a;
+
+  border-radius:
+    10px;
+
+  background:
+    #0b1018;
+
+  color:
+    white;
+
+}
+
+textarea {
+
+  min-height:
+    140px;
+
+}
+
+button {
+
+  padding:
+    11px 16px;
+
+  margin:
+    5px;
+
+  border:
+    0;
+
+  border-radius:
+    10px;
+
+  cursor:
+    pointer;
+
+  background:
+    #2563eb;
+
+  color:
+    white;
+
+}
+
+.danger {
+
+  background:
+    #dc2626;
+
+}
+
+.green {
+
+  background:
+    #16a34a;
+
+}
+
+.hidden {
+
+  display:
+    none;
+
+}
+
+.row {
+
+  display:
+    flex;
+
+  gap:
+    10px;
+
+  flex-wrap:
+    wrap;
+
+}
+
+.stat {
+
+  flex:
+    1;
+
+  min-width:
+    140px;
+
+  background:
+    #0b1018;
+
+  padding:
+    20px;
+
+  border-radius:
+    12px;
+
+}
+
+.sub {
+
+  background:
+    #0b1018;
+
+  padding:
+    15px;
+
+  margin:
+    10px 0;
+
+  border-radius:
+    12px;
+
+}
+
+code {
+
+  word-break:
+    break-all;
+
+  color:
+    #60a5fa;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+
+<div id="loginBox">
+
+<div class="box">
+
+<h1>
+
+🏳 WLVPN Admin
+
+</h1>
+
+<input
+id="password"
+type="password"
+placeholder="Пароль">
+
+<button
+onclick="login()">
+
+Войти
+
+</button>
+
+</div>
+
+</div>
+
+
+<div
+id="panel"
+class="hidden">
+
+
+<h1>
+
+🏳 WLVPN Dashboard
+
+</h1>
+
+
+<div
+class="row"
+id="stats">
+
+</div>
+
+
+<!-- SOURCE -->
+
+<div class="box">
+
+<h2>
+
+📥 Исходная подписка
+
+</h2>
+
+<input
+id="sourceUrl"
+placeholder="Source URL">
+
+
+<input
+id="sourceUA"
+placeholder="User-Agent">
+
+
+<button
+onclick="saveSource()">
+
+💾 Сохранить
+
+</button>
+
+
+<button
+class="green"
+onclick="updateSource()">
+
+🔄 Обновить сейчас
+
+</button>
+
+
+<div
+id="sourceInfo">
+
+</div>
+
+</div>
+
+
+<!-- CREATE SUB -->
+
+<div class="box">
+
+<h2>
+
+➕ Создать подписку
+
+</h2>
+
+<input
+id="subName"
+placeholder="Название">
+
+
+<input
+id="subLimit"
+type="number"
+placeholder="Лимит GB (0 = безлимит)">
+
+
+<label>
+
+<input
+id="useSource"
+type="checkbox"
+checked>
+
+Использовать исходные серверы
+
+</label>
+
+
+<br>
+
+
+<button
+onclick="createSub()">
+
+Создать
+
+</button>
+
+</div>
+
+
+<!-- SUBS -->
+
+<div class="box">
+
+<h2>
+
+👤 Подписки
+
+</h2>
+
+<div
+id="subs">
+
+Загрузка...
+
+</div>
+
+</div>
+
+
+<!-- IMPORT -->
+
+<div class="box">
+
+<h2>
+
+📡 Импорт VLESS
+
+</h2>
+
+<textarea
+id="vlessImport"
+placeholder="vless://...
+vless://...
+vless://...">
+
+</textarea>
+
+
+<button
+onclick="importServers()">
+
+Импортировать
+
+</button>
+
+</div>
+
+
+<!-- SERVERS -->
+
+<div class="box">
+
+<h2>
+
+🖥 Мои серверы
+
+</h2>
+
+<div
+id="servers">
+
+Загрузка...
+
+</div>
+
+</div>
+
+
+<button
+class="danger"
+onclick="logout()">
+
+Выйти
+
+</button>
+
+</div>
+
+</div>
+
+
+<script>
+
+async function api(
+  url,
+  options = {}
+) {
+
+  const headers =
+    options.body
+
+      ? {
+          "Content-Type":
+            "application/json"
+        }
+
+      : {};
+
+
+  return fetch(
+
+    url,
+
+    {
+
+      ...options,
+
+      headers
+
+    }
+
+  );
+
+}
+
+
+async function checkAuth() {
+
+  const r =
+    await api(
+      "/api/admin/check"
+    );
+
+
+  const d =
+    await r.json();
+
+
+  if (
+    d.authorized
+  ) {
+
+    showPanel();
+
+  }
+
+}
+
+
+async function login() {
+
+  const password =
+    document
+      .getElementById(
+        "password"
+      )
+      .value;
+
+
+  const r =
+    await api(
+
+      "/api/login",
+
+      {
+
+        method:
+          "POST",
+
+        body:
+          JSON.stringify({
+            password
+          })
+
+      }
+
+    );
+
+
+  if (!r.ok) {
+
+    alert(
+      "Неверный пароль"
+    );
+
+    return;
+
+  }
+
+
+  showPanel();
+
+}
+
+
+function showPanel() {
+
+  document
+    .getElementById(
+      "loginBox"
+    )
+    .classList
+    .add(
+      "hidden"
+    );
+
+
+  document
+    .getElementById(
+      "panel"
+    )
+    .classList
+    .remove(
+      "hidden"
+    );
+
+
+  loadAll();
+
+}
+
+
+async function logout() {
+
+  await api(
+
+    "/api/logout",
+
+    {
+      method:
+        "POST"
+    }
+
+  );
+
+
+  location.reload();
+
+}
+
+
+async function loadAll() {
+
+  await Promise.all([
+
+    loadDashboard(),
+
+    loadSource(),
+
+    loadSubs(),
+
+    loadServers()
+
+  ]);
+
+}
+
+
+// DASHBOARD
+
+async function loadDashboard() {
+
+  const r =
+    await api(
+      "/api/admin/dashboard"
+    );
+
+
+  const d =
+    await r.json();
+
+
+  document
+    .getElementById(
+      "stats"
+    )
+    .innerHTML =
+
+    '<div class="stat">Подписок<br><b>' +
+
+    d.subscriptions +
+
+    '</b></div>' +
+
+    '<div class="stat">Активных<br><b>' +
+
+    d.active +
+
+    '</b></div>' +
+
+    '<div class="stat">Моих серверов<br><b>' +
+
+    d.servers +
+
+    '</b></div>' +
+
+    '<div class="stat">Source configs<br><b>' +
+
+    d.source_configs +
+
+    '</b></div>';
+
+}
+
+
+// SOURCE
+
+async function loadSource() {
+
+  const r =
+    await api(
+      "/api/admin/source"
+    );
+
+
+  const d =
+    await r.json();
+
+
+  document
+    .getElementById(
+      "sourceUrl"
+    )
+    .value = d.url || "";
+
+
+  document
+    .getElementById(
+      "sourceInfo"
+    )
+    .textContent =
+
+    d.meta
+
+      ? (
+          "Configs: " +
+
+          d.meta.configs +
+
+          " | Updated: " +
+
+          d.meta.updated_at
+        )
+
+      : "Кеш пока пуст";
+
+}
+
+
+async function saveSource() {
+
+  const url =
+    document
+      .getElementById(
+        "sourceUrl"
+      )
+      .value;
+
+
+  const user_agent =
+    document
+      .getElementById(
+        "sourceUA"
+      )
+      .value;
+
+
+  await api(
+
+    "/api/admin/source",
+
+    {
+
+      method:
+        "POST",
+
+      body:
+
+        JSON.stringify({
+
+          url,
+
+          user_agent
+
+        })
+
+    }
+
+  );
+
+
+  alert(
+    "Сохранено"
+  );
+
+}
+
+
+async function updateSource() {
+
+  const r =
+    await api(
+
+      "/api/admin/source/update",
+
+      {
+        method:
+          "POST"
+      }
+
+    );
+
+
+  const d =
+    await r.json();
+
+
+  alert(
+
+    d.success
+
+      ? "Обновлено. Configs: " +
+        d.configs
+
+      : "Ошибка: " +
+        d.error
+
+  );
+
+
+  loadAll();
+
+}
+
+
+// CREATE SUB
+
+async function createSub() {
+
+  const name =
+    document
+      .getElementById(
+        "subName"
+      )
+      .value;
+
+
+  const traffic_limit_gb =
+    Number(
+
+      document
+        .getElementById(
+          "subLimit"
+        )
+        .value || 0
+
+    );
+
+
+  const use_source =
+    document
+      .getElementById(
+        "useSource"
+      )
+      .checked;
+
+
+  const r =
+    await api(
+
+      "/api/admin/subscriptions",
+
+      {
+
+        method:
+          "POST",
+
+        body:
+
+          JSON.stringify({
+
+            name,
+
+            traffic_limit_gb,
+
+            use_source
+
+          })
+
+      }
+
+    );
+
+
+  const d =
+    await r.json();
+
+
+  if (d.success) {
+
+    alert(
+
+      "Подписка создана\\n\\n" +
+
+      location.origin +
+
+      d.url
+
+    );
+
+
+    loadSubs();
+
+  }
+
+}
+
+
+// SUBS
+
+async function loadSubs() {
+
+  const r =
+    await api(
+      "/api/admin/subscriptions"
+    );
+
+
+  const data =
+    await r.json();
+
+
+  const root =
+    document
+      .getElementById(
+        "subs"
+      );
+
+
+  root.innerHTML =
+    "";
+
+
+  data.forEach(
+
+    s => {
+
+      const url =
+        location.origin +
+        "/sub/" +
+        s.token;
+
+
+      root.innerHTML +=
+
+      '<div class="sub">' +
+
+      '<h3>' +
+
+      escapeHtml(
+        s.name
+      ) +
+
+      '</h3>' +
+
+
+      '<div>' +
+
+      (
+        s.status === "active"
+
+          ? "🟢 Active"
+
+          : "🔴 Disabled"
+
+      ) +
+
+      '</div>' +
+
+
+      '<p>' +
+
+      'Traffic bonus: ' +
+
+      s.traffic_bonus_gb +
+
+      ' GB'
+
+      +
+
+      '</p>' +
+
+
+      '<code>' +
+
+      url +
+
+      '</code>' +
+
+
+      '<br>' +
+
+
+      '<button onclick="copyText(' +
+
+      JSON.stringify(url)
+
+      +
+
+      ')">📋 Copy</button>' +
+
+
+      '<button onclick="toggleSub(' +
+
+      JSON.stringify(
+        s.id
+      )
+
+      +
+
+      ',' +
+
+      JSON.stringify(
+        s.status
+      )
+
+      +
+
+      ')">' +
+
+      (
+        s.status === "active"
+
+          ? "🔴 Disable"
+
+          : "🟢 Enable"
+
+      ) +
+
+      '</button>' +
+
+
+      '<button onclick="addBonus(' +
+
+      JSON.stringify(
+        s.id
+      )
+
+      +
+
+      ')">➕ Traffic</button>' +
+
+
+      '<button class="danger" onclick="deleteSub(' +
+
+      JSON.stringify(
+        s.id
+      )
+
+      +
+
+      ')">Delete</button>' +
+
+
+      '</div>';
+
+    }
+
+  );
+
+}
+
+
+async function toggleSub(
+  id,
+  status
+) {
+
+  await api(
+
+    "/api/admin/subscriptions/" +
+    id,
+
+    {
+
+      method:
+        "PATCH",
+
+        body:
+
+          JSON.stringify({
+
+            status:
+
+              status === "active"
+
+                ? "disabled"
+
+                : "active"
+
+          })
+
+    }
+
+  );
+
+
+  loadSubs();
+
+}
+
+
+async function deleteSub(
+  id
+) {
+
+  if (
+    !confirm(
+      "Удалить подписку?"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  await api(
+
+    "/api/admin/subscriptions/" +
+    id,
+
+    {
+
+      method:
+        "DELETE"
+
+    }
+
+  );
+
+
+  loadSubs();
+
+}
+
+
+async function addBonus(
+  id
+) {
+
+  const amount =
+    prompt(
+      "Сколько GB добавить?"
+    );
+
+
+  if (!amount) {
+
+    return;
+
+  }
+
+
+  await api(
+
+    "/api/admin/subscriptions/" +
+    id +
+    "/traffic",
+
+    {
+
+      method:
+        "POST",
+
+        body:
+
+          JSON.stringify({
+
+            amount_gb:
+              Number(amount)
+
+          })
+
+    }
+
+  );
+
+
+  loadSubs();
+
+}
+
+
+// IMPORT
+
+async function importServers() {
+
+  const text =
+    document
+      .getElementById(
+        "vlessImport"
+      )
+      .value;
+
+
+  const r =
+    await api(
+
+      "/api/admin/servers/import",
+
+      {
+
+        method:
+          "POST",
+
+        body:
+
+          JSON.stringify({
+
+            text
+
+          })
+
+      }
+
+    );
+
+
+  const d =
+    await r.json();
+
+
+  alert(
+
+    "Импортировано: " +
+
+    d.imported
+
+  );
+
+
+  document
+    .getElementById(
+      "vlessImport"
+    )
+    .value = "";
+
+
+  loadServers();
+
+}
+
+
+// SERVERS
+
+async function loadServers() {
+
+  const r =
+    await api(
+      "/api/admin/servers"
+    );
+
+
+  const data =
+    await r.json();
+
+
+  const root =
+    document
+      .getElementById(
+        "servers"
+      );
+
+
+  root.innerHTML =
+    "";
+
+
+  data.forEach(
+
+    s => {
+
+      root.innerHTML +=
+
+      '<div class="sub">' +
+
+      '<b>' +
+
+      escapeHtml(
+        s.name
+      ) +
+
+      '</b>' +
+
+
+      '<br>' +
+
+
+      (
+        s.enabled
+
+          ? "🟢 Enabled"
+
+          : "🔴 Disabled"
+
+      ) +
+
+
+      '<br>' +
+
+
+      '<button onclick="toggleServer(' +
+
+      JSON.stringify(
+        s.id
+      )
+
+      +
+
+      ',' +
+
+      Number(
+        s.enabled
+      )
+
+      +
+
+      ')">Toggle</button>' +
+
+
+      '<button class="danger" onclick="deleteServer(' +
+
+      JSON.stringify(
+        s.id
+      )
+
+      +
+
+      ')">Delete</button>' +
+
+
+      '</div>';
+
+    }
+
+  );
+
+}
+
+
+async function toggleServer(
+  id,
+  enabled
+) {
+
+  await api(
+
+    "/api/admin/servers/" +
+    id,
+
+    {
+
+      method:
+        "PATCH",
+
+        body:
+
+          JSON.stringify({
+
+            enabled:
+              !enabled
+
+          })
+
+    }
+
+  );
+
+
+  loadServers();
+
+}
+
+
+async function deleteServer(
+  id
+) {
+
+  if (
+    !confirm(
+      "Удалить сервер?"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  await api(
+
+    "/api/admin/servers/" +
+    id,
+
+    {
+
+      method:
+        "DELETE"
+
+    }
+
+  );
+
+
+  loadServers();
+
+}
+
+
+// COPY
+
+function copyText(
+  text
+) {
+
+  navigator
+    .clipboard
+    .writeText(
+      text
+    );
+
+
+  alert(
+    "Скопировано"
+  );
+
+}
+
+
+// ESCAPE
+
+function escapeHtml(
+  text
+) {
+
+  const div =
+    document.createElement(
+      "div"
+    );
+
+
+  div.textContent =
+    text;
+
+
+  return div.innerHTML;
+
+}
+
+
+checkAuth();
+
+</script>
+
+</body>
+
+</html>
+`;
+
+
+  return new Response(
+
+    html,
+
+    {
+
+      headers: {
+
+        "Content-Type":
+          "text/html; charset=utf-8",
+
+        "Cache-Control":
+          "no-store"
+
+      }
+
+    }
+
+  );
+
+}
+
+
+// =====================================================
+// HELPERS
 // =====================================================
 
 async function getSub(
@@ -3054,179 +4987,7 @@ async function getSub(
 }
 
 
-
-// =====================================================
-// SUB INFO
-// =====================================================
-
-function subscriptionInfo(
-  sub
-) {
-
-  return Response.json({
-
-    name:
-      sub.name,
-
-
-    status:
-      sub.status,
-
-
-    uuid:
-      sub.user_uuid,
-
-
-    traffic_used_gb:
-      sub.traffic_used_gb,
-
-
-    traffic_limit_gb:
-      sub.traffic_limit_gb,
-
-
-    device_limit:
-      sub.device_limit,
-
-
-    expires_at:
-      sub.expires_at
-
-  });
-
-}
-
-
-
-// =====================================================
-// DISABLED
-// =====================================================
-
-function disabledResponse(
-  format
-) {
-
-  if (
-    format === "singbox"
-  ) {
-
-    return Response.json({
-
-      outbounds: [
-
-        {
-
-          type:
-            "block",
-
-          tag:
-            "🔴 Subscription Disabled"
-
-        }
-
-      ]
-
-    });
-
-  }
-
-
-  return new Response(
-
-    "# 🔴 Subscription Disabled",
-
-    {
-
-      headers: {
-
-        "Content-Type":
-
-          "text/plain; charset=utf-8",
-
-
-        "Profile-Title":
-
-          "🔴 Subscription Disabled"
-
-      }
-
-    }
-
-  );
-
-}
-
-
-
-// =====================================================
-// EXPIRED
-// =====================================================
-
-function expiredResponse(
-  format
-) {
-
-  return new Response(
-
-    "# ⏳ Subscription Expired",
-
-    {
-
-      headers: {
-
-        "Content-Type":
-          "text/plain",
-
-        "Profile-Title":
-          "⏳ Subscription Expired"
-
-      }
-
-    }
-
-  );
-
-}
-
-
-
-// =====================================================
-// TRAFFIC LIMIT
-// =====================================================
-
-function limitResponse(
-  format
-) {
-
-  return new Response(
-
-    "# 🚫 Traffic Limit Reached",
-
-    {
-
-      headers: {
-
-        "Content-Type":
-          "text/plain",
-
-        "Profile-Title":
-          "🚫 Traffic Limit Reached"
-
-      }
-
-    }
-
-  );
-
-}
-
-
-
-// =====================================================
-// LOG
-// =====================================================
-
-async function log(
+async function adminLog(
   env,
   action,
   details
@@ -3269,11 +5030,6 @@ async function log(
 }
 
 
-
-// =====================================================
-// TOKEN
-// =====================================================
-
 function generateToken() {
 
   const bytes =
@@ -3292,8 +5048,8 @@ function generateToken() {
       x =>
 
         x
-        .toString(16)
-        .padStart(2, "0")
+          .toString(16)
+          .padStart(2, "0")
 
     )
     .join("");
@@ -3301,74 +5057,180 @@ function generateToken() {
 }
 
 
+function extractVless(
+  text
+) {
 
-// =====================================================
-// BASE64
-// =====================================================
+  return String(text)
 
-function toBase64(
+    .match(
+      /vless:\/\/[^\s"'<>]+/g
+    )
+
+    ?.map(
+      x => x.trim()
+    )
+
+    || [];
+
+}
+
+
+function countConfigs(
+  text
+) {
+
+  return extractVless(
+    text
+  ).length;
+
+}
+
+
+function getVlessName(
+  vless
+) {
+
+  try {
+
+    const url =
+      new URL(vless);
+
+
+    return decodeURIComponent(
+
+      url.hash
+        .replace("#", "")
+
+    );
+
+  }
+
+  catch {
+
+    return "";
+
+  }
+
+}
+
+
+function base64(
   text
 ) {
 
   const bytes =
     new TextEncoder()
-    .encode(text);
+      .encode(text);
 
 
   let binary =
     "";
 
 
-  bytes.forEach(
+  for (
+    const byte
+    of bytes
+  ) {
 
-    byte =>
+    binary +=
+      String.fromCharCode(
+        byte
+      );
 
-      binary +=
-      String.fromCharCode(byte)
+  }
+
+
+  return btoa(
+    binary
+  );
+
+}
+
+
+function simpleSubscriptionResponse(
+  text
+) {
+
+  return new Response(
+
+    "# " + text,
+
+    {
+
+      headers: {
+
+        "Content-Type":
+          "text/plain; charset=utf-8"
+
+      }
+
+    }
 
   );
 
-
-  return btoa(binary);
-
 }
 
 
-
-// =====================================================
-// SAFE NAME
-// =====================================================
-
-function safeName(
-  name
+async function safeJson(
+  request
 ) {
 
-  return String(name)
+  try {
 
-    .replace(
-      /[^a-z0-9_-]/gi,
-      "_"
-    )
+    return await request.json();
 
-    .slice(
-      0,
-      50
-    );
+  }
+
+  catch {
+
+    return {};
+
+  }
 
 }
 
 
+function json(
+  data,
+  status = 200,
+  extraHeaders = {}
+) {
 
-// =====================================================
-// ERROR
-// =====================================================
+  return new Response(
+
+    JSON.stringify(
+      data
+    ),
+
+    {
+
+      status,
+
+      headers: {
+
+        "Content-Type":
+          "application/json; charset=utf-8",
+
+        ...corsHeaders(),
+
+        ...extraHeaders
+
+      }
+
+    }
+
+  );
+
+}
+
 
 function error(
   message,
   status = 400
 ) {
 
-  return Response.json(
+  return json(
 
     {
 
@@ -3380,854 +5242,7 @@ function error(
 
     },
 
-    {
-
-      status
-
-    }
-
-  );
-
-}
-
-
-
-// =====================================================
-// CLEANUP
-// =====================================================
-
-async function cleanupSessions(
-  env
-) {
-
-  // KV expiration происходит автоматически.
-  // Функция оставлена для будущей очистки.
-
-}
-
-
-
-// =====================================================
-// HOME PAGE
-// =====================================================
-
-function homePage() {
-
-  return new Response(
-
-    `
-
-<!DOCTYPE html>
-
-<html lang="ru">
-
-<head>
-
-<meta charset="UTF-8">
-
-<meta
-name="viewport"
-content="width=device-width,initial-scale=1">
-
-<title>WLVPN</title>
-
-<style>
-
-body{
-
-margin:0;
-
-background:#07090d;
-
-color:white;
-
-font-family:Arial;
-
-}
-
-header{
-
-padding:25px 8%;
-
-display:flex;
-
-justify-content:space-between;
-
-}
-
-.hero{
-
-padding:100px 20px;
-
-text-align:center;
-
-}
-
-h1{
-
-font-size:80px;
-
-margin:0;
-
-}
-
-.grid{
-
-display:grid;
-
-grid-template-columns:
-
-repeat(
-auto-fit,
-minmax(220px,1fr)
-);
-
-gap:20px;
-
-padding:40px 8%;
-
-}
-
-.server{
-
-background:#11151d;
-
-padding:25px;
-
-border-radius:18px;
-
-border:1px solid #222b38;
-
-}
-
-.online{
-
-color:#4ade80;
-
-}
-
-.offline{
-
-color:#f87171;
-
-}
-
-</style>
-
-</head>
-
-<body>
-
-<header>
-
-<b>🏳 WLVPN</b>
-
-<span>🟢 Network Online</span>
-
-</header>
-
-
-<section class="hero">
-
-<h1>WLVPN</h1>
-
-<p>
-
-Secure VPN Infrastructure
-
-</p>
-
-</section>
-
-
-<section
-class="grid"
-id="servers">
-
-Loading...
-
-</section>
-
-
-<script>
-
-async function load(){
-
-const r=
-await fetch(
-"/api/status"
-);
-
-const d=
-await r.json();
-
-const root=
-document.getElementById(
-"servers"
-);
-
-root.innerHTML="";
-
-d.servers.forEach(s=>{
-
-root.innerHTML+=\`
-
-<div class="server">
-
-<h2>
-
-\${s.country}
-\${s.name}
-
-</h2>
-
-<div class="\${s.last_status}">
-
-\${s.last_status==="online"
-
-?"🟢 Online"
-
-:"🔴 Offline"
-
-}
-
-</div>
-
-<h3>
-
-\${s.last_ping || "—"} ms
-
-</h3>
-
-</div>
-
-\`;
-
-});
-
-}
-
-load();
-
-setInterval(
-load,
-15000
-);
-
-</script>
-
-</body>
-
-</html>
-
-`
-
-  );
-
-}
-
-
-
-// =====================================================
-// ADMIN PAGE
-// =====================================================
-
-function adminPage() {
-
-  return new Response(
-
-    `
-<!DOCTYPE html>
-
-<html>
-
-<head>
-
-<meta charset="UTF-8">
-
-<meta
-name="viewport"
-content="width=device-width,initial-scale=1">
-
-<title>WLVPN Admin</title>
-
-<style>
-
-body{
-
-background:#080a0f;
-
-color:white;
-
-font-family:Arial;
-
-padding:20px;
-
-}
-
-input,
-button,
-select{
-
-padding:12px;
-
-margin:5px;
-
-border-radius:8px;
-
-border:0;
-
-}
-
-input,
-select{
-
-background:#161a22;
-
-color:white;
-
-}
-
-button{
-
-cursor:pointer;
-
-}
-
-.card{
-
-background:#11151c;
-
-padding:20px;
-
-margin:10px 0;
-
-border-radius:12px;
-
-}
-
-.hidden{
-
-display:none;
-
-}
-
-</style>
-
-</head>
-
-<body>
-
-<div id="login">
-
-<h1>🏳 WLVPN Admin</h1>
-
-<input
-id="password"
-type="password"
-placeholder="Password">
-
-<button onclick="login()">
-
-Login
-
-</button>
-
-</div>
-
-
-<div
-id="panel"
-class="hidden">
-
-<h1>
-
-Dashboard
-
-</h1>
-
-<div id="stats"></div>
-
-
-<hr>
-
-
-<h2>
-
-Subscriptions
-
-</h2>
-
-
-<input
-id="subName"
-placeholder="Name">
-
-
-<input
-id="traffic"
-type="number"
-placeholder="Traffic GB">
-
-
-<button
-onclick="createSub()">
-
-Create
-
-</button>
-
-
-<div id="subs"></div>
-
-
-<hr>
-
-
-<h2>
-
-Servers
-
-</h2>
-
-
-<input
-id="serverName"
-placeholder="Name">
-
-
-<input
-id="address"
-placeholder="IP or Domain">
-
-
-<input
-id="port"
-placeholder="Port">
-
-
-<input
-id="publicKey"
-placeholder="Reality Public Key">
-
-
-<button
-onclick="createServer()">
-
-Add Server
-
-</button>
-
-
-<div id="servers"></div>
-
-</div>
-
-
-<script>
-
-async function api(
-url,
-options={}
-){
-
-return fetch(
-
-url,
-
-{
-
-...options,
-
-headers:{
-
-"Content-Type":
-"application/json"
-
-}
-
-}
-
-);
-
-}
-
-
-async function login(){
-
-const password=
-
-document
-.getElementById(
-"password"
-)
-.value;
-
-
-const r=
-await api(
-
-"/api/login",
-
-{
-
-method:"POST",
-
-body:
-JSON.stringify({
-password
-})
-
-}
-
-);
-
-
-if(r.ok){
-
-document
-.getElementById(
-"login"
-)
-.classList
-.add(
-"hidden"
-);
-
-
-document
-.getElementById(
-"panel"
-)
-.classList
-.remove(
-"hidden"
-);
-
-
-load();
-
-}
-
-}
-
-
-async function load(){
-
-loadDashboard();
-
-loadSubs();
-
-loadServers();
-
-}
-
-
-async function loadDashboard(){
-
-const r=
-await api(
-"/api/admin/dashboard"
-);
-
-const d=
-await r.json();
-
-document
-.getElementById(
-"stats"
-)
-innerHTML=
-
-\`
-
-<div class="card">
-
-Subscriptions:
-\${d.subscriptions}
-
-</div>
-
-<div class="card">
-
-Active:
-\${d.active}
-
-</div>
-
-<div class="card">
-
-Servers:
-\${d.servers}
-
-</div>
-
-<div class="card">
-
-Online:
-\${d.online}
-
-</div>
-
-\`;
-
-}
-
-
-async function loadSubs(){
-
-const r=
-await api(
-"/api/admin/subscriptions"
-);
-
-const data=
-await r.json();
-
-const root=
-document
-.getElementById(
-"subs"
-);
-
-root.innerHTML="";
-
-data.forEach(s=>{
-
-root.innerHTML+=
-
-\`
-
-<div class="card">
-
-<b>
-
-\${s.name}
-
-</b>
-
-<br>
-
-Status:
-\${s.status}
-
-<br>
-
-UUID:
-
-<code>
-
-\${s.user_uuid}
-
-</code>
-
-<br>
-
-<a
-
-href="/sub/\${s.token}"
-
-target="_blank"
-
->
-
-Subscription
-
-</a>
-
-|
-
-<a
-
-href="/sub/\${s.token}/singbox"
-
-target="_blank"
-
->
-
-sing-box
-
-</a>
-
-</div>
-
-\`;
-
-});
-
-}
-
-
-async function createSub(){
-
-await api(
-
-"/api/admin/subscriptions",
-
-{
-
-method:"POST",
-
-body:
-JSON.stringify({
-
-name:
-
-document
-.getElementById(
-"subName"
-)
-.value,
-
-
-traffic_limit_gb:
-
-Number(
-
-document
-.getElementById(
-"traffic"
-)
-.value
-
-)
-
-})
-
-}
-
-);
-
-loadSubs();
-
-}
-
-
-async function loadServers(){
-
-const r=
-await api(
-"/api/admin/servers"
-);
-
-const data=
-await r.json();
-
-const root=
-document
-.getElementById(
-"servers"
-);
-
-root.innerHTML="";
-
-data.forEach(s=>{
-
-root.innerHTML+=
-
-\`
-
-<div class="card">
-
-<b>
-
-\${s.country}
-\${s.name}
-
-</b>
-
-<br>
-
-\${s.address}:
-\${s.port}
-
-<br>
-
-Ping:
-\${s.last_ping}
-
-</div>
-
-\`;
-
-});
-
-}
-
-
-async function createServer(){
-
-await api(
-
-"/api/admin/servers",
-
-{
-
-method:"POST",
-
-body:
-JSON.stringify({
-
-name:
-
-document
-.getElementById(
-"serverName"
-)
-.value,
-
-
-address:
-
-document
-.getElementById(
-"address"
-)
-.value,
-
-
-port:
-
-Number(
-
-document
-.getElementById(
-"port"
-)
-.value
-
-),
-
-
-public_key:
-
-document
-.getElementById(
-"publicKey"
-)
-.value,
-
-
-security:
-"reality"
-
-})
-
-}
-
-);
-
-loadServers();
-
-}
-
-</script>
-
-</body>
-
-</html>
-
-`
+    status
 
   );
 
