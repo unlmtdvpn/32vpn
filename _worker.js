@@ -1,50 +1,58 @@
-// ========================================
-// WLVPN WORKER v2.2
-// ========================================
+// ============================================
+// WLVPN WORKER
+// Cloudflare Workers + KV
+// ============================================
 
-// ИСХОДНАЯ ПОДПИСКА
+
+// ============================================
+// НАСТРОЙКИ
+// ============================================
 
 const TRAFFIC_SOURCE_URL =
   "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
 
-const FAKE_UA = "INCY/3.6.5/android";
+const FAKE_UA =
+  "INCY/3.6.5/android";
 
 
-// ========================================
-// GENERATE ID
-// ========================================
+// ============================================
+// ГЕНЕРАЦИЯ ID
+// ============================================
 
 function generateId() {
   return crypto.randomUUID();
 }
 
 
+// ============================================
+// ГЕНЕРАЦИЯ TOKEN
+// ============================================
+
 function generateToken() {
 
   const bytes =
-    new Uint8Array(24);
+    new Uint8Array(32);
 
   crypto.getRandomValues(bytes);
 
   return Array.from(bytes)
-    .map(
-      b =>
-        b
-          .toString(16)
-          .padStart(2, "0")
-    )
+    .map(function (byte) {
+      return byte
+        .toString(16)
+        .padStart(2, "0");
+    })
     .join("");
 
 }
 
 
-// ========================================
+// ============================================
 // ESCAPE HTML
-// ========================================
+// ============================================
 
-function escapeHtml(text) {
+function escapeHtml(value) {
 
-  return String(text)
+  return String(value)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -54,9 +62,9 @@ function escapeHtml(text) {
 }
 
 
-// ========================================
-// VPN CLIENT DETECTION
-// ========================================
+// ============================================
+// ПРОВЕРКА VPN КЛИЕНТА
+// ============================================
 
 function isVpnClient(request) {
 
@@ -64,63 +72,62 @@ function isVpnClient(request) {
     (
       request.headers.get("User-Agent") ||
       ""
-    )
-      .toLowerCase();
+    ).toLowerCase();
 
 
-  const clients = [
+  const vpnClients = [
 
     "incy",
-
     "happ",
-
     "v2raytun",
-
     "v2rayng",
-
     "v2rayn",
-
     "sing-box",
-
     "singbox",
-
     "clash",
-
     "mihomo",
-
     "nekobox",
-
     "shadowrocket",
-
     "stash",
-
     "loon",
-
     "surge",
-
-    "quantumult"
+    "quantumult",
+    "outline"
 
   ];
 
 
-  return clients.some(
-    client =>
+  for (
+    const client
+    of vpnClients
+  ) {
+
+    if (
       userAgent.includes(client)
-  );
+    ) {
+
+      return true;
+
+    }
+
+  }
+
+
+  return false;
 
 }
 
 
-// ========================================
-// KV GET
-// ========================================
+// ============================================
+// KV - ПОЛУЧИТЬ ПОДПИСКИ
+// ============================================
 
 async function getSubscriptions(env) {
 
   if (!env.KV) {
 
     throw new Error(
-      "KV binding не подключен"
+      "KV binding 'KV' не подключен"
     );
 
   }
@@ -133,17 +140,34 @@ async function getSubscriptions(env) {
 
 
   if (!data) {
+
     return [];
+
   }
 
 
   try {
 
-    return JSON.parse(data);
+    const subscriptions =
+      JSON.parse(data);
+
+
+    if (
+      Array.isArray(
+        subscriptions
+      )
+    ) {
+
+      return subscriptions;
+
+    }
+
+
+    return [];
 
   }
 
-  catch {
+  catch (error) {
 
     return [];
 
@@ -152,9 +176,9 @@ async function getSubscriptions(env) {
 }
 
 
-// ========================================
-// KV SAVE
-// ========================================
+// ============================================
+// KV - СОХРАНИТЬ ПОДПИСКИ
+// ============================================
 
 async function saveSubscriptions(
   env,
@@ -164,7 +188,7 @@ async function saveSubscriptions(
   if (!env.KV) {
 
     throw new Error(
-      "KV binding не подключен"
+      "KV binding 'KV' не подключен"
     );
 
   }
@@ -172,21 +196,21 @@ async function saveSubscriptions(
 
   await env.KV.put(
     "subscriptions",
-    JSON.stringify(
-      subscriptions
-    )
+    JSON.stringify(subscriptions)
   );
 
 }
 
 
-// ========================================
-// SUB STATUS
-// ========================================
+// ============================================
+// СТАТУС ПОДПИСКИ
+// ============================================
 
 function getSubscriptionStatus(sub) {
 
-  if (!sub.enabled) {
+  if (
+    sub.enabled === false
+  ) {
 
     return "disabled";
 
@@ -195,8 +219,8 @@ function getSubscriptionStatus(sub) {
 
   if (
     sub.expiresAt &&
-    Date.now() >
-    Number(sub.expiresAt)
+    Number(sub.expiresAt) <=
+      Date.now()
   ) {
 
     return "expired";
@@ -209,14 +233,48 @@ function getSubscriptionStatus(sub) {
 }
 
 
-// ========================================
-// DAYS LEFT
-// ========================================
+// ============================================
+// ФОРМАТ ДАТЫ
+// ============================================
+
+function formatDate(timestamp) {
+
+  if (!timestamp) {
+
+    return "Без срока";
+
+  }
+
+
+  try {
+
+    return new Date(
+      Number(timestamp)
+    ).toLocaleString(
+      "ru-RU"
+    );
+
+  }
+
+  catch (error) {
+
+    return "Неизвестно";
+
+  }
+
+}
+
+
+// ============================================
+// СКОЛЬКО ДНЕЙ ОСТАЛОСЬ
+// ============================================
 
 function getDaysLeft(expiresAt) {
 
   if (!expiresAt) {
+
     return null;
+
   }
 
 
@@ -225,8 +283,12 @@ function getDaysLeft(expiresAt) {
     Date.now();
 
 
-  if (difference <= 0) {
+  if (
+    difference <= 0
+  ) {
+
     return 0;
+
   }
 
 
@@ -238,268 +300,138 @@ function getDaysLeft(expiresAt) {
 }
 
 
-// ========================================
-// FORMAT DATE
-// ========================================
-
-function formatDate(timestamp) {
-
-  if (!timestamp) {
-    return "Без срока";
-  }
-
-
-  try {
-
-    return new Date(
-      Number(timestamp)
-    ).toLocaleString(
-      "ru-RU",
-      {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit"
-      }
-    );
-
-  }
-
-  catch {
-
-    return "Неизвестно";
-
-  }
-
-}
-
-
-// ========================================
-// GET SOURCE SUBSCRIPTION
-// ORIGINAL REDIRECT + COOKIE METHOD
-// ========================================
+// ============================================
+// ПОЛУЧИТЬ ИСХОДНУЮ ПОДПИСКУ
+// ============================================
 
 async function getSourceSubscription() {
 
-  let sourceStatus = 0;
-
-  let rawHeaders = {};
-
-  let rawBody = "";
-
-
   try {
 
-    // ====================================
-    // FIRST REQUEST
-    // ====================================
-
-    const first =
+    const response =
       await fetch(
         TRAFFIC_SOURCE_URL,
         {
-          headers: {
-            "User-Agent":
-              FAKE_UA,
 
-            "Accept":
-              "*/*"
-          },
+          method:
+            "GET",
 
-          redirect:
-            "manual",
-
-          cf: {
-            cacheTtl: 0
-          }
-        }
-      );
-
-
-    let status =
-      first.status;
-
-
-    let headers =
-      Object.fromEntries(
-        first.headers.entries()
-      );
-
-
-    let body = "";
-
-
-    // ====================================
-    // REDIRECT
-    // ====================================
-
-    if (
-      status >= 300 &&
-      status < 400
-    ) {
-
-      let cookie = "";
-
-
-      // Ищем cookie
-
-      for (
-        const [key, value]
-        of Object.entries(headers)
-      ) {
-
-        if (
-          key
-            .toLowerCase() ===
-          "set-cookie"
-        ) {
-
-          cookie =
-            value
-              .split(";")[0];
-
-          break;
-
-        }
-
-      }
-
-
-      // ==================================
-      // SECOND REQUEST
-      // ==================================
-
-      const second =
-        await fetch(
-          TRAFFIC_SOURCE_URL,
-          {
-            headers: {
+          headers:
+            {
 
               "User-Agent":
                 FAKE_UA,
 
               "Accept":
-                "*/*",
-
-              ...(cookie
-                ? {
-                    "Cookie":
-                      cookie
-                  }
-                : {}
-              )
+                "*/*"
 
             },
 
-            redirect:
-              "manual",
+          redirect:
+            "follow"
 
-            cf: {
-              cacheTtl: 0
-            }
-
-          }
-        );
+        }
+      );
 
 
-      status =
-        second.status;
+    const headers = {};
 
 
-      headers =
-        Object.fromEntries(
-          second.headers.entries()
-        );
+    response.headers.forEach(
+      function (
+        value,
+        key
+      ) {
+
+        headers[
+          key.toLowerCase()
+        ] = value;
+
+      }
+    );
 
 
-      body =
-        await second.text();
-
-    }
+    const body =
+      await response.text();
 
 
-    // ====================================
-    // NO REDIRECT
-    // ====================================
+    return {
 
-    else {
+      success:
+        response.ok,
 
-      body =
-        await first.text();
+      status:
+        response.status,
 
-    }
+      headers:
+        headers,
 
+      body:
+        body,
 
-    sourceStatus =
-      status;
+      error:
+        null
 
-    rawHeaders =
-      headers;
-
-    rawBody =
-      body;
+    };
 
   }
-
 
   catch (error) {
 
-    sourceStatus =
-      0;
+    return {
 
-    rawBody =
-      "FETCH ERROR: " +
-      (
+      success:
+        false,
+
+      status:
+        0,
+
+      headers:
+        {},
+
+      body:
+        "",
+
+      error:
         error.message ||
         String(error)
-      );
+
+    };
 
   }
-
-
-  return {
-
-    sourceStatus,
-
-    rawHeaders,
-
-    rawBody
-
-  };
 
 }
 
 
-// ========================================
+// ============================================
 // BASE64 DECODE
-// ========================================
+// ============================================
 
-function decodeBase64(text) {
+function decodeBase64(value) {
 
   try {
 
-    let value =
-      text
+    let text =
+      String(value)
         .trim()
         .replace(/-/g, "+")
         .replace(/_/g, "/");
 
 
     while (
-      value.length % 4
+      text.length % 4 !== 0
     ) {
 
-      value += "=";
+      text += "=";
 
     }
 
 
-    return atob(value);
+    return atob(text);
 
   }
 
-  catch {
+  catch (error) {
 
     return null;
 
@@ -508,188 +440,73 @@ function decodeBase64(text) {
 }
 
 
-// ========================================
+// ============================================
 // BASE64 ENCODE
-// ========================================
+// ============================================
 
-function encodeBase64(text) {
+function encodeBase64(value) {
 
   try {
 
-    return btoa(text);
+    return btoa(value);
 
   }
 
-  catch {
+  catch (error) {
 
-    return text;
+    return value;
 
   }
 
 }
 
 
-// ========================================
-// DETECT SUB FORMAT
-// ========================================
+// ============================================
+// ПРОВЕРКА VPN ССЫЛКИ
+// ============================================
 
-function decodeSubscription(body) {
-
-  const text =
-    String(body || "")
-      .trim();
-
-
-  // Обычный текст
-
-  if (
-
-    text.includes("vless://") ||
-
-    text.includes("vmess://") ||
-
-    text.includes("trojan://") ||
-
-    text.includes("ss://")
-
-  ) {
-
-    return {
-
-      content:
-        text,
-
-      encoded:
-        false
-
-    };
-
-  }
-
-
-  // Пробуем Base64
-
-  const decoded =
-    decodeBase64(text);
-
-
-  if (
-
-    decoded &&
-
-    (
-
-      decoded.includes(
-        "vless://"
-      ) ||
-
-      decoded.includes(
-        "vmess://"
-      ) ||
-
-      decoded.includes(
-        "trojan://"
-      ) ||
-
-      decoded.includes(
-        "ss://"
-      )
-
-    )
-
-  ) {
-
-    return {
-
-      content:
-        decoded,
-
-      encoded:
-        true
-
-    };
-
-  }
-
-
-  // Неизвестный формат
-
-  return {
-
-    content:
-      text,
-
-    encoded:
-      false
-
-  };
-
-}
-
-
-// ========================================
-// CHECK GERMANY / SWEDEN
-// ========================================
-
-function isNormalServer(line) {
+function isVpnLine(line) {
 
   const value =
     String(line)
+      .trim()
       .toLowerCase();
-
-
-  const germany = [
-
-    "germany",
-
-    "deutschland",
-
-    "германия",
-
-    "🇩🇪",
-
-    "frankfurt",
-
-    "berlin",
-
-    "nuremberg",
-
-    "düsseldorf",
-
-    "dusseldorf"
-
-  ];
-
-
-  const sweden = [
-
-    "sweden",
-
-    "sverige",
-
-    "швеция",
-
-    "🇸🇪",
-
-    "stockholm",
-
-    "gothenburg"
-
-  ];
 
 
   return (
 
-    germany.some(
-      item =>
-        value.includes(item)
+    value.startsWith(
+      "vless://"
     )
 
     ||
 
-    sweden.some(
-      item =>
-        value.includes(item)
+    value.startsWith(
+      "vmess://"
+    )
+
+    ||
+
+    value.startsWith(
+      "trojan://"
+    )
+
+    ||
+
+    value.startsWith(
+      "ss://"
+    )
+
+    ||
+
+    value.startsWith(
+      "hysteria2://"
+    )
+
+    ||
+
+    value.startsWith(
+      "hy2://"
     )
 
   );
@@ -697,117 +514,229 @@ function isNormalServer(line) {
 }
 
 
-// ========================================
-// NORMAL FILTER
-// ========================================
+// ============================================
+// PARSE SUBSCRIPTION
+// ============================================
+
+function parseSubscription(body) {
+
+  const original =
+    String(body || "")
+      .trim();
+
+
+  const decoded =
+    decodeBase64(original);
+
+
+  if (
+    decoded &&
+    (
+      decoded.includes("vless://") ||
+      decoded.includes("vmess://") ||
+      decoded.includes("trojan://") ||
+      decoded.includes("ss://") ||
+      decoded.includes("hysteria2://") ||
+      decoded.includes("hy2://")
+    )
+  ) {
+
+    return {
+
+      content:
+        decoded,
+
+      base64:
+        true
+
+    };
+
+  }
+
+
+  return {
+
+    content:
+      original,
+
+    base64:
+      false
+
+  };
+
+}
+
+
+// ============================================
+// NORMAL ПОДПИСКА
+// ГЕРМАНИЯ + ШВЕЦИЯ
+// ============================================
 
 function filterNormalSubscription(body) {
 
-  const decoded =
-    decodeSubscription(body);
+  const parsed =
+    parseSubscription(body);
 
 
   const lines =
-    decoded.content
+    parsed.content
       .split(/\r?\n/)
-      .map(
-        line =>
-          line.trim()
-      )
-      .filter(Boolean);
+      .map(function (line) {
+
+        return line.trim();
+
+      })
+      .filter(function (line) {
+
+        return isVpnLine(line);
+
+      });
 
 
-  // Ищем Германию и Швецию
-
-  let allowed =
-    lines.filter(
-      line =>
-        isNormalServer(line)
-    );
+  let germany =
+    null;
 
 
-  // Оставляем максимум 2
-
-  allowed =
-    allowed.slice(0, 2);
+  let sweden =
+    null;
 
 
-  // Если страны не найдены,
-  // берём первые два сервера
+  // Поиск Германии
 
-  if (
-    allowed.length === 0
+  for (
+    const line
+    of lines
   ) {
 
-    allowed =
-      lines
-        .filter(
-          line =>
+    const lower =
+      line.toLowerCase();
 
-            line.startsWith(
-              "vless://"
-            )
 
-            ||
+    if (
+      lower.includes("germany") ||
+      lower.includes("deutschland") ||
+      lower.includes("германия") ||
+      lower.includes("frankfurt") ||
+      lower.includes("berlin") ||
+      lower.includes("%f0%9f%87%a9%f0%9f%87%aa")
+    ) {
 
-            line.startsWith(
-              "vmess://"
-            )
+      germany =
+        line;
 
-            ||
+      break;
 
-            line.startsWith(
-              "trojan://"
-            )
+    }
 
-            ||
+  }
 
-            line.startsWith(
-              "ss://"
-            )
 
-        )
-        .slice(0, 2);
+  // Поиск Швеции
+
+  for (
+    const line
+    of lines
+  ) {
+
+    const lower =
+      line.toLowerCase();
+
+
+    if (
+      lower.includes("sweden") ||
+      lower.includes("sverige") ||
+      lower.includes("швеция") ||
+      lower.includes("stockholm") ||
+      lower.includes("%f0%9f%87%b8%f0%9f%87%aa")
+    ) {
+
+      sweden =
+        line;
+
+      break;
+
+    }
 
   }
 
 
   const result =
-    allowed.join("\n");
+    [];
 
 
-  // Если источник Base64
+  if (germany) {
 
-  if (
-    decoded.encoded
-  ) {
-
-    return encodeBase64(
-      result
+    result.push(
+      germany
     );
 
   }
 
 
-  return result;
+  if (sweden) {
+
+    result.push(
+      sweden
+    );
+
+  }
+
+
+  // Если не удалось найти
+  // Германию и Швецию,
+  // берем первые 2 сервера
+
+  if (
+    result.length === 0
+  ) {
+
+    for (
+      let index = 0;
+      index < lines.length &&
+      index < 2;
+      index++
+    ) {
+
+      result.push(
+        lines[index]
+      );
+
+    }
+
+  }
+
+
+  const output =
+    result.join("\n");
+
+
+  if (
+    parsed.base64
+  ) {
+
+    return encodeBase64(
+      output
+    );
+
+  }
+
+
+  return output;
 
 }
 
 
-// ========================================
-// PLACEHOLDER SERVER
-// ========================================
+// ============================================
+// ОДИН СЕРВЕР ДЛЯ ОТКЛЮЧЕННОЙ ПОДПИСКИ
+// ============================================
 
-function getPlaceholderSubscription(
-  name
-) {
+function getPlaceholderServer(name) {
 
   const uuid =
     "00000000-0000-0000-0000-000000000000";
 
 
   return (
-
     "vless://" +
 
     uuid +
@@ -823,16 +752,298 @@ function getPlaceholderSubscription(
     "#" +
 
     encodeURIComponent(name)
-
   );
 
 }
 
 
-// ========================================
-// SUBSCRIPTION INFO PAGE
-// BROWSER ONLY
-// ========================================
+// ============================================
+// ГЛАВНЫЙ САЙТ
+// ============================================
+
+function getWebsite() {
+
+  return `
+<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width,initial-scale=1.0"
+>
+
+<title>WLVPN</title>
+
+<style>
+
+* {
+  box-sizing:
+    border-box;
+}
+
+body {
+
+  margin:
+    0;
+
+  min-height:
+    100vh;
+
+  font-family:
+    Arial,
+    sans-serif;
+
+  background:
+    linear-gradient(
+      135deg,
+      #080b14,
+      #111a32
+    );
+
+  color:
+    white;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+}
+
+header {
+
+  padding:
+    22px 7%;
+
+  display:
+    flex;
+
+  justify-content:
+    space-between;
+
+  align-items:
+    center;
+
+}
+
+.logo {
+
+  font-size:
+    25px;
+
+  font-weight:
+    bold;
+
+}
+
+.admin {
+
+  color:
+    white;
+
+  text-decoration:
+    none;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.08
+    );
+
+  padding:
+    11px 18px;
+
+  border-radius:
+    12px;
+
+}
+
+main {
+
+  flex:
+    1;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  justify-content:
+    center;
+
+  align-items:
+    center;
+
+  text-align:
+    center;
+
+  padding:
+    30px;
+
+}
+
+.badge {
+
+  color:
+    #92a7ff;
+
+  background:
+    rgba(
+      91,
+      124,
+      255,
+      0.12
+    );
+
+  padding:
+    10px 18px;
+
+  border-radius:
+    30px;
+
+}
+
+h1 {
+
+  font-size:
+    60px;
+
+  margin:
+    25px 0 10px;
+
+}
+
+p {
+
+  color:
+    #a8b1c8;
+
+  font-size:
+    18px;
+
+}
+
+.button {
+
+  margin-top:
+    25px;
+
+  padding:
+    16px 30px;
+
+  border-radius:
+    14px;
+
+  background:
+    #5b7cff;
+
+  color:
+    white;
+
+  text-decoration:
+    none;
+
+  font-weight:
+    bold;
+
+}
+
+footer {
+
+  text-align:
+    center;
+
+  padding:
+    25px;
+
+  color:
+    #68728a;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<header>
+
+<div class="logo">
+
+🏳 WLVPN
+
+</div>
+
+<a
+class="admin"
+href="/admin"
+>
+
+Админ
+
+</a>
+
+</header>
+
+<main>
+
+<div class="badge">
+
+🟢 VPN сервис онлайн
+
+</div>
+
+<h1>
+
+WLVPN
+
+</h1>
+
+<p>
+
+Быстрый и стабильный VPN сервис
+
+</p>
+
+<a
+class="button"
+href="https://t.me/snokuy"
+target="_blank"
+>
+
+Telegram @snokuy
+
+</a>
+
+</main>
+
+<footer>
+
+© WLVPN
+
+</footer>
+
+</body>
+
+</html>
+`;
+
+}
+
+
+// ============================================
+// СТРАНИЦА ИНФОРМАЦИИ О ПОДПИСКЕ
+// ============================================
 
 function getSubscriptionPage(sub) {
 
@@ -844,19 +1055,12 @@ function getSubscriptionPage(sub) {
     "🟢 Подписка активна";
 
 
-  let statusClass =
-    "active";
-
-
   if (
     status === "disabled"
   ) {
 
     statusText =
       "🔴 Подписка отключена 🚫";
-
-    statusClass =
-      "disabled";
 
   }
 
@@ -867,9 +1071,6 @@ function getSubscriptionPage(sub) {
 
     statusText =
       "⏰ Подписка истекла 🚫";
-
-    statusClass =
-      "expired";
 
   }
 
@@ -888,35 +1089,29 @@ function getSubscriptionPage(sub) {
     days !== null
   ) {
 
-    if (
-      days <= 0
-    ) {
-
-      daysText =
-        "Срок истёк";
-
-    }
-
-    else {
-
-      daysText =
-        days +
-        " дней";
-
-    }
+    daysText =
+      String(days) +
+      " дней";
 
   }
 
 
-  const planText =
+  let planText =
+    "🟢 Normal — Германия и Швеция";
+
+
+  if (
     sub.plan === "premium"
+  ) {
 
-      ? "⭐ PREMIUM — Все серверы"
+    planText =
+      "⭐ Premium — все серверы";
 
-      : "🟢 NORMAL — Германия + Швеция";
+  }
 
 
-  return `<!DOCTYPE html>
+  return `
+<!DOCTYPE html>
 
 <html lang="ru">
 
@@ -926,24 +1121,27 @@ function getSubscriptionPage(sub) {
 
 <meta
 name="viewport"
-content="width=device-width,initial-scale=1.0"
+content="width=device-width,initial-scale=1"
 >
 
-<title>
-${escapeHtml(sub.name)} — WLVPN
-</title>
+<title>WLVPN Subscription</title>
 
 <style>
 
 * {
-  box-sizing: border-box;
+
+  box-sizing:
+    border-box;
+
 }
 
 body {
 
-  margin: 0;
+  margin:
+    0;
 
-  min-height: 100vh;
+  min-height:
+    100vh;
 
   background:
     #090d18;
@@ -978,7 +1176,7 @@ body {
     520px;
 
   background:
-    #141b2d;
+    #151c2e;
 
   padding:
     30px;
@@ -986,16 +1184,12 @@ body {
   border-radius:
     24px;
 
-  box-shadow:
-    0 20px 80px
-    rgba(0,0,0,.4);
-
 }
 
 .logo {
 
   color:
-    #8298ff;
+    #8499ff;
 
   font-weight:
     bold;
@@ -1011,20 +1205,7 @@ h1 {
     0;
 
   font-size:
-    28px;
-
-  word-break:
-    break-word;
-
-}
-
-.plan {
-
-  margin-top:
-    10px;
-
-  color:
-    #a2acc4;
+    27px;
 
 }
 
@@ -1036,62 +1217,28 @@ h1 {
   padding:
     16px;
 
+  background:
+    #202a42;
+
   border-radius:
     14px;
-
-}
-
-.active {
-
-  background:
-    rgba(
-      30,
-      180,
-      100,
-      .15
-    );
-
-}
-
-.disabled {
-
-  background:
-    rgba(
-      255,
-      70,
-      70,
-      .15
-    );
-
-}
-
-.expired {
-
-  background:
-    rgba(
-      255,
-      170,
-      40,
-      .15
-    );
 
 }
 
 .row {
 
   padding:
-    15px 0;
+    16px 0;
 
   border-bottom:
-    1px solid
-    #242d42;
+    1px solid #283148;
 
 }
 
 .label {
 
   color:
-    #8490aa;
+    #8c96ad;
 
   font-size:
     13px;
@@ -1101,11 +1248,11 @@ h1 {
 .value {
 
   margin-top:
-    5px;
+    6px;
 
 }
 
-.protect {
+.protected {
 
   margin-top:
     25px;
@@ -1113,45 +1260,17 @@ h1 {
   padding:
     18px;
 
-  background:
-    #0d1321;
-
   border-radius:
     14px;
 
-  text-align:
-    center;
-
-  color:
-    #a2acc4;
-
-}
-
-.telegram {
-
-  display:
-    block;
-
-  margin-top:
-    20px;
-
-  padding:
-    15px;
-
   background:
-    #5b7cff;
+    #0d1320;
 
   color:
-    white;
+    #9ba5bc;
 
   text-align:
     center;
-
-  border-radius:
-    12px;
-
-  text-decoration:
-    none;
 
 }
 
@@ -1163,13 +1282,11 @@ h1 {
 
 <div class="card">
 
-
 <div class="logo">
 
 🏳 WLVPN
 
 </div>
-
 
 <h1>
 
@@ -1177,20 +1294,27 @@ ${escapeHtml(sub.name)}
 
 </h1>
 
-
-<div class="plan">
-
-${planText}
-
-</div>
-
-
-<div class="status ${statusClass}">
+<div class="status">
 
 ${statusText}
 
 </div>
 
+<div class="row">
+
+<div class="label">
+
+Тариф
+
+</div>
+
+<div class="value">
+
+${planText}
+
+</div>
+
+</div>
 
 <div class="row">
 
@@ -1208,12 +1332,11 @@ ${formatDate(sub.createdAt)}
 
 </div>
 
-
 <div class="row">
 
 <div class="label">
 
-Истекает
+Срок действия
 
 </div>
 
@@ -1224,7 +1347,6 @@ ${formatDate(sub.expiresAt)}
 </div>
 
 </div>
-
 
 <div class="row">
 
@@ -1242,290 +1364,32 @@ ${daysText}
 
 </div>
 
+<div class="protected">
 
-<div class="protect">
-
-🔒 Конфигурации серверов защищены
-
-<br><br>
-
-Содержимое VPN подписки
-не отображается в браузере.
+🔒 Конфигурации серверов
+защищены и не отображаются
+в браузере
 
 </div>
-
-
-<a
-class="telegram"
-href="https://t.me/snokuy"
-target="_blank"
->
-
-Поддержка
-
-</a>
-
 
 </div>
 
 </body>
 
-</html>`;
+</html>
+`;
 
 }
 
 
-// ========================================
-// MAIN WEBSITE
-// ========================================
-
-function getWebsite() {
-
-  return `<!DOCTYPE html>
-
-<html lang="ru">
-
-<head>
-
-<meta charset="UTF-8">
-
-<meta
-name="viewport"
-content="width=device-width,initial-scale=1.0"
->
-
-<title>WLVPN</title>
-
-<style>
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-
-  margin: 0;
-
-  min-height: 100vh;
-
-  background:
-    #090d18;
-
-  color:
-    white;
-
-  font-family:
-    Arial,
-    sans-serif;
-
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-}
-
-header {
-
-  padding:
-    22px 7%;
-
-  display:
-    flex;
-
-  justify-content:
-    space-between;
-
-}
-
-.logo {
-
-  font-size:
-    25px;
-
-  font-weight:
-    bold;
-
-}
-
-.admin {
-
-  background:
-    #1d263b;
-
-  color:
-    white;
-
-  padding:
-    10px 17px;
-
-  border-radius:
-    10px;
-
-  text-decoration:
-    none;
-
-}
-
-main {
-
-  flex:
-    1;
-
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-  justify-content:
-    center;
-
-  align-items:
-    center;
-
-  text-align:
-    center;
-
-  padding:
-    30px;
-
-}
-
-h1 {
-
-  font-size:
-    55px;
-
-  margin:
-    0;
-
-}
-
-p {
-
-  color:
-    #9ca8c3;
-
-  font-size:
-    18px;
-
-}
-
-.telegram {
-
-  margin-top:
-    20px;
-
-  padding:
-    15px 28px;
-
-  background:
-    #5b7cff;
-
-  border-radius:
-    12px;
-
-  color:
-    white;
-
-  text-decoration:
-    none;
-
-}
-
-footer {
-
-  padding:
-    25px;
-
-  text-align:
-    center;
-
-  color:
-    #65708a;
-
-}
-
-</style>
-
-</head>
-
-<body>
-
-
-<header>
-
-<div class="logo">
-
-🏳 WLVPN
-
-</div>
-
-
-<a
-class="admin"
-href="/admin"
->
-
-Админ
-
-</a>
-
-</header>
-
-
-<main>
-
-<h1>
-
-WLVPN
-
-</h1>
-
-
-<p>
-
-Быстрый и стабильный VPN сервис
-
-</p>
-
-
-<a
-class="telegram"
-href="https://t.me/snokuy"
-target="_blank"
->
-
-Telegram @snokuy
-
-</a>
-
-</main>
-
-
-<footer>
-
-© WLVPN
-
-</footer>
-
-
-</body>
-
-</html>`;
-
-}
-
-
-// ========================================
-// ADMIN PANEL
-// ========================================
+// ============================================
+// АДМИН ПАНЕЛЬ
+// ============================================
 
 function getAdminPage() {
 
-  return `<!DOCTYPE html>
+  return `
+<!DOCTYPE html>
 
 <html lang="ru">
 
@@ -1535,7 +1399,7 @@ function getAdminPage() {
 
 <meta
 name="viewport"
-content="width=device-width,initial-scale=1.0"
+content="width=device-width,initial-scale=1"
 >
 
 <title>WLVPN Admin</title>
@@ -1551,9 +1415,11 @@ content="width=device-width,initial-scale=1.0"
 
 body {
 
-  margin: 0;
+  margin:
+    0;
 
-  padding: 20px;
+  padding:
+    20px;
 
   background:
     #090d18;
@@ -1577,16 +1443,23 @@ body {
 
 }
 
-.create {
+.panel {
 
   background:
-    #141b2d;
+    #151c2e;
 
   padding:
     20px;
 
   border-radius:
     18px;
+
+  margin-bottom:
+    25px;
+
+}
+
+.create {
 
   display:
     flex;
@@ -1597,16 +1470,13 @@ body {
   gap:
     10px;
 
-  margin-bottom:
-    25px;
-
 }
 
 input,
 select {
 
   padding:
-    13px;
+    14px;
 
   border:
     none;
@@ -1615,7 +1485,7 @@ select {
     10px;
 
   background:
-    #202940;
+    #222c44;
 
   color:
     white;
@@ -1628,17 +1498,17 @@ input {
     1;
 
   min-width:
-    170px;
+    180px;
 
 }
 
 button {
 
-  padding:
-    12px 16px;
-
   border:
     none;
+
+  padding:
+    13px 17px;
 
   border-radius:
     10px;
@@ -1657,7 +1527,7 @@ button {
 .item {
 
   background:
-    #141b2d;
+    #151c2e;
 
   padding:
     20px;
@@ -1686,14 +1556,14 @@ button {
     8px;
 
   color:
-    #a2acc4;
+    #a4adc3;
 
 }
 
 .link {
 
   margin-top:
-    12px;
+    14px;
 
   color:
     #8298ff;
@@ -1712,25 +1582,10 @@ button {
     wrap;
 
   gap:
-    10px;
+    8px;
 
   margin-top:
-    15px;
-
-}
-
-.disabled {
-
-  opacity:
-    .55;
-
-}
-
-.expired {
-
-  border:
-    1px solid
-    #9a6720;
+    16px;
 
 }
 
@@ -1749,45 +1604,38 @@ button {
 
 <div class="container">
 
-
 <h1>
 
 🏳 WLVPN Admin
 
 </h1>
 
+<div class="panel">
 
 <div class="create">
-
 
 <input
 id="name"
 placeholder="Название подписки"
 >
 
-
 <select id="plan">
 
 <option value="normal">
 
-🟢 NORMAL
+🟢 Normal
 
 </option>
 
-
 <option value="premium">
 
-⭐ PREMIUM
+⭐ Premium
 
 </option>
 
 </select>
 
-
-<select
-id="duration"
-onchange="durationChanged()"
->
+<select id="days">
 
 <option value="0">
 
@@ -1819,21 +1667,13 @@ onchange="durationChanged()"
 
 </option>
 
-<option value="custom">
+<option value="365">
 
-Своя дата
+365 дней
 
 </option>
 
 </select>
-
-
-<input
-id="customDate"
-type="datetime-local"
-style="display:none"
->
-
 
 <button onclick="createSub()">
 
@@ -1841,9 +1681,9 @@ style="display:none"
 
 </button>
 
-
 </div>
 
+</div>
 
 <div id="list">
 
@@ -1851,22 +1691,17 @@ style="display:none"
 
 </div>
 
-
 </div>
-
 
 <script>
 
-
-function escapeHtml(text) {
+function esc(value) {
 
   var div =
-    document.createElement(
-      "div"
-    );
+    document.createElement("div");
 
   div.textContent =
-    String(text);
+    String(value);
 
   return div.innerHTML;
 
@@ -1874,13 +1709,13 @@ function escapeHtml(text) {
 
 
 async function api(
-  path,
+  url,
   options
 ) {
 
   var response =
     await fetch(
-      path,
+      url,
       options || {}
     );
 
@@ -1899,19 +1734,18 @@ async function api(
 
   }
 
-  catch {
+  catch (error) {
 
-    data = {
-      error:
-        text
-    };
+    data =
+      {
+        error:
+          text
+      };
 
   }
 
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
 
     throw new Error(
       data.error ||
@@ -1922,32 +1756,6 @@ async function api(
 
 
   return data;
-
-}
-
-
-function durationChanged() {
-
-  var duration =
-    document
-      .getElementById(
-        "duration"
-      )
-      .value;
-
-
-  document
-    .getElementById(
-      "customDate"
-    )
-    .style
-    .display =
-
-      duration === "custom"
-
-        ? "block"
-
-        : "none";
 
 }
 
@@ -1972,54 +1780,41 @@ function formatDate(value) {
 
 function getStatus(sub) {
 
-  if (
-    !sub.enabled
-  ) {
+  if (!sub.enabled) {
 
-    return {
-
-      text:
-        "🔴 Отключена",
-
-      className:
-        "disabled"
-
-    };
+    return "🔴 Отключена";
 
   }
 
 
   if (
-
     sub.expiresAt &&
-
-    Date.now() >
+    Date.now() >=
     Number(sub.expiresAt)
-
   ) {
 
-    return {
-
-      text:
-        "⏰ Истекла",
-
-      className:
-        "expired"
-
-    };
+    return "⏰ Истекла";
 
   }
 
 
-  return {
+  return "🟢 Активна";
 
-    text:
-      "🟢 Активна",
+}
 
-    className:
-      ""
 
-  };
+function getPlan(sub) {
+
+  if (
+    sub.plan === "premium"
+  ) {
+
+    return "⭐ Premium — все серверы";
+
+  }
+
+
+  return "🟢 Normal — 2 сервера";
 
 }
 
@@ -2034,7 +1829,7 @@ async function load() {
 
   try {
 
-    var data =
+    var subs =
       await api(
         "/api/subscriptions"
       );
@@ -2045,7 +1840,7 @@ async function load() {
 
 
     if (
-      !data.length
+      !subs.length
     ) {
 
       list.innerHTML =
@@ -2056,11 +1851,13 @@ async function load() {
     }
 
 
-    data.forEach(
-      function(sub) {
+    subs.forEach(
+      function (sub) {
 
-        var status =
-          getStatus(sub);
+        var link =
+          location.origin +
+          "/sub/" +
+          sub.token;
 
 
         var div =
@@ -2070,175 +1867,107 @@ async function load() {
 
 
         div.className =
-          "item " +
-          status.className;
+          "item";
 
 
-        var link =
-          location.origin +
-          "/sub/" +
-          sub.token;
+        var html =
+          "";
 
+        html +=
+          '<div class="name">' +
+          esc(sub.name) +
+          '</div>';
 
-        var days =
-          sub.expiresAt
+        html +=
+          '<div class="info">' +
+          getStatus(sub) +
+          '</div>';
 
-            ? Math.max(
+        html +=
+          '<div class="info">' +
+          getPlan(sub) +
+          '</div>';
 
-                0,
+        html +=
+          '<div class="info">Срок: ' +
+          formatDate(sub.expiresAt) +
+          '</div>';
 
-                Math.ceil(
-                  (
-                    Number(
-                      sub.expiresAt
-                    ) -
-                    Date.now()
-                  ) /
-                  86400000
-                )
+        html +=
+          '<div class="link">' +
+          esc(link) +
+          '</div>';
 
-              )
+        html +=
+          '<div class="actions">';
 
-            : null;
+        html +=
+          '<button data-action="copy">Копировать</button>';
+
+        html +=
+          '<button data-action="rename">Переименовать</button>';
+
+        html +=
+          '<button data-action="toggle">Вкл/Выкл</button>';
+
+        html +=
+          '<button data-action="extend">Продлить</button>';
+
+        html +=
+          '<button data-action="delete">Удалить</button>';
+
+        html +=
+          '</div>';
 
 
         div.innerHTML =
+          html;
 
-          '<div class="name">' +
 
-          escapeHtml(
-            sub.name
-          ) +
+        var buttons =
+          div.querySelectorAll(
+            "button"
+          );
 
-          '</div>' +
 
+        buttons[0].onclick =
+          function () {
+            copySub(
+              sub.token
+            );
+          };
 
-          '<div class="info">' +
 
-          status.text +
+        buttons[1].onclick =
+          function () {
+            renameSub(
+              sub.id
+            );
+          };
 
-          '</div>' +
 
+        buttons[2].onclick =
+          function () {
+            toggleSub(
+              sub.id
+            );
+          };
 
-          '<div class="info">' +
 
-          (
-            sub.plan === "premium"
+        buttons[3].onclick =
+          function () {
+            extendSub(
+              sub.id
+            );
+          };
 
-              ? "⭐ PREMIUM — Все серверы"
 
-              : "🟢 NORMAL — Германия + Швеция"
-          ) +
-
-          '</div>' +
-
-
-          '<div class="info">' +
-
-          'Создана: ' +
-
-          formatDate(
-            sub.createdAt
-          ) +
-
-          '</div>' +
-
-
-          '<div class="info">' +
-
-          'Истекает: ' +
-
-          formatDate(
-            sub.expiresAt
-          ) +
-
-          (
-            days !== null
-
-              ? ' · Осталось: ' +
-                days +
-                ' дн.'
-
-              : ''
-          ) +
-
-          '</div>' +
-
-
-          '<div class="link">' +
-
-          escapeHtml(
-            link
-          ) +
-
-          '</div>' +
-
-
-          '<div class="actions">' +
-
-
-          '<button onclick="copyLink(\\'' +
-
-          sub.token +
-
-          '\\')">' +
-
-          'Копировать' +
-
-          '</button>' +
-
-
-          '<button onclick="renameSub(\\'' +
-
-          sub.id +
-
-          '\\')">' +
-
-          'Переименовать' +
-
-          '</button>' +
-
-
-          '<button onclick="toggleSub(\\'' +
-
-          sub.id +
-
-          '\\')">' +
-
-          (
-            sub.enabled
-
-              ? "Отключить"
-
-              : "Включить"
-          ) +
-
-          '</button>' +
-
-
-          '<button onclick="extendSub(\\'' +
-
-          sub.id +
-
-          '\\')">' +
-
-          'Продлить' +
-
-          '</button>' +
-
-
-          '<button onclick="deleteSub(\\'' +
-
-          sub.id +
-
-          '\\')">' +
-
-          'Удалить' +
-
-          '</button>' +
-
-
-          '</div>';
+        buttons[4].onclick =
+          function () {
+            deleteSub(
+              sub.id
+            );
+          };
 
 
         list.appendChild(
@@ -2250,17 +1979,11 @@ async function load() {
 
   }
 
-
-  catch(error) {
+  catch (error) {
 
     list.innerHTML =
-
       '<p class="error">' +
-
-      escapeHtml(
-        error.message
-      ) +
-
+      esc(error.message) +
       '</p>';
 
   }
@@ -2268,42 +1991,24 @@ async function load() {
 }
 
 
-// ======================================
-// CREATE
-// ======================================
-
 async function createSub() {
 
   var name =
     document
-      .getElementById(
-        "name"
-      )
+      .getElementById("name")
       .value
       .trim();
 
 
   var plan =
     document
-      .getElementById(
-        "plan"
-      )
+      .getElementById("plan")
       .value;
 
 
-  var duration =
+  var days =
     document
-      .getElementById(
-        "duration"
-      )
-      .value;
-
-
-  var customDate =
-    document
-      .getElementById(
-        "customDate"
-      )
+      .getElementById("days")
       .value;
 
 
@@ -2327,49 +2032,45 @@ async function createSub() {
         method:
           "POST",
 
-        headers: {
+        headers:
+          {
 
-          "Content-Type":
-            "application/json"
+            "Content-Type":
+              "application/json"
 
-        },
+          },
 
         body:
+          JSON.stringify(
+            {
 
-          JSON.stringify({
+              name:
+                name,
 
-            name:
-              name,
+              plan:
+                plan,
 
-            plan:
-              plan,
+              days:
+                Number(days)
 
-            duration:
-              duration,
-
-            customDate:
-              customDate
-
-          })
+            }
+          )
 
       }
     );
 
 
     document
-      .getElementById(
-        "name"
-      )
+      .getElementById("name")
       .value =
-        "";
+      "";
 
 
     load();
 
   }
 
-
-  catch(error) {
+  catch (error) {
 
     alert(
       error.message
@@ -2380,11 +2081,7 @@ async function createSub() {
 }
 
 
-// ======================================
-// COPY
-// ======================================
-
-async function copyLink(token) {
+async function copySub(token) {
 
   var link =
     location.origin +
@@ -2396,9 +2093,7 @@ async function copyLink(token) {
 
     await navigator
       .clipboard
-      .writeText(
-        link
-      );
+      .writeText(link);
 
 
     alert(
@@ -2407,11 +2102,10 @@ async function copyLink(token) {
 
   }
 
-
-  catch {
+  catch (error) {
 
     prompt(
-      "Скопируй ссылку:",
+      "Скопируйте ссылку",
       link
     );
 
@@ -2419,10 +2113,6 @@ async function copyLink(token) {
 
 }
 
-
-// ======================================
-// RENAME
-// ======================================
 
 async function renameSub(id) {
 
@@ -2433,7 +2123,9 @@ async function renameSub(id) {
 
 
   if (!name) {
+
     return;
+
   }
 
 
@@ -2447,21 +2139,23 @@ async function renameSub(id) {
         method:
           "PUT",
 
-        headers: {
+        headers:
+          {
 
-          "Content-Type":
-            "application/json"
+            "Content-Type":
+              "application/json"
 
-        },
+          },
 
         body:
+          JSON.stringify(
+            {
 
-          JSON.stringify({
+              name:
+                name
 
-            name:
-              name
-
-          })
+            }
+          )
 
       }
     );
@@ -2471,8 +2165,7 @@ async function renameSub(id) {
 
   }
 
-
-  catch(error) {
+  catch (error) {
 
     alert(
       error.message
@@ -2482,10 +2175,6 @@ async function renameSub(id) {
 
 }
 
-
-// ======================================
-// TOGGLE
-// ======================================
 
 async function toggleSub(id) {
 
@@ -2508,8 +2197,7 @@ async function toggleSub(id) {
 
   }
 
-
-  catch(error) {
+  catch (error) {
 
     alert(
       error.message
@@ -2519,10 +2207,6 @@ async function toggleSub(id) {
 
 }
 
-
-// ======================================
-// EXTEND
-// ======================================
 
 async function extendSub(id) {
 
@@ -2534,7 +2218,27 @@ async function extendSub(id) {
 
 
   if (!days) {
+
     return;
+
+  }
+
+
+  days =
+    Number(days);
+
+
+  if (
+    !Number.isFinite(days) ||
+    days <= 0
+  ) {
+
+    alert(
+      "Введите правильное количество дней"
+    );
+
+    return;
+
   }
 
 
@@ -2549,21 +2253,23 @@ async function extendSub(id) {
         method:
           "POST",
 
-        headers: {
+        headers:
+          {
 
-          "Content-Type":
-            "application/json"
+            "Content-Type":
+              "application/json"
 
-        },
+          },
 
         body:
+          JSON.stringify(
+            {
 
-          JSON.stringify({
+              days:
+                days
 
-            days:
-              Number(days)
-
-          })
+            }
+          )
 
       }
     );
@@ -2573,8 +2279,7 @@ async function extendSub(id) {
 
   }
 
-
-  catch(error) {
+  catch (error) {
 
     alert(
       error.message
@@ -2585,17 +2290,15 @@ async function extendSub(id) {
 }
 
 
-// ======================================
-// DELETE
-// ======================================
-
 async function deleteSub(id) {
 
-  if (
-    !confirm(
+  var result =
+    confirm(
       "Удалить подписку?"
-    )
-  ) {
+    );
+
+
+  if (!result) {
 
     return;
 
@@ -2620,8 +2323,7 @@ async function deleteSub(id) {
 
   }
 
-
-  catch(error) {
+  catch (error) {
 
     alert(
       error.message
@@ -2634,19 +2336,19 @@ async function deleteSub(id) {
 
 load();
 
-
 </script>
 
 </body>
 
-</html>`;
+</html>
+`;
 
 }
 
 
-// ========================================
-// MAIN WORKER
-// ========================================
+// ============================================
+// ГЛАВНЫЙ WORKER
+// ============================================
 
 export default {
 
@@ -2661,28 +2363,25 @@ export default {
       );
 
 
-    // ====================================
-    // ADMIN PAGE
-    // ====================================
+    // ========================================
+    // ГЛАВНАЯ
+    // ========================================
 
     if (
-      url.pathname ===
-      "/admin"
+      url.pathname === "/"
     ) {
 
       return new Response(
-        getAdminPage(),
+        getWebsite(),
         {
 
-          headers: {
+          headers:
+            {
 
-            "Content-Type":
-              "text/html; charset=utf-8",
+              "Content-Type":
+                "text/html; charset=utf-8"
 
-            "Cache-Control":
-              "no-store"
-
-          }
+            }
 
         }
       );
@@ -2690,38 +2389,60 @@ export default {
     }
 
 
-    // ====================================
-    // API GET
-    // ====================================
+    // ========================================
+    // ADMIN
+    // ========================================
 
     if (
+      url.pathname === "/admin"
+    ) {
 
+      return new Response(
+        getAdminPage(),
+        {
+
+          headers:
+            {
+
+              "Content-Type":
+                "text/html; charset=utf-8",
+
+              "Cache-Control":
+                "no-store"
+
+            }
+
+        }
+      );
+
+    }
+
+
+    // ========================================
+    // API GET ALL
+    // ========================================
+
+    if (
       url.pathname ===
-      "/api/subscriptions"
-
-      &&
-
-      request.method ===
-      "GET"
-
+        "/api/subscriptions" &&
+      request.method === "GET"
     ) {
 
       try {
 
-        const subs =
+        const subscriptions =
           await getSubscriptions(
             env
           );
 
 
         return Response.json(
-          subs
+          subscriptions
         );
 
       }
 
-
-      catch(error) {
+      catch (error) {
 
         return Response.json(
           {
@@ -2743,20 +2464,14 @@ export default {
     }
 
 
-    // ====================================
+    // ========================================
     // API CREATE
-    // ====================================
+    // ========================================
 
     if (
-
       url.pathname ===
-      "/api/subscriptions"
-
-      &&
-
-      request.method ===
-      "POST"
-
+        "/api/subscriptions" &&
+      request.method === "POST"
     ) {
 
       try {
@@ -2765,12 +2480,22 @@ export default {
           await request.json();
 
 
+        const subscriptions =
+          await getSubscriptions(
+            env
+          );
+
+
         const name =
           String(
             data.name ||
             "WLVPN"
           )
-            .trim();
+            .trim()
+            .slice(
+              0,
+              100
+            );
 
 
         const plan =
@@ -2781,145 +2506,65 @@ export default {
             : "normal";
 
 
+        const days =
+          Number(data.days) || 0;
+
+
         let expiresAt =
           null;
 
 
-        // CUSTOM DATE
-
         if (
-          data.duration ===
-          "custom"
+          days > 0
         ) {
 
-          if (
-            !data.customDate
-          ) {
-
-            return Response.json(
-              {
-
-                error:
-                  "Выбери дату"
-
-              },
-              {
-
-                status:
-                  400
-
-              }
-            );
-
-          }
-
-
           expiresAt =
-            new Date(
-              data.customDate
-            ).getTime();
+            Date.now() +
+            (
+              days *
+              86400000
+            );
+
+        }
 
 
-          if (
-            !Number.isFinite(
+        const sub =
+          {
+
+            id:
+              generateId(),
+
+            token:
+              generateToken(),
+
+            name:
+              name ||
+
+              "WLVPN",
+
+            plan:
+              plan,
+
+            enabled:
+              true,
+
+            createdAt:
+              Date.now(),
+
+            expiresAt:
               expiresAt
-            )
-          ) {
 
-            return Response.json(
-              {
-
-                error:
-                  "Неверная дата"
-
-              },
-              {
-
-                status:
-                  400
-
-              }
-            );
-
-          }
-
-        }
+          };
 
 
-        // DAYS
-
-        else {
-
-          const days =
-            Number(
-              data.duration
-            );
-
-
-          if (
-            Number.isFinite(
-              days
-            )
-
-            &&
-
-            days > 0
-          ) {
-
-            expiresAt =
-
-              Date.now() +
-
-              (
-                days *
-                86400000
-              );
-
-          }
-
-        }
-
-
-        const subs =
-          await getSubscriptions(
-            env
-          );
-
-
-        const sub = {
-
-          id:
-            generateId(),
-
-          token:
-            generateToken(),
-
-          name:
-            name,
-
-          plan:
-            plan,
-
-          enabled:
-            true,
-
-          createdAt:
-            Date.now(),
-
-          expiresAt:
-            expiresAt
-
-        };
-
-
-        subs.push(
+        subscriptions.push(
           sub
         );
 
 
         await saveSubscriptions(
           env,
-          subs
+          subscriptions
         );
 
 
@@ -2937,8 +2582,7 @@ export default {
 
       }
 
-
-      catch(error) {
+      catch (error) {
 
         return Response.json(
           {
@@ -2960,51 +2604,50 @@ export default {
     }
 
 
-    // ====================================
-    // API ID
-    // ====================================
+    // ========================================
+    // API /subscriptions/:id
+    // ========================================
 
-    const subApiMatch =
+    const apiSubMatch =
       url.pathname.match(
-        /^\\/api\\/subscriptions\\/([^/]+)$/
+        /^\/api\/subscriptions\/([^/]+)$/
       );
 
 
-    // ====================================
+    // ========================================
     // RENAME
-    // ====================================
+    // ========================================
 
     if (
-
-      subApiMatch
-
-      &&
-
-      request.method ===
-      "PUT"
-
+      apiSubMatch &&
+      request.method === "PUT"
     ) {
 
       try {
 
         const id =
-          subApiMatch[1];
+          apiSubMatch[1];
 
 
         const data =
           await request.json();
 
 
-        const subs =
+        const subscriptions =
           await getSubscriptions(
             env
           );
 
 
         const sub =
-          subs.find(
-            s =>
-              s.id === id
+          subscriptions.find(
+            function (item) {
+
+              return (
+                item.id === id
+              );
+
+            }
           );
 
 
@@ -3028,25 +2671,24 @@ export default {
         }
 
 
-        const newName =
-          String(
-            data.name ||
-            ""
-          )
-            .trim();
-
-
-        if (newName) {
+        if (
+          data.name
+        ) {
 
           sub.name =
-            newName;
+            String(data.name)
+              .trim()
+              .slice(
+                0,
+                100
+              );
 
         }
 
 
         await saveSubscriptions(
           env,
-          subs
+          subscriptions
         );
 
 
@@ -3061,8 +2703,7 @@ export default {
 
       }
 
-
-      catch(error) {
+      catch (error) {
 
         return Response.json(
           {
@@ -3084,70 +2725,42 @@ export default {
     }
 
 
-    // ====================================
+    // ========================================
     // DELETE
-    // ====================================
+    // ========================================
 
     if (
-
-      subApiMatch
-
-      &&
-
-      request.method ===
-      "DELETE"
-
+      apiSubMatch &&
+      request.method === "DELETE"
     ) {
 
       try {
 
         const id =
-          subApiMatch[1];
+          apiSubMatch[1];
 
 
-        let subs =
+        const subscriptions =
           await getSubscriptions(
             env
           );
 
 
-        const before =
-          subs.length;
+        const filtered =
+          subscriptions.filter(
+            function (item) {
 
-
-        subs =
-          subs.filter(
-            s =>
-              s.id !== id
-          );
-
-
-        if (
-          subs.length ===
-          before
-        ) {
-
-          return Response.json(
-            {
-
-              error:
-                "Подписка не найдена"
-
-            },
-            {
-
-              status:
-                404
+              return (
+                item.id !== id
+              );
 
             }
           );
 
-        }
-
 
         await saveSubscriptions(
           env,
-          subs
+          filtered
         );
 
 
@@ -3162,8 +2775,7 @@ export default {
 
       }
 
-
-      catch(error) {
+      catch (error) {
 
         return Response.json(
           {
@@ -3185,25 +2797,19 @@ export default {
     }
 
 
-    // ====================================
+    // ========================================
     // TOGGLE
-    // ====================================
+    // ========================================
 
     const toggleMatch =
       url.pathname.match(
-        /^\\/api\\/subscriptions\\/([^/]+)\\/toggle$/
+        /^\/api\/subscriptions\/([^/]+)\/toggle$/
       );
 
 
     if (
-
-      toggleMatch
-
-      &&
-
-      request.method ===
-      "POST"
-
+      toggleMatch &&
+      request.method === "POST"
     ) {
 
       try {
@@ -3212,16 +2818,21 @@ export default {
           toggleMatch[1];
 
 
-        const subs =
+        const subscriptions =
           await getSubscriptions(
             env
           );
 
 
         const sub =
-          subs.find(
-            s =>
-              s.id === id
+          subscriptions.find(
+            function (item) {
+
+              return (
+                item.id === id
+              );
+
+            }
           );
 
 
@@ -3251,7 +2862,7 @@ export default {
 
         await saveSubscriptions(
           env,
-          subs
+          subscriptions
         );
 
 
@@ -3269,8 +2880,7 @@ export default {
 
       }
 
-
-      catch(error) {
+      catch (error) {
 
         return Response.json(
           {
@@ -3292,25 +2902,19 @@ export default {
     }
 
 
-    // ====================================
+    // ========================================
     // EXTEND
-    // ====================================
+    // ========================================
 
     const extendMatch =
       url.pathname.match(
-        /^\\/api\\/subscriptions\\/([^/]+)\\/extend$/
+        /^\/api\/subscriptions\/([^/]+)\/extend$/
       );
 
 
     if (
-
-      extendMatch
-
-      &&
-
-      request.method ===
-      "POST"
-
+      extendMatch &&
+      request.method === "POST"
     ) {
 
       try {
@@ -3324,21 +2928,12 @@ export default {
 
 
         const days =
-          Number(
-            data.days
-          );
+          Number(data.days);
 
 
         if (
-
-          !Number.isFinite(
-            days
-          )
-
-          ||
-
+          !Number.isFinite(days) ||
           days <= 0
-
         ) {
 
           return Response.json(
@@ -3359,16 +2954,21 @@ export default {
         }
 
 
-        const subs =
+        const subscriptions =
           await getSubscriptions(
             env
           );
 
 
         const sub =
-          subs.find(
-            s =>
-              s.id === id
+          subscriptions.find(
+            function (item) {
+
+              return (
+                item.id === id
+              );
+
+            }
           );
 
 
@@ -3392,28 +2992,26 @@ export default {
         }
 
 
-        const base =
+        let base =
+          Date.now();
 
-          sub.expiresAt
 
-          &&
+        if (
+          sub.expiresAt &&
+          Number(sub.expiresAt) >
+            Date.now()
+        ) {
 
-          Number(
-            sub.expiresAt
-          ) >
-          Date.now()
+          base =
+            Number(
+              sub.expiresAt
+            );
 
-            ? Number(
-                sub.expiresAt
-              )
-
-            : Date.now();
+        }
 
 
         sub.expiresAt =
-
           base +
-
           (
             days *
             86400000
@@ -3422,7 +3020,7 @@ export default {
 
         await saveSubscriptions(
           env,
-          subs
+          subscriptions
         );
 
 
@@ -3440,8 +3038,7 @@ export default {
 
       }
 
-
-      catch(error) {
+      catch (error) {
 
         return Response.json(
           {
@@ -3463,19 +3060,17 @@ export default {
     }
 
 
-    // ====================================
-    // SUBSCRIPTION
-    // ====================================
+    // ========================================
+    // SUBSCRIPTION LINK
+    // ========================================
 
     const subMatch =
       url.pathname.match(
-        /^\\/sub\\/([^/]+)$/
+        /^\/sub\/([^/]+)$/
       );
 
 
-    if (
-      subMatch
-    ) {
+    if (subMatch) {
 
       try {
 
@@ -3483,546 +3078,4 @@ export default {
           subMatch[1];
 
 
-        const subs =
-          await getSubscriptions(
-            env
-          );
-
-
-        const sub =
-          subs.find(
-            s =>
-              s.token === token
-          );
-
-
-        // ================================
-        // NOT FOUND
-        // ================================
-
-        if (!sub) {
-
-          if (
-            isVpnClient(
-              request
-            )
-          ) {
-
-            return new Response(
-              "Subscription not found",
-              {
-
-                status:
-                  404,
-
-                headers: {
-
-                  "Content-Type":
-                    "text/plain; charset=utf-8"
-
-                }
-
-              }
-            );
-
-          }
-
-
-          return new Response(
-            "<h1>Подписка не найдена</h1>",
-            {
-
-              status:
-                404,
-
-              headers: {
-
-                "Content-Type":
-                  "text/html; charset=utf-8"
-
-              }
-
-            }
-          );
-
-        }
-
-
-        // ================================
-        // BROWSER
-        // ================================
-
-        if (
-          !isVpnClient(
-            request
-          )
-        ) {
-
-          return new Response(
-            getSubscriptionPage(
-              sub
-            ),
-            {
-
-              headers: {
-
-                "Content-Type":
-                  "text/html; charset=utf-8",
-
-                "Cache-Control":
-                  "no-store"
-
-              }
-
-            }
-          );
-
-        }
-
-
-        // ================================
-        // STATUS
-        // ================================
-
-        const status =
-          getSubscriptionStatus(
-            sub
-          );
-
-
-        // ================================
-        // DISABLED
-        // ================================
-
-        if (
-          status ===
-          "disabled"
-        ) {
-
-          return new Response(
-            getPlaceholderSubscription(
-              "Подписка отключена 🚫"
-            ),
-            {
-
-              status:
-                200,
-
-              headers: {
-
-                "Content-Type":
-                  "text/plain; charset=utf-8",
-
-                "Profile-Title":
-                  "Подписка отключена 🚫",
-
-                "Profile-Update-Interval":
-                  "6",
-
-                "Cache-Control":
-                  "no-cache"
-
-              }
-
-            }
-          );
-
-        }
-
-
-        // ================================
-        // EXPIRED
-        // ================================
-
-        if (
-          status ===
-          "expired"
-        ) {
-
-          return new Response(
-            getPlaceholderSubscription(
-              "Подписка истекла 🚫"
-            ),
-            {
-
-              status:
-                200,
-
-              headers: {
-
-                "Content-Type":
-                  "text/plain; charset=utf-8",
-
-                "Profile-Title":
-                  "Подписка истекла 🚫",
-
-                "Profile-Update-Interval":
-                  "6",
-
-                "Cache-Control":
-                  "no-cache"
-
-              }
-
-            }
-          );
-
-        }
-
-
-        // ================================
-        // GET SOURCE
-        // ================================
-
-        const source =
-          await getSourceSubscription();
-
-
-        // ================================
-        // SOURCE ERROR
-        // НЕ ВОЗВРАЩАЕМ HTTP 502
-        // ================================
-
-        if (
-
-          !source.rawBody
-
-          ||
-
-          source.rawBody.startsWith(
-            "FETCH ERROR:"
-          )
-
-        ) {
-
-          return new Response(
-            getPlaceholderSubscription(
-              "Ошибка обновления ⚠️"
-            ),
-            {
-
-              status:
-                200,
-
-              headers: {
-
-                "Content-Type":
-                  "text/plain; charset=utf-8",
-
-                "Profile-Title":
-                  "Ошибка обновления ⚠️",
-
-                "Profile-Update-Interval":
-                  "6",
-
-                "Cache-Control":
-                  "no-cache"
-
-              }
-
-            }
-          );
-
-        }
-
-
-        // ================================
-        // PREMIUM
-        // ALL SERVERS
-        // ================================
-
-        let output =
-          source.rawBody;
-
-
-        // ================================
-        // NORMAL
-        // GERMANY + SWEDEN
-        // ================================
-
-        if (
-          sub.plan ===
-          "normal"
-        ) {
-
-          const filtered =
-            filterNormalSubscription(
-              source.rawBody
-            );
-
-
-          if (
-            filtered
-          ) {
-
-            output =
-              filtered;
-
-          }
-
-        }
-
-
-        // ================================
-        // HEADERS
-        // ================================
-
-        const outHeaders = {
-
-          "Content-Type":
-            "text/plain; charset=utf-8",
-
-          "Access-Control-Allow-Origin":
-            "*",
-
-          "Cache-Control":
-            "no-cache",
-
-          "Profile-Title":
-            sub.name,
-
-          "Profile-Update-Interval":
-            "6"
-
-        };
-
-
-        // ================================
-        // PASSTHROUGH HEADERS
-        // ================================
-
-        const passthrough = [
-
-          "profile-web-page-url",
-
-          "support-url",
-
-          "providerid",
-
-          "subscription-userinfo",
-
-          "hide-settings",
-
-          "new-url"
-
-        ];
-
-
-        for (
-          const name
-          of passthrough
-        ) {
-
-          const value =
-            source.rawHeaders[
-              name
-            ];
-
-
-          if (
-            value
-          ) {
-
-            const canon =
-              name
-                .split("-")
-                .map(
-                  word =>
-                    word
-                      .charAt(0)
-                      .toUpperCase() +
-
-                    word.slice(1)
-                )
-                .join("-");
-
-
-            outHeaders[
-              canon
-            ] =
-              value;
-
-          }
-
-        }
-
-
-        // ================================
-        // RETURN SUBSCRIPTION
-        // ================================
-
-        return new Response(
-          output,
-          {
-
-            status:
-              200,
-
-            headers:
-              outHeaders
-
-          }
-        );
-
-      }
-
-
-      catch(error) {
-
-        // Всегда отдаём 200 клиенту
-
-        return new Response(
-          getPlaceholderSubscription(
-            "Ошибка Worker ⚠️"
-          ),
-          {
-
-            status:
-              200,
-
-            headers: {
-
-              "Content-Type":
-                "text/plain; charset=utf-8",
-
-              "Profile-Title":
-                "Ошибка Worker ⚠️",
-
-              "Profile-Update-Interval":
-                "6"
-
-            }
-
-          }
-        );
-
-      }
-
-    }
-
-
-    // ====================================
-    // DEBUG
-    // ====================================
-
-    if (
-      url.pathname ===
-      "/debug"
-    ) {
-
-      return Response.json(
-        {
-
-          worker:
-            "WLVPN",
-
-          status:
-            "OK",
-
-          kvAvailable:
-            !!env.KV,
-
-          userAgent:
-            request.headers.get(
-              "User-Agent"
-            ),
-
-          isVpnClient:
-            isVpnClient(
-              request
-            )
-
-        },
-        {
-
-          headers: {
-
-            "Cache-Control":
-              "no-store"
-
-          }
-
-        }
-      );
-
-    }
-
-
-    // ====================================
-    // DEBUG SOURCE
-    // ====================================
-
-    if (
-      url.pathname ===
-      "/debug/source"
-    ) {
-
-      const source =
-        await getSourceSubscription();
-
-
-      return Response.json(
-        {
-
-          sourceUrl:
-            TRAFFIC_SOURCE_URL,
-
-          sourceStatus:
-            source.sourceStatus,
-
-          headers:
-            source.rawHeaders,
-
-          bodyLength:
-            source.rawBody.length,
-
-          bodyPreview:
-            source.rawBody
-              .slice(
-                0,
-                3000
-              )
-
-        },
-        {
-
-          headers: {
-
-            "Cache-Control":
-              "no-store"
-
-          }
-
-        }
-      );
-
-    }
-
-
-    // ====================================
-    // MAIN WEBSITE
-    // ====================================
-
-    return new Response(
-      getWebsite(),
-      {
-
-        status:
-          200,
-
-        headers: {
-
-          "Content-Type":
-            "text/html; charset=utf-8",
-
-          "Cache-Control":
-            "no-cache"
-
-        }
-
-      }
-    );
-
-  }
-
-};
+        const
