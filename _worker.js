@@ -3,7 +3,6 @@ export default {
     const url = new URL(request.url);
     const TRAFFIC_SOURCE_URL = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
 
-    // ---- ЗАПРОС К ИСТОЧНИКУ ТРАФИКА ----
     let sourceStatus = 0;
     let rawHeaders = {};
     let rawBody = "";
@@ -11,27 +10,39 @@ export default {
     let trafficDisplay = "1496 GB";
 
     try {
-      const resp = await fetch(TRAFFIC_SOURCE_URL, {
-        headers: {
-          'User-Agent': 'INCY/3.6.5/android',
-          'Accept': '*/*'
-        },
-        redirect: 'manual',   // не следовать редиректам автоматически
+      const FAKE_UA = 'INCY/3.6.5/android';
+
+      const first = await fetch(TRAFFIC_SOURCE_URL, {
+        headers: { 'User-Agent': FAKE_UA, 'Accept': '*/*' },
+        redirect: 'manual',
         cf: { cacheTtl: 0 }
       });
 
-      sourceStatus = resp.status;
-      rawHeaders = Object.fromEntries(resp.headers.entries());
+      let status = first.status;
+      let headers = Object.fromEntries(first.headers.entries());
+      let body = '';
 
-      // Если редирект — читаем Location, тело не трогаем
-      if (sourceStatus >= 300 && sourceStatus < 400) {
-        const location = rawHeaders['location'] || '(нет Location)';
-        rawBody = `REDIRECT ${sourceStatus} to: ${location}`;
+      if (status >= 300 && status < 400) {
+        let cookie = '';
+        for (const [k, v] of Object.entries(headers)) {
+          if (k.toLowerCase() === 'set-cookie') { cookie = v.split(';')[0]; break; }
+        }
+        const second = await fetch(TRAFFIC_SOURCE_URL, {
+          headers: { 'User-Agent': FAKE_UA, 'Accept': '*/*', 'Cookie': cookie },
+          redirect: 'manual',
+          cf: { cacheTtl: 0 }
+        });
+        status = second.status;
+        headers = Object.fromEntries(second.headers.entries());
+        body = await second.text();
       } else {
-        rawBody = await resp.text();
+        body = await first.text();
       }
 
-      // Ищем заголовок subscription-userinfo
+      sourceStatus = status;
+      rawHeaders = headers;
+      rawBody = body;
+
       for (const [key, value] of Object.entries(rawHeaders)) {
         if (key.toLowerCase() === 'subscription-userinfo') {
           subscriptionUserInfo = value;
@@ -39,7 +50,6 @@ export default {
         }
       }
 
-      // Парсим total → GB
       if (subscriptionUserInfo) {
         const m = subscriptionUserInfo.match(/total=(\d+)/);
         if (m) {
@@ -52,7 +62,7 @@ export default {
       rawBody = "FETCH ERROR: " + e.message;
     }
 
-    // ==================== РЕЖИМ ОТЛАДКИ: /debug ====================
+    // ---- /debug ----
     if (url.pathname === "/debug" || url.searchParams.get("debug") === "1") {
       return new Response(JSON.stringify({
         sourceStatus,
@@ -62,13 +72,9 @@ export default {
         trafficDisplay,
         rawBodyPreview: rawBody.slice(0, 3000)
       }, null, 2), {
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Cache-Control": "no-cache"
-        }
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
     }
-    // ==============================================================
 
     // ---- СЕРВЕРЫ ----
     const realNodes = [
