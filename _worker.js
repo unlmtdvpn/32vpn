@@ -89,12 +89,12 @@ export default {
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-cache",
 
-      "Profile-Title": "WLVPN",
+      "Profile-Title": "wlvpn",
 
       "Profile-Update-Interval": "6",
 
       "announce":
-        "🏳 WLVPN | Подписка до 7 октября 2026 🚀"
+        "🏳 wlvpn | Стабильный VPN Сервис 🚀"
     };
 
     const PASSTHROUGH = [
