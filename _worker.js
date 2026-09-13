@@ -5,8 +5,19 @@ export default {
     const FAKE_UA = 'Happ/4.3.0/Android';
 
     // ======================================================
-    //  КОНФИГ ДУБЛИКАТОВ: ключ — оригинальный тег,
-    //  значение — тег дубликата (другая страна/название)
+    //  АДРЕС → ЧЕЛОВЕЧЕСКОЕ ИМЯ.  Если адреса нет — пропуск.
+    // ======================================================
+    const COUNTRY_MAP = {
+      'de-new.datanode-internal.net':  '🇩🇪 Германия',
+      'se-new.datanode-internal.net':  '🇸🇪 Швеция',
+      'pl.datanode-internal.net':      '🇵🇱 Польша',
+      'ru.datanode-internal.net':      '🇷🇺 Россия',
+      'hole-nn.datanode-internal.net': '🇫🇷 Мобильная связь #1',
+      'res.datanode-internal.net':     '🌍 Резервный',
+    };
+
+    // ======================================================
+    //  ДУБЛИКАТЫ: ключ — оригинальное имя, значение — копия
     // ======================================================
     const DUPLICATES = {
       "🇩🇪 Германия":          "🇳🇱 Нидерланды",
@@ -14,12 +25,14 @@ export default {
       "🇵🇱 Польша":            "🇨🇿 Чехия",
       "🇷🇺 Россия":            "🇰🇿 Казахстан",
       "🇫🇷 Мобильная связь #1": "🇧🇾 Мобильная связь #2",
+      "🌍 Резервный":          "🇬🇧 Британия",
     };
     // ======================================================
 
     let sourceStatus = 0;
     let rawHeaders = {};
-    let decodedBody = "";
+    let sourceJson = null;
+    let debugBody = "";
 
     try {
       const first = await fetch(TRAFFIC_SOURCE_URL, {
@@ -51,116 +64,34 @@ export default {
 
       sourceStatus = status;
       rawHeaders = headers;
+      debugBody = body.slice(0, 2500);
 
-      try {
-        const trimmed = body.trim();
-        const padded = trimmed + "=".repeat((4 - trimmed.length % 4) % 4);
-        const binary = atob(padded);
-        const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-        decodedBody = new TextDecoder("utf-8").decode(bytes);
-      } catch (e) {
-        decodedBody = body;
+      // Декодируем если base64, иначе используем как есть
+      let jsonText = body.trim();
+      if (!jsonText.startsWith('[') && !jsonText.startsWith('{')) {
+        try {
+          const padded = jsonText + "=".repeat((4 - jsonText.length % 4) % 4);
+          const binary = atob(padded);
+          const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+          jsonText = new TextDecoder("utf-8").decode(bytes);
+        } catch (e) {}
       }
+      sourceJson = JSON.parse(jsonText);
     } catch (e) {
-      decodedBody = "FETCH ERROR: " + e.message;
+      debugBody = "FETCH/PARSE ERROR: " + e.message;
     }
 
     if (url.pathname === "/debug" || url.searchParams.get("debug") === "1") {
       return new Response(JSON.stringify({
         sourceStatus,
         rawHeaders,
-        decodedBodyPreview: decodedBody.slice(0, 1500)
+        bodyPreview: debugBody
       }, null, 2), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
     }
 
-    // ---- Парсим vless ----
-    let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
-
-    lines = lines.filter(line =>
-      !line.includes('fi.datanode-internal.net') &&
-      !line.includes('tr.datanode-internal.net')
-    );
-
-    lines = lines.map(line => {
-      if (line.includes('hole-nn.datanode-internal.net')) {
-        const base = line.split('#')[0];
-        return base + '#' + encodeURIComponent('🇫🇷 Мобильная связь #1');
-      }
-      return line;
-    });
-
-    function lineToOutbound(line, overrideTag) {
-      try {
-        const u = new URL(line);
-        const params = u.searchParams;
-        const tag = overrideTag || decodeURIComponent(u.hash.replace(/^#/, ''));
-        const isGrpc = params.get('type') === 'grpc';
-
-        const out = {
-          tag: tag,
-          protocol: "vless",
-          settings: {
-            vnext: [{
-              address: u.hostname,
-              port: parseInt(u.port, 10),
-              users: [{
-                id: u.username,
-                encryption: "none",
-                flow: params.get('flow') || ""
-              }]
-            }]
-          },
-          streamSettings: {
-            network: isGrpc ? "grpc" : "tcp",
-            security: "reality",
-            realitySettings: {
-              serverName: params.get('sni') || "",
-              publicKey: params.get('pbk') || "",
-              shortId: params.get('sid') || "",
-              fingerprint: params.get('fp') || "chrome"
-            }
-          }
-        };
-
-        if (isGrpc) {
-          out.streamSettings.grpcSettings = {
-            serviceName: params.get('serviceName') || "",
-            mode: params.get('mode') || "gun"
-          };
-        } else {
-          out.streamSettings.tcpSettings = {};
-        }
-
-        return out;
-      } catch (e) {
-        return null;
-      }
-    }
-
-    const serverOutbounds = [];
-    const serverTags = [];
-
-    for (const line of lines) {
-      const rawTag = decodeURIComponent((line.split('#')[1] || '').replace(/^#/, ''));
-
-      const original = lineToOutbound(line, rawTag);
-      if (original) {
-        serverOutbounds.push(original);
-        serverTags.push(rawTag);
-      }
-
-      const dupTag = DUPLICATES[rawTag];
-      if (dupTag) {
-        const dup = lineToOutbound(line, dupTag);
-        if (dup) {
-          serverOutbounds.push(dup);
-          serverTags.push(dupTag);
-        }
-      }
-    }
-
+    // ---- Общие части ----
     const commonDns = { servers: ["1.1.1.1", "1.0.0.1"], queryStrategy: "UseIP" };
     const commonInbounds = [
       {
@@ -175,6 +106,136 @@ export default {
       }
     ];
 
+    // ---- Извлекаем ВСЕ vless-серверы из одного конфига ----
+    function extractServers(cfg) {
+      const result = [];
+      if (!cfg || !Array.isArray(cfg.outbounds)) return result;
+
+      for (const ob of cfg.outbounds) {
+        if (ob.protocol !== 'vless') continue;
+        if (!ob.settings || !ob.settings.vnext) continue;
+        const vnext = ob.settings.vnext[0];
+        if (!vnext) continue;
+        const user = (vnext.users && vnext.users[0]) || {};
+        const ss = ob.streamSettings || {};
+        const rs = ss.realitySettings || {};
+        const gs = ss.grpcSettings || {};
+
+        result.push({
+          address: vnext.address,
+          port: vnext.port,
+          id: user.id,
+          flow: user.flow || '',
+          network: ss.network || 'tcp',
+          sni: rs.serverName || '',
+          pbk: rs.publicKey || '',
+          sid: rs.shortId || '',
+          fp: rs.fingerprint || 'chrome',
+          serviceName: gs.serviceName || '',
+          mode: gs.mode || 'gun'
+        });
+      }
+      return result;
+    }
+
+    // ---- outbound с нашим тегом ----
+    function buildOutbound(s, tag) {
+      const out = {
+        tag: tag,
+        protocol: "vless",
+        settings: {
+          vnext: [{
+            address: s.address,
+            port: s.port,
+            users: [{ id: s.id, encryption: "none", flow: s.flow }]
+          }]
+        },
+        streamSettings: {
+          network: s.network,
+          security: "reality",
+          realitySettings: {
+            serverName: s.sni,
+            publicKey: s.pbk,
+            shortId: s.sid,
+            fingerprint: s.fp
+          }
+        }
+      };
+      if (s.network === 'grpc') {
+        out.streamSettings.grpcSettings = { serviceName: s.serviceName, mode: s.mode };
+      } else {
+        out.streamSettings.tcpSettings = {};
+      }
+      return out;
+    }
+
+    // ---- одиночный конфиг ----
+    function buildConfig(s, tag) {
+      return {
+        remarks: tag,
+        dns: commonDns,
+        inbounds: commonInbounds,
+        outbounds: [
+          buildOutbound(s, tag),
+          { tag: "direct", protocol: "freedom" },
+          { tag: "block", protocol: "blackhole" }
+        ],
+        routing: {
+          domainMatcher: "hybrid",
+          domainStrategy: "IPIfNonMatch",
+          rules: [
+            { type: "field", protocol: ["bittorrent"], outboundTag: "block" },
+            { type: "field", inboundTag: ["socks", "http"], network: "tcp,udp", outboundTag: tag }
+          ]
+        }
+      };
+    }
+
+    // ======================================================
+    //  СОБИРАЕМ ВСЕ СЕРВЕРЫ ИЗ ВСЕХ КОНФИГОВ ИСТОЧНИКА
+    //  (включая встроенный "LTE Авто") и дедуплицируем
+    // ======================================================
+    const sourceConfigs = Array.isArray(sourceJson) ? sourceJson : (sourceJson ? [sourceJson] : []);
+    const seen = new Set();
+    const uniqueServers = []; // { server, name }
+
+    for (const cfg of sourceConfigs) {
+      const list = extractServers(cfg);
+      for (const s of list) {
+        const key = `${s.address}|${s.port}|${s.id}|${s.flow}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        const name = COUNTRY_MAP[s.address];
+        if (!name) continue; // пропускаем незнакомые адреса (fi, tr и т.п.)
+
+        uniqueServers.push({ server: s, name });
+      }
+    }
+
+    // ======================================================
+    //  СТРОИМ НАШ ЕДИНЫЙ AUTO + ОТДЕЛЬНЫЕ ПРОФИЛИ
+    // ======================================================
+    const serverOutbounds = [];
+    const serverTags = [];
+    const perServerConfigs = [];
+
+    for (const { server, name } of uniqueServers) {
+      // оригинал
+      serverOutbounds.push(buildOutbound(server, name));
+      serverTags.push(name);
+      perServerConfigs.push(buildConfig(server, name));
+
+      // дубликат с другим флагом
+      const dupTag = DUPLICATES[name];
+      if (dupTag) {
+        serverOutbounds.push(buildOutbound(server, dupTag));
+        serverTags.push(dupTag);
+        perServerConfigs.push(buildConfig(server, dupTag));
+      }
+    }
+
+    // ---- Единый Auto ----
     const autoConfig = {
       remarks: "♻️ Авто-выбор",
       dns: commonDns,
@@ -208,25 +269,7 @@ export default {
       }
     };
 
-    const perServerConfigs = serverOutbounds.map(server => ({
-      remarks: server.tag,
-      dns: commonDns,
-      inbounds: commonInbounds,
-      outbounds: [
-        server,
-        { tag: "direct", protocol: "freedom" },
-        { tag: "block", protocol: "blackhole" }
-      ],
-      routing: {
-        domainMatcher: "hybrid",
-        domainStrategy: "IPIfNonMatch",
-        rules: [
-          { type: "field", protocol: ["bittorrent"], outboundTag: "block" },
-          { type: "field", inboundTag: ["socks", "http"], network: "tcp,udp", outboundTag: server.tag }
-        ]
-      }
-    }));
-
+    // Auto первым, потом все серверы с дубликатами
     const subscription = [autoConfig, ...perServerConfigs];
 
     const outHeaders = {
