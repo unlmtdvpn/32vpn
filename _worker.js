@@ -19,6 +19,7 @@ export default {
       let headers = Object.fromEntries(first.headers.entries());
       let body = '';
 
+      // Cookie-challenge (307)
       if (status >= 300 && status < 400) {
         let cookie = '';
         for (const [k, v] of Object.entries(headers)) {
@@ -39,6 +40,7 @@ export default {
       sourceStatus = status;
       rawHeaders = headers;
 
+      // ---- Декодируем base64 → текст ----
       try {
         const trimmed = body.trim();
         const padded = trimmed + "=".repeat((4 - trimmed.length % 4) % 4);
@@ -48,20 +50,49 @@ export default {
       } catch (e) {
         decodedBody = body;
       }
+
+      // ======================================================
+      //  МОДИФИКАЦИЯ СПИСКА СЕРВЕРОВ
+      // ======================================================
+      let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
+
+      // 1. Убираем Финляндию и Турцию
+      lines = lines.filter(line => {
+        if (line.includes('fi.datanode-internal.net')) return false; // Финляндия
+        if (line.includes('tr.datanode-internal.net')) return false; // Турция
+        return true;
+      });
+
+      // 2. Мобильная связь #1 → французский флаг + 2 копии (#2 РФ, #3 BY)
+      const mobileIndex = lines.findIndex(l => l.includes('hole-nn.datanode-internal.net'));
+      if (mobileIndex !== -1) {
+        const baseUrl = lines[mobileIndex].split('#')[0]; // отрезаем старый комментарий
+
+        const fr = baseUrl + '#' + encodeURIComponent('🇫🇷 Мобильная связь #1');
+        const ru = baseUrl + '#' + encodeURIComponent('🇷🇺 Мобильная связь #2');
+        const by = baseUrl + '#' + encodeURIComponent('🇧🇾 Мобильная связь #3');
+
+        lines.splice(mobileIndex, 1, fr, ru, by);
+      }
+
+      decodedBody = lines.join('\n');
+      // ======================================================
     } catch (e) {
       decodedBody = "FETCH ERROR: " + e.message;
     }
 
+    // ---- /debug ----
     if (url.pathname === "/debug" || url.searchParams.get("debug") === "1") {
       return new Response(JSON.stringify({
         sourceStatus,
         rawHeaders,
-        decodedBodyPreview: decodedBody.slice(0, 1500)
+        decodedBodyPreview: decodedBody
       }, null, 2), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
     }
 
+    // ---- Заголовки ----
     const outHeaders = {
       "Content-Type": "text/plain; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
