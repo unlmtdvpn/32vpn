@@ -65,11 +65,13 @@ export default {
     // ---- Парсим vless ----
     let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
 
+    // Убираем Финляндию и Турцию
     lines = lines.filter(line =>
       !line.includes('fi.datanode-internal.net') &&
       !line.includes('tr.datanode-internal.net')
     );
 
+    // Мобильной — французский флаг
     lines = lines.map(line => {
       if (line.includes('hole-nn.datanode-internal.net')) {
         const base = line.split('#')[0];
@@ -78,15 +80,12 @@ export default {
       return line;
     });
 
-    // ---- Собираем outbound-объекты ----
-    const serverOutbounds = []; // список outbounds серверов
-    const serverTags = [];
-
-    for (const line of lines) {
+    // ---- Разбираем в outbound-объекты ----
+    function lineToOutbound(line, overrideTag) {
       try {
         const u = new URL(line);
         const params = u.searchParams;
-        const tag = decodeURIComponent(u.hash.replace(/^#/, ''));
+        const tag = overrideTag || decodeURIComponent(u.hash.replace(/^#/, ''));
         const isGrpc = params.get('type') === 'grpc';
 
         const out = {
@@ -124,36 +123,68 @@ export default {
           out.streamSettings.tcpSettings = {};
         }
 
-        serverOutbounds.push(out);
-        serverTags.push(tag);
-      } catch (e) {}
+        return out;
+      } catch (e) {
+        return null;
+      }
     }
 
-    // ---- Общие части конфига ----
-    const commonDns = {
-      servers: ["1.1.1.1", "1.0.0.1"],
-      queryStrategy: "UseIP"
+    // ---- Строим список: WiFi × 2 копии, Мобильная × 2 копии (разные флаги) ----
+    const serverOutbounds = [];
+    const serverTags = [];
+
+    const wifiDuplicates = {
+      "🇩🇪 Германия":     ["🇩🇪 Германия #1",     "🇩🇪 Германия #2"],
+      "🇸🇪 Швеция":       ["🇸🇪 Швеция #1",       "🇸🇪 Швеция #2"],
+      "🇵🇱 Польша":       ["🇵🇱 Польша #1",       "🇵🇱 Польша #2"],
+      "🇷🇺 Россия":       ["🇷🇺 Россия #1",       "🇷🇺 Россия #2"],
     };
+
+    // Мобильная — 2 копии с разными флагами
+    const mobileDuplicates = ["🇫🇷 Мобильная связь #1", "🇧🇾 Мобильная связь #2"];
+
+    for (const line of lines) {
+      const rawTag = decodeURIComponent((line.split('#')[1] || '').replace(/^#/, ''));
+
+      // Мобильная?
+      if (line.includes('hole-nn.datanode-internal.net')) {
+        for (const newTag of mobileDuplicates) {
+          const out = lineToOutbound(line, newTag);
+          if (out) { serverOutbounds.push(out); serverTags.push(newTag); }
+        }
+        continue;
+      }
+
+      // WiFi-серверы
+      const copies = wifiDuplicates[rawTag];
+      if (copies) {
+        for (const newTag of copies) {
+          const out = lineToOutbound(line, newTag);
+          if (out) { serverOutbounds.push(out); serverTags.push(newTag); }
+        }
+      } else {
+        // Если тег не из известного списка — оставляем как есть
+        const out = lineToOutbound(line);
+        if (out) { serverOutbounds.push(out); serverTags.push(out.tag); }
+      }
+    }
+
+    // ---- Общие части ----
+    const commonDns = { servers: ["1.1.1.1", "1.0.0.1"], queryStrategy: "UseIP" };
     const commonInbounds = [
       {
-        tag: "socks",
-        port: 10808,
-        listen: "127.0.0.1",
-        protocol: "socks",
+        tag: "socks", port: 10808, listen: "127.0.0.1", protocol: "socks",
         settings: { udp: true, auth: "noauth" },
         sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
       },
       {
-        tag: "http",
-        port: 10809,
-        listen: "127.0.0.1",
-        protocol: "http",
+        tag: "http", port: 10809, listen: "127.0.0.1", protocol: "http",
         settings: { allowTransparent: false },
         sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
       }
     ];
 
-    // ---- КОНФИГ 1: Auto (балансер + все серверы) ----
+    // ---- Конфиг Auto ----
     const autoConfig = {
       remarks: "♻️ Авто-выбор",
       dns: commonDns,
@@ -187,7 +218,7 @@ export default {
       }
     };
 
-    // ---- КОНФИГ 2..N: каждый сервер отдельно ----
+    // ---- Конфиги по серверам ----
     const perServerConfigs = serverOutbounds.map(server => ({
       remarks: server.tag,
       dns: commonDns,
@@ -207,7 +238,6 @@ export default {
       }
     }));
 
-    // ---- Массив: Auto первым, потом серверы ----
     const subscription = [autoConfig, ...perServerConfigs];
 
     const outHeaders = {
