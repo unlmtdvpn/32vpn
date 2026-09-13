@@ -2,16 +2,16 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const TRAFFIC_SOURCE_URL = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
+    const FAKE_UA = 'INCY/3.6.5/android';
 
     let sourceStatus = 0;
     let rawHeaders = {};
-    let rawBody = "";
+    let decodedBody = "";
     let subscriptionUserInfo = null;
-    let trafficDisplay = "1496 GB";
+    let trafficDisplay = "0 GB / ∞";
 
+    // ---- ЗАПРОС К ИСТОЧНИКУ ----
     try {
-      const FAKE_UA = 'INCY/3.6.5/android';
-
       const first = await fetch(TRAFFIC_SOURCE_URL, {
         headers: { 'User-Agent': FAKE_UA, 'Accept': '*/*' },
         redirect: 'manual',
@@ -22,6 +22,7 @@ export default {
       let headers = Object.fromEntries(first.headers.entries());
       let body = '';
 
+      // Cookie-challenge (307)
       if (status >= 300 && status < 400) {
         let cookie = '';
         for (const [k, v] of Object.entries(headers)) {
@@ -41,8 +42,22 @@ export default {
 
       sourceStatus = status;
       rawHeaders = headers;
-      rawBody = body;
 
+      // ---- Декодируем base64 → текст со ссылками vless:// ----
+      try {
+        const trimmed = body.trim();
+        // atob работает с base64; добавляем padding на всякий случай
+        const padded = trimmed + "=".repeat((4 - trimmed.length % 4) % 4);
+        const binary = atob(padded);
+        // Корректно декодируем UTF-8 из бинарной строки
+        const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+        decodedBody = new TextDecoder("utf-8").decode(bytes);
+      } catch (e) {
+        // Если не base64 — отдаём как есть
+        decodedBody = body;
+      }
+
+      // ---- Ищем subscription-userinfo ----
       for (const [key, value] of Object.entries(rawHeaders)) {
         if (key.toLowerCase() === 'subscription-userinfo') {
           subscriptionUserInfo = value;
@@ -50,16 +65,26 @@ export default {
         }
       }
 
+      // ---- Парсим трафик ----
       if (subscriptionUserInfo) {
-        const m = subscriptionUserInfo.match(/total=(\d+)/);
-        if (m) {
-          const totalBytes = parseInt(m[1], 10);
-          if (totalBytes > 0) trafficDisplay = (totalBytes / 1024 ** 3).toFixed(2) + " GB";
-          else trafficDisplay = "∞";
+        const get = (name) => {
+          const m = subscriptionUserInfo.match(new RegExp(name + '=(\\d+)'));
+          return m ? parseInt(m[1], 10) : 0;
+        };
+        const upload   = get('upload');
+        const download = get('download');
+        const total    = get('total');
+        const usedGB   = ((upload + download) / 1024 ** 3).toFixed(2);
+
+        if (total > 0) {
+          const totalGB = (total / 1024 ** 3).toFixed(2);
+          trafficDisplay = `${usedGB} GB / ${totalGB} GB`;
+        } else {
+          trafficDisplay = `${usedGB} GB / ∞`;
         }
       }
     } catch (e) {
-      rawBody = "FETCH ERROR: " + e.message;
+      decodedBody = "FETCH ERROR: " + e.message;
     }
 
     // ---- /debug ----
@@ -70,53 +95,35 @@ export default {
         rawHeaders,
         subscriptionUserInfo,
         trafficDisplay,
-        rawBodyPreview: rawBody.slice(0, 3000)
+        decodedBodyPreview: decodedBody.slice(0, 1500)
       }, null, 2), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
     }
 
-    // ---- СЕРВЕРЫ ----
-    const realNodes = [
-      { tag: "de-1",     address: "de-new.datanode-internal.net",  port: 443, id: "31dac09f-78ee-49ca-9566-d20aea578fdc", serverName: "openwrt.lan", publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic", shortId: "abbcd128", fingerprint: "qq", remarks: "🇩🇪 Германия",           network: "tcp",  flow: "xtls-rprx-vision" },
-      { tag: "se-1",     address: "se-new.datanode-internal.net",  port: 443, id: "31dac09f-78ee-49ca-9566-d20aea578fdc", serverName: "openwrt.lan", publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic", shortId: "abbcd128", fingerprint: "qq", remarks: "🇸🇪 Швеция",             network: "tcp",  flow: "xtls-rprx-vision" },
-      { tag: "pl-1",     address: "pl.datanode-internal.net",      port: 443, id: "31dac09f-78ee-49ca-9566-d20aea578fdc", serverName: "openwrt.lan", publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic", shortId: "abbcd128", fingerprint: "qq", remarks: "🇵🇱 Польша",             network: "tcp",  flow: "xtls-rprx-vision" },
-      { tag: "fi-1",     address: "fi.datanode-internal.net",      port: 443, id: "31dac09f-78ee-49ca-9566-d20aea578fdc", serverName: "openwrt.lan", publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic", shortId: "abbcd128", fingerprint: "qq", remarks: "🇫🇮 Финляндия",          network: "tcp",  flow: "xtls-rprx-vision" },
-      { tag: "ru-1",     address: "ru.datanode-internal.net",      port: 443, id: "31dac09f-78ee-49ca-9566-d20aea578fdc", serverName: "openwrt.lan", publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic", shortId: "abbcd128", fingerprint: "qq", remarks: "🇷🇺 Россия",             network: "tcp",  flow: "xtls-rprx-vision" },
-      { tag: "mobile-1", address: "hole-nn.datanode-internal.net", port: 443, id: "31dac09f-78ee-49ca-9566-d20aea578fdc", serverName: "ads.x5.ru",   publicKey: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic", shortId: "abbcd128", fingerprint: "qq", remarks: "🇩🇪 Мобильная связь #1", network: "grpc", flow: "",                   serviceName: "ads.x5.ru", mode: "gun" }
-    ];
+    // ---- ОТДАЁМ СЕРВЕРЫ ОТ ИСТОЧНИКА ----
+    const sourceTitle   = rawHeaders['profile-title'] || "wlvpn";
+    const sourceWebPage = rawHeaders['profile-web-page-url'] || "";
+    const sourceSupport = rawHeaders['support-url'] || "";
+    const sourceProvider = rawHeaders['providerid'] || "";
+    const sourceExpire  = (subscriptionUserInfo && subscriptionUserInfo.match(/expire=(\d+)/)?.[1]) || "0";
 
-    function makeVlessLink(n) {
-      const params = new URLSearchParams();
-      if (n.flow)        params.set("flow", n.flow);
-      params.set("type", n.network);
-      params.set("security", "reality");
-      if (n.fingerprint) params.set("fp", n.fingerprint);
-      params.set("sni", n.serverName);
-      params.set("pbk", n.publicKey);
-      params.set("sid", n.shortId);
-      if (n.network === "grpc") {
-        if (n.serviceName) params.set("serviceName", n.serviceName);
-        if (n.mode)        params.set("mode", n.mode);
-      }
-      return `vless://${n.id}@${n.address}:${n.port}?${params.toString()}#${encodeURIComponent(n.remarks)}`;
-    }
+    const respHeaders = {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "no-cache",
+      "Profile-Title": sourceTitle,
+      "Profile-Update-Interval": "1",
+      "Subscription-Status": "active",
+      "Subscription-Traffic": trafficDisplay,
+      "Subscription-Expire": sourceExpire,
+      "subscription-userinfo": subscriptionUserInfo || "upload=0; download=0; total=0; expire=0",
+      "announce": "🏳 wlvpn - стабильный VPN сервис."
+    };
+    if (sourceWebPage)   respHeaders["Profile-Web-Page-URL"] = sourceWebPage;
+    if (sourceSupport)   respHeaders["Support-URL"] = sourceSupport;
+    if (sourceProvider)  respHeaders["Provider-ID"] = sourceProvider;
 
-    const body = realNodes.map(makeVlessLink).join("\n");
-
-    return new Response(body, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "no-cache",
-        "Profile-Title": "wlvpn",
-        "Profile-Update-Interval": "1",
-        "Subscription-Status": "active",
-        "Subscription-Traffic": trafficDisplay,
-        "Subscription-Expire": "1899589200",
-        "subscription-userinfo": subscriptionUserInfo || "upload=0; download=0; total=1606343895040; expire=1899589200",
-        "announce": "🏳 wlvpn - стабильный VPN сервис."
-      }
-    });
+    return new Response(decodedBody, { headers: respHeaders });
   }
 };
