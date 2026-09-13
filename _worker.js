@@ -4,6 +4,20 @@ export default {
     const TRAFFIC_SOURCE_URL = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
     const FAKE_UA = 'INCY/3.6.5/android';
 
+    // ======================================================
+    //  КОНФИГ ДУБЛИКАТОВ: ключ — оригинальный тег,
+    //  значение — тег дубликата (другая страна/название)
+    //  Если сервера нет в мапе — он отдаётся один раз.
+    // ======================================================
+    const DUPLICATES = {
+      "🇩🇪 Германия":          "🇳🇱 Нидерланды",
+      "🇸🇪 Швеция":            "🇳🇴 Норвегия",
+      "🇵🇱 Польша":            "🇨🇿 Чехия",
+      "🇷🇺 Россия":            "🇰🇿 Казахстан",
+      "🇫🇷 Мобильная связь #1": "🇧🇾 Мобильная связь #2",
+    };
+    // ======================================================
+
     let sourceStatus = 0;
     let rawHeaders = {};
     let decodedBody = "";
@@ -80,7 +94,7 @@ export default {
       return line;
     });
 
-    // ---- Разбираем в outbound-объекты ----
+    // ---- vless → outbound ----
     function lineToOutbound(line, overrideTag) {
       try {
         const u = new URL(line);
@@ -129,43 +143,28 @@ export default {
       }
     }
 
-    // ---- Строим список: WiFi × 2 копии, Мобильная × 2 копии (разные флаги) ----
+    // ---- Строим outbounds: оригинал + дубликат ----
     const serverOutbounds = [];
     const serverTags = [];
-
-    const wifiDuplicates = {
-      "🇩🇪 Германия":     ["🇩🇪 Германия #1",     "🇩🇪 Германия #2"],
-      "🇸🇪 Швеция":       ["🇸🇪 Швеция #1",       "🇸🇪 Швеция #2"],
-      "🇵🇱 Польша":       ["🇵🇱 Польша #1",       "🇵🇱 Польша #2"],
-      "🇷🇺 Россия":       ["🇷🇺 Россия #1",       "🇷🇺 Россия #2"],
-    };
-
-    // Мобильная — 2 копии с разными флагами
-    const mobileDuplicates = ["🇫🇷 Мобильная связь #1", "🇧🇾 Мобильная связь #2"];
 
     for (const line of lines) {
       const rawTag = decodeURIComponent((line.split('#')[1] || '').replace(/^#/, ''));
 
-      // Мобильная?
-      if (line.includes('hole-nn.datanode-internal.net')) {
-        for (const newTag of mobileDuplicates) {
-          const out = lineToOutbound(line, newTag);
-          if (out) { serverOutbounds.push(out); serverTags.push(newTag); }
-        }
-        continue;
+      // 1. Оригинал
+      const original = lineToOutbound(line, rawTag);
+      if (original) {
+        serverOutbounds.push(original);
+        serverTags.push(rawTag);
       }
 
-      // WiFi-серверы
-      const copies = wifiDuplicates[rawTag];
-      if (copies) {
-        for (const newTag of copies) {
-          const out = lineToOutbound(line, newTag);
-          if (out) { serverOutbounds.push(out); serverTags.push(newTag); }
+      // 2. Дубликат с другим флагом/названием (если есть в мапе)
+      const dupTag = DUPLICATES[rawTag];
+      if (dupTag) {
+        const dup = lineToOutbound(line, dupTag);
+        if (dup) {
+          serverOutbounds.push(dup);
+          serverTags.push(dupTag);
         }
-      } else {
-        // Если тег не из известного списка — оставляем как есть
-        const out = lineToOutbound(line);
-        if (out) { serverOutbounds.push(out); serverTags.push(out.tag); }
       }
     }
 
@@ -184,7 +183,7 @@ export default {
       }
     ];
 
-    // ---- Конфиг Auto ----
+    // ---- Auto-конфиг ----
     const autoConfig = {
       remarks: "♻️ Авто-выбор",
       dns: commonDns,
