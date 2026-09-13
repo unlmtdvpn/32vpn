@@ -13,7 +13,7 @@ export default {
     try {
       const resp = await fetch(TRAFFIC_SOURCE_URL, {
         headers: {
-          'User-Agent': 'v2rayNG/1.8.5',
+          'User-Agent': 'INCY/3.6.5/android',
           'Accept': '*/*'
         },
         redirect: 'manual',   // не следовать редиректам автоматически
