@@ -7,6 +7,7 @@ export default {
     let sourceStatus = 0;
     let rawHeaders = {};
     let decodedBody = "";
+    let subscriptionUserInfo = null;
 
     try {
       const first = await fetch(TRAFFIC_SOURCE_URL, {
@@ -49,98 +50,12 @@ export default {
         decodedBody = body;
       }
 
-      // ---- Парсим vless-строки в объекты outbound для sing-box ----
-      let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
-
-      // Убираем Финляндию и Турцию
-      lines = lines.filter(line =>
-        !line.includes('fi.datanode-internal.net') &&
-        !line.includes('tr.datanode-internal.net')
-      );
-
-      // Мобильная → французский флаг
-      lines = lines.map(line => {
-        if (line.includes('hole-nn.datanode-internal.net')) {
-          const base = line.split('#')[0];
-          return base + '#' + encodeURIComponent('🇫🇷 Мобильная связь #1');
-        }
-        return line;
-      });
-
-      // ---- Конвертируем vless-URL → outbound ----
-      const outbounds = [];
-      const outboundTags = [];
-
-      for (const line of lines) {
-        try {
-          const u = new URL(line);
-          const params = u.searchParams;
-
-          const tag = decodeURIComponent(u.hash.replace(/^#/, ''));
-          const isGrpc = params.get('type') === 'grpc';
-
-          const out = {
-            type: "vless",
-            tag: tag,
-            server: u.hostname,
-            server_port: parseInt(u.port, 10),
-            uuid: u.username,
-            flow: params.get('flow') || "",
-            packet_encoding: "xudp",
-            tls: {
-              enabled: true,
-              server_name: params.get('sni') || "",
-              utls: {
-                enabled: true,
-                fingerprint: params.get('fp') || "chrome"
-              },
-              reality: {
-                enabled: true,
-                public_key: params.get('pbk') || "",
-                short_id: params.get('sid') || ""
-              }
-            }
-          };
-
-          if (isGrpc) {
-            out.transport = {
-              type: "grpc",
-              service_name: params.get('serviceName') || "",
-              idle_timeout: "15s",
-              ping_timeout: "15s"
-            };
-          } else {
-            out.transport = { type: "tcp" };
-          }
-
-          outbounds.push(out);
-          outboundTags.push(tag);
-        } catch (e) {
-          // пропускаем битую строку
+      for (const [key, value] of Object.entries(rawHeaders)) {
+        if (key.toLowerCase() === 'subscription-userinfo') {
+          subscriptionUserInfo = value;
+          break;
         }
       }
-
-      // ---- Добавляем авто-выбор (urltest) в начало ----
-      const autoOutbound = {
-        type: "urltest",
-        tag: "♻️ Авто-выбор",
-        outbounds: outboundTags,
-        url: "http://www.gstatic.com/generate_204",
-        interval: "1m",
-        tolerance: 50,
-        idle_timeout: "30m"
-      };
-
-      const finalConfig = {
-        outbounds: [
-          autoOutbound,     // первый — сервер по умолчанию
-          ...outbounds,
-          { type: "direct", tag: "direct" }
-        ]
-      };
-
-      decodedBody = JSON.stringify(finalConfig);
-      // ---- /МОДИФИКАЦИЯ ----
     } catch (e) {
       decodedBody = "FETCH ERROR: " + e.message;
     }
@@ -149,12 +64,143 @@ export default {
       return new Response(JSON.stringify({
         sourceStatus,
         rawHeaders,
-        decodedBodyPreview: decodedBody.slice(0, 3000)
+        decodedBodyPreview: decodedBody.slice(0, 2000)
       }, null, 2), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
     }
 
+    // ---- Парсим vless-строки в outbounds для Xray ----
+    let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
+
+    // Убираем Финляндию и Турцию
+    lines = lines.filter(line =>
+      !line.includes('fi.datanode-internal.net') &&
+      !line.includes('tr.datanode-internal.net')
+    );
+
+    // Мобильная → французский флаг
+    lines = lines.map(line => {
+      if (line.includes('hole-nn.datanode-internal.net')) {
+        const base = line.split('#')[0];
+        return base + '#' + encodeURIComponent('🇫🇷 Мобильная связь #1');
+      }
+      return line;
+    });
+
+    // ---- Конвертируем vless-URL → outbound для Xray ----
+    const outbounds = [];
+    const outboundTags = [];
+
+    for (const line of lines) {
+      try {
+        const u = new URL(line);
+        const params = u.searchParams;
+
+        const tag = decodeURIComponent(u.hash.replace(/^#/, ''));
+        const isGrpc = params.get('type') === 'grpc';
+
+        const out = {
+          tag: tag,
+          protocol: "vless",
+          settings: {
+            vnext: [{
+              address: u.hostname,
+              port: parseInt(u.port, 10),
+              users: [{
+                id: u.username,
+                encryption: "none",
+                flow: params.get('flow') || ""
+              }]
+            }]
+          },
+          streamSettings: {
+            network: isGrpc ? "grpc" : "tcp",
+            security: "reality",
+            realitySettings: {
+              serverName: params.get('sni') || "",
+              publicKey: params.get('pbk') || "",
+              shortId: params.get('sid') || "",
+              fingerprint: params.get('fp') || "chrome"
+            }
+          }
+        };
+
+        if (isGrpc) {
+          out.streamSettings.grpcSettings = {
+            serviceName: params.get('serviceName') || "",
+            mode: params.get('mode') || "gun"
+          };
+        } else {
+          out.streamSettings.tcpSettings = {};
+        }
+
+        outbounds.push(out);
+        outboundTags.push(tag);
+      } catch (e) {
+        // пропускаем битую строку
+      }
+    }
+
+    // ---- Добавляем direct и block ----
+    outbounds.push({ tag: "direct", protocol: "freedom" });
+    outbounds.push({ tag: "block", protocol: "blackhole" });
+
+    // ---- Собираем полный конфиг Xray ----
+    const finalConfig = {
+      dns: {
+        servers: ["1.1.1.1", "1.0.0.1"],
+        queryStrategy: "UseIP"
+      },
+      inbounds: [
+        {
+          tag: "socks",
+          port: 10808,
+          listen: "127.0.0.1",
+          protocol: "socks",
+          settings: { udp: true, auth: "noauth" },
+          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
+        },
+        {
+          tag: "http",
+          port: 10809,
+          listen: "127.0.0.1",
+          protocol: "http",
+          settings: { allowTransparent: false },
+          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
+        }
+      ],
+      observatory: {
+        enableConcurrency: true,
+        probeInterval: "1m",
+        probeUrl: "http://www.gstatic.com/generate_204",
+        subjectSelector: outboundTags
+      },
+      outbounds: outbounds,
+      routing: {
+        domainMatcher: "hybrid",
+        domainStrategy: "IPIfNonMatch",
+        balancers: [
+          {
+            tag: "♻️ Авто-выбор",
+            selector: outboundTags,
+            fallbackTag: "direct",
+            strategy: {
+              type: "leastPing",
+              settings: {}
+            }
+          }
+        ],
+        rules: [
+          { type: "field", protocol: ["bittorrent"], outboundTag: "block" },
+          { domain: ["domain:mtalk.google.com", "domain:push.apple.com", "domain:api.push.apple.com"], outboundTag: "direct", type: "field" },
+          { ip: ["17.0.0.0/8"], outboundTag: "direct", type: "field" },
+          { type: "field", inboundTag: ["socks", "http"], network: "tcp,udp", balancerTag: "♻️ Авто-выбор" }
+        ]
+      }
+    };
+
+    // ---- Заголовки ----
     const outHeaders = {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
@@ -180,6 +226,6 @@ export default {
       }
     }
 
-    return new Response(decodedBody, { headers: outHeaders });
+    return new Response(JSON.stringify(finalConfig), { headers: outHeaders });
   }
 };
