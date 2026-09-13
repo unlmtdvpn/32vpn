@@ -56,7 +56,7 @@ export default {
       return new Response(JSON.stringify({
         sourceStatus,
         rawHeaders,
-        decodedBodyPreview: decodedBody.slice(0, 2000)
+        decodedBodyPreview: decodedBody.slice(0, 1500)
       }, null, 2), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
@@ -78,9 +78,9 @@ export default {
       return line;
     });
 
-    // ---- Конвертируем vless → outbound для Xray ----
-    const realOutbounds = [];
-    const outboundTags = [];
+    // ---- Собираем outbound-объекты ----
+    const serverOutbounds = []; // список outbounds серверов
+    const serverTags = [];
 
     for (const line of lines) {
       try {
@@ -124,78 +124,91 @@ export default {
           out.streamSettings.tcpSettings = {};
         }
 
-        realOutbounds.push(out);
-        outboundTags.push(tag);
+        serverOutbounds.push(out);
+        serverTags.push(tag);
       } catch (e) {}
     }
 
-    // ---- ПЕРВЫЙ outbound: «♻️ Авто-выбор» — копия мобильного ----
-    // Реальная балансировка работает через routing.rules → balancerTag.
-    // Этот outbound нужен только для того, чтобы в UI INCY он был первым в списке.
-    const mobileSource = realOutbounds.find(o => o.tag.includes('Мобильная'));
-    const autoOutbound = JSON.parse(JSON.stringify(mobileSource || realOutbounds[0]));
-    autoOutbound.tag = "♻️ Авто-выбор";
-
-    const outbounds = [
-      autoOutbound,          // ← первым, для отображения в UI
-      ...realOutbounds,      // все настоящие серверы — ниже
-      { tag: "direct", protocol: "freedom" },
-      { tag: "block", protocol: "blackhole" }
+    // ---- Общие части конфига ----
+    const commonDns = {
+      servers: ["1.1.1.1", "1.0.0.1"],
+      queryStrategy: "UseIP"
+    };
+    const commonInbounds = [
+      {
+        tag: "socks",
+        port: 10808,
+        listen: "127.0.0.1",
+        protocol: "socks",
+        settings: { udp: true, auth: "noauth" },
+        sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
+      },
+      {
+        tag: "http",
+        port: 10809,
+        listen: "127.0.0.1",
+        protocol: "http",
+        settings: { allowTransparent: false },
+        sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
+      }
     ];
 
-    const finalConfig = {
-      dns: {
-        servers: ["1.1.1.1", "1.0.0.1"],
-        queryStrategy: "UseIP"
-      },
-      inbounds: [
-        {
-          tag: "socks",
-          port: 10808,
-          listen: "127.0.0.1",
-          protocol: "socks",
-          settings: { udp: true, auth: "noauth" },
-          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
-        },
-        {
-          tag: "http",
-          port: 10809,
-          listen: "127.0.0.1",
-          protocol: "http",
-          settings: { allowTransparent: false },
-          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
-        }
-      ],
+    // ---- КОНФИГ 1: Auto (балансер + все серверы) ----
+    const autoConfig = {
+      remarks: "♻️ Авто-выбор",
+      dns: commonDns,
+      inbounds: commonInbounds,
       observatory: {
         enableConcurrency: true,
         probeInterval: "15s",
         probeUrl: "http://www.gstatic.com/generate_204",
-        subjectSelector: outboundTags   // только реальные серверы (без «Авто-выбор»)
+        subjectSelector: serverTags
       },
-      outbounds: outbounds,
+      outbounds: [
+        ...serverOutbounds,
+        { tag: "direct", protocol: "freedom" },
+        { tag: "block", protocol: "blackhole" }
+      ],
       routing: {
         domainMatcher: "hybrid",
         domainStrategy: "IPIfNonMatch",
-        balancers: [
-          {
-            tag: "balancer-auto",
-            selector: outboundTags,
-            fallbackTag: "direct",
-            strategy: {
-              type: "leastPing",
-              settings: {}
-            }
-          }
-        ],
+        balancers: [{
+          tag: "balancer-auto",
+          selector: serverTags,
+          fallbackTag: "direct",
+          strategy: { type: "leastPing", settings: {} }
+        }],
         rules: [
           { type: "field", protocol: ["bittorrent"], outboundTag: "block" },
           { domain: ["domain:mtalk.google.com", "domain:push.apple.com", "domain:api.push.apple.com"], outboundTag: "direct", type: "field" },
           { ip: ["17.0.0.0/8"], outboundTag: "direct", type: "field" },
-          // Главное правило: весь трафик из inbounds — через балансер
           { type: "field", inboundTag: ["socks", "http"], network: "tcp,udp", balancerTag: "balancer-auto" }
         ]
       }
     };
+
+    // ---- КОНФИГ 2..N: каждый сервер отдельно ----
+    const perServerConfigs = serverOutbounds.map(server => ({
+      remarks: server.tag,
+      dns: commonDns,
+      inbounds: commonInbounds,
+      outbounds: [
+        server,
+        { tag: "direct", protocol: "freedom" },
+        { tag: "block", protocol: "blackhole" }
+      ],
+      routing: {
+        domainMatcher: "hybrid",
+        domainStrategy: "IPIfNonMatch",
+        rules: [
+          { type: "field", protocol: ["bittorrent"], outboundTag: "block" },
+          { type: "field", inboundTag: ["socks", "http"], network: "tcp,udp", outboundTag: server.tag }
+        ]
+      }
+    }));
+
+    // ---- Массив: Auto первым, потом серверы ----
+    const subscription = [autoConfig, ...perServerConfigs];
 
     const outHeaders = {
       "Content-Type": "application/json; charset=utf-8",
@@ -222,6 +235,6 @@ export default {
       }
     }
 
-    return new Response(JSON.stringify(finalConfig), { headers: outHeaders });
+    return new Response(JSON.stringify(subscription), { headers: outHeaders });
   }
 };
