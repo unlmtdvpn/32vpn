@@ -7,7 +7,6 @@ export default {
     let sourceStatus = 0;
     let rawHeaders = {};
     let decodedBody = "";
-    let subscriptionUserInfo = null;
 
     try {
       const first = await fetch(TRAFFIC_SOURCE_URL, {
@@ -49,13 +48,6 @@ export default {
       } catch (e) {
         decodedBody = body;
       }
-
-      for (const [key, value] of Object.entries(rawHeaders)) {
-        if (key.toLowerCase() === 'subscription-userinfo') {
-          subscriptionUserInfo = value;
-          break;
-        }
-      }
     } catch (e) {
       decodedBody = "FETCH ERROR: " + e.message;
     }
@@ -64,13 +56,13 @@ export default {
       return new Response(JSON.stringify({
         sourceStatus,
         rawHeaders,
-        decodedBodyPreview: decodedBody.slice(0, 2000)
+        decodedBodyPreview: decodedBody
       }, null, 2), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
     }
 
-    // ---- Парсим vless-строки в outbounds для Xray ----
+    // ---- МОДИФИКАЦИЯ СПИСКА ----
     let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
 
     // Убираем Финляндию и Турцию
@@ -79,7 +71,7 @@ export default {
       !line.includes('tr.datanode-internal.net')
     );
 
-    // Мобильная → французский флаг
+    // Мобильной — французский флаг
     lines = lines.map(line => {
       if (line.includes('hole-nn.datanode-internal.net')) {
         const base = line.split('#')[0];
@@ -88,121 +80,12 @@ export default {
       return line;
     });
 
-    // ---- Конвертируем vless-URL → outbound для Xray ----
-    const outbounds = [];
-    const outboundTags = [];
+    // Порядок — как в источнике: Германия, Швеция, Польша, Россия, Мобильная
+    const outputBody = lines.join('\n');
+    // ---- /МОДИФИКАЦИЯ ----
 
-    for (const line of lines) {
-      try {
-        const u = new URL(line);
-        const params = u.searchParams;
-
-        const tag = decodeURIComponent(u.hash.replace(/^#/, ''));
-        const isGrpc = params.get('type') === 'grpc';
-
-        const out = {
-          tag: tag,
-          protocol: "vless",
-          settings: {
-            vnext: [{
-              address: u.hostname,
-              port: parseInt(u.port, 10),
-              users: [{
-                id: u.username,
-                encryption: "none",
-                flow: params.get('flow') || ""
-              }]
-            }]
-          },
-          streamSettings: {
-            network: isGrpc ? "grpc" : "tcp",
-            security: "reality",
-            realitySettings: {
-              serverName: params.get('sni') || "",
-              publicKey: params.get('pbk') || "",
-              shortId: params.get('sid') || "",
-              fingerprint: params.get('fp') || "chrome"
-            }
-          }
-        };
-
-        if (isGrpc) {
-          out.streamSettings.grpcSettings = {
-            serviceName: params.get('serviceName') || "",
-            mode: params.get('mode') || "gun"
-          };
-        } else {
-          out.streamSettings.tcpSettings = {};
-        }
-
-        outbounds.push(out);
-        outboundTags.push(tag);
-      } catch (e) {
-        // пропускаем битую строку
-      }
-    }
-
-    // ---- Добавляем direct и block ----
-    outbounds.push({ tag: "direct", protocol: "freedom" });
-    outbounds.push({ tag: "block", protocol: "blackhole" });
-
-    // ---- Собираем полный конфиг Xray ----
-    const finalConfig = {
-      dns: {
-        servers: ["1.1.1.1", "1.0.0.1"],
-        queryStrategy: "UseIP"
-      },
-      inbounds: [
-        {
-          tag: "socks",
-          port: 10808,
-          listen: "127.0.0.1",
-          protocol: "socks",
-          settings: { udp: true, auth: "noauth" },
-          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
-        },
-        {
-          tag: "http",
-          port: 10809,
-          listen: "127.0.0.1",
-          protocol: "http",
-          settings: { allowTransparent: false },
-          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
-        }
-      ],
-      observatory: {
-        enableConcurrency: true,
-        probeInterval: "1m",
-        probeUrl: "http://www.gstatic.com/generate_204",
-        subjectSelector: outboundTags
-      },
-      outbounds: outbounds,
-      routing: {
-        domainMatcher: "hybrid",
-        domainStrategy: "IPIfNonMatch",
-        balancers: [
-          {
-            tag: "♻️ Авто-выбор",
-            selector: outboundTags,
-            fallbackTag: "direct",
-            strategy: {
-              type: "leastPing",
-              settings: {}
-            }
-          }
-        ],
-        rules: [
-          { type: "field", protocol: ["bittorrent"], outboundTag: "block" },
-          { domain: ["domain:mtalk.google.com", "domain:push.apple.com", "domain:api.push.apple.com"], outboundTag: "direct", type: "field" },
-          { ip: ["17.0.0.0/8"], outboundTag: "direct", type: "field" },
-          { type: "field", inboundTag: ["socks", "http"], network: "tcp,udp", balancerTag: "♻️ Авто-выбор" }
-        ]
-      }
-    };
-
-    // ---- Заголовки ----
     const outHeaders = {
-      "Content-Type": "application/json; charset=utf-8",
+      "Content-Type": "text/plain; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-cache",
       "Profile-Title": "wlvpn",
@@ -226,6 +109,6 @@ export default {
       }
     }
 
-    return new Response(JSON.stringify(finalConfig), { headers: outHeaders });
+    return new Response(outputBody, { headers: outHeaders });
   }
 };
