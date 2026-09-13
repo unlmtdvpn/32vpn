@@ -2,12 +2,11 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const TRAFFIC_SOURCE_URL = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
-    const FAKE_UA = 'INCY/3.6.5/android';
+    const FAKE_UA = 'Happ/4.3.0/Android';
 
     // ======================================================
     //  КОНФИГ ДУБЛИКАТОВ: ключ — оригинальный тег,
     //  значение — тег дубликата (другая страна/название)
-    //  Если сервера нет в мапе — он отдаётся один раз.
     // ======================================================
     const DUPLICATES = {
       "🇩🇪 Германия":          "🇳🇱 Нидерланды",
@@ -79,13 +78,11 @@ export default {
     // ---- Парсим vless ----
     let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
 
-    // Убираем Финляндию и Турцию
     lines = lines.filter(line =>
       !line.includes('fi.datanode-internal.net') &&
       !line.includes('tr.datanode-internal.net')
     );
 
-    // Мобильной — французский флаг
     lines = lines.map(line => {
       if (line.includes('hole-nn.datanode-internal.net')) {
         const base = line.split('#')[0];
@@ -94,7 +91,6 @@ export default {
       return line;
     });
 
-    // ---- vless → outbound ----
     function lineToOutbound(line, overrideTag) {
       try {
         const u = new URL(line);
@@ -143,21 +139,18 @@ export default {
       }
     }
 
-    // ---- Строим outbounds: оригинал + дубликат ----
     const serverOutbounds = [];
     const serverTags = [];
 
     for (const line of lines) {
       const rawTag = decodeURIComponent((line.split('#')[1] || '').replace(/^#/, ''));
 
-      // 1. Оригинал
       const original = lineToOutbound(line, rawTag);
       if (original) {
         serverOutbounds.push(original);
         serverTags.push(rawTag);
       }
 
-      // 2. Дубликат с другим флагом/названием (если есть в мапе)
       const dupTag = DUPLICATES[rawTag];
       if (dupTag) {
         const dup = lineToOutbound(line, dupTag);
@@ -168,7 +161,6 @@ export default {
       }
     }
 
-    // ---- Общие части ----
     const commonDns = { servers: ["1.1.1.1", "1.0.0.1"], queryStrategy: "UseIP" };
     const commonInbounds = [
       {
@@ -183,7 +175,6 @@ export default {
       }
     ];
 
-    // ---- Auto-конфиг ----
     const autoConfig = {
       remarks: "♻️ Авто-выбор",
       dns: commonDns,
@@ -217,7 +208,6 @@ export default {
       }
     };
 
-    // ---- Конфиги по серверам ----
     const perServerConfigs = serverOutbounds.map(server => ({
       remarks: server.tag,
       dns: commonDns,
