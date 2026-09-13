@@ -13,18 +13,25 @@ export default {
     try {
       const resp = await fetch(TRAFFIC_SOURCE_URL, {
         headers: {
-          // некоторые панели отдают данные только определённым клиентам
           'User-Agent': 'v2rayNG/1.8.5',
           'Accept': '*/*'
         },
-        // чтобы не получить закешированный ответ
+        redirect: 'manual',   // не следовать редиректам автоматически
         cf: { cacheTtl: 0 }
       });
+
       sourceStatus = resp.status;
       rawHeaders = Object.fromEntries(resp.headers.entries());
-      rawBody = await resp.text();
 
-      // Ищем заголовок subscription-userinfo (регистр не важен)
+      // Если редирект — читаем Location, тело не трогаем
+      if (sourceStatus >= 300 && sourceStatus < 400) {
+        const location = rawHeaders['location'] || '(нет Location)';
+        rawBody = `REDIRECT ${sourceStatus} to: ${location}`;
+      } else {
+        rawBody = await resp.text();
+      }
+
+      // Ищем заголовок subscription-userinfo
       for (const [key, value] of Object.entries(rawHeaders)) {
         if (key.toLowerCase() === 'subscription-userinfo') {
           subscriptionUserInfo = value;
@@ -32,7 +39,7 @@ export default {
         }
       }
 
-      // Парсим total → GB для заголовка Subscription-Traffic
+      // Парсим total → GB
       if (subscriptionUserInfo) {
         const m = subscriptionUserInfo.match(/total=(\d+)/);
         if (m) {
