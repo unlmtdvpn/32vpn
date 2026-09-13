@@ -3,10 +3,6 @@ const TRAFFIC_SOURCE_URL =
 
 const FAKE_UA = "INCY/3.6.5/android";
 
-// ================================
-// ГЕНЕРАЦИЯ ID
-// ================================
-
 function generateId() {
   return crypto.randomUUID();
 }
@@ -21,16 +17,18 @@ function generateToken() {
 }
 
 
-// ================================
-// ПОЛУЧИТЬ ПОДПИСКИ ИЗ KV
-// ================================
+// =====================
+// KV
+// =====================
 
 async function getSubscriptions(env) {
+  if (!env.KV) {
+    throw new Error("KV binding не подключен");
+  }
+
   const data = await env.KV.get("subscriptions");
 
-  if (!data) {
-    return [];
-  }
+  if (!data) return [];
 
   try {
     return JSON.parse(data);
@@ -39,12 +37,11 @@ async function getSubscriptions(env) {
   }
 }
 
-
-// ================================
-// СОХРАНИТЬ ПОДПИСКИ
-// ================================
-
 async function saveSubscriptions(env, subscriptions) {
+  if (!env.KV) {
+    throw new Error("KV binding не подключен");
+  }
+
   await env.KV.put(
     "subscriptions",
     JSON.stringify(subscriptions)
@@ -52,160 +49,216 @@ async function saveSubscriptions(env, subscriptions) {
 }
 
 
-// ================================
-// ПОЛУЧИТЬ ИСХОДНУЮ ПОДПИСКУ
-// ================================
+// =====================
+// SOURCE SUBSCRIPTION
+// =====================
 
 async function getSourceSubscription() {
-
   let sourceStatus = 0;
   let rawHeaders = {};
   let rawBody = "";
 
   try {
+    const first = await fetch(TRAFFIC_SOURCE_URL, {
+      headers: {
+        "User-Agent": FAKE_UA,
+        "Accept": "*/*"
+      },
+      redirect: "manual",
+      cf: {
+        cacheTtl: 0
+      }
+    });
 
-    const first = await fetch(
-      TRAFFIC_SOURCE_URL,
-      {
+    let status = first.status;
+    let headers = Object.fromEntries(first.headers.entries());
+    let body = "";
+
+    if (status >= 300 && status < 400) {
+      let cookie = "";
+
+      const setCookie = first.headers.get("set-cookie");
+
+      if (setCookie) {
+        cookie = setCookie.split(";")[0];
+      }
+
+      const location = first.headers.get("location");
+
+      const secondUrl = location
+        ? new URL(location, TRAFFIC_SOURCE_URL).toString()
+        : TRAFFIC_SOURCE_URL;
+
+      const second = await fetch(secondUrl, {
         headers: {
           "User-Agent": FAKE_UA,
-          "Accept": "*/*"
+          "Accept": "*/*",
+          ...(cookie ? { "Cookie": cookie } : {})
         },
-
-        redirect: "manual",
-
+        redirect: "follow",
         cf: {
           cacheTtl: 0
         }
-      }
-    );
+      });
 
-    let status = first.status;
+      status = second.status;
+      headers = Object.fromEntries(second.headers.entries());
+      body = await second.text();
 
-    let headers =
-      Object.fromEntries(
-        first.headers.entries()
-      );
-
-    let body = "";
-
-    // ================================
-    // REDIRECT
-    // ================================
-
-    if (
-      status >= 300 &&
-      status < 400
-    ) {
-
-      let cookie = "";
-
-      for (
-        const [key, value]
-        of Object.entries(headers)
-      ) {
-
-        if (
-          key.toLowerCase() ===
-          "set-cookie"
-        ) {
-
-          cookie =
-            value.split(";")[0];
-
-          break;
-        }
-      }
-
-
-      const second =
-        await fetch(
-          TRAFFIC_SOURCE_URL,
-          {
-            headers: {
-              "User-Agent": FAKE_UA,
-              "Accept": "*/*",
-              "Cookie": cookie
-            },
-
-            redirect: "manual",
-
-            cf: {
-              cacheTtl: 0
-            }
-          }
-        );
-
-
-      status =
-        second.status;
-
-      headers =
-        Object.fromEntries(
-          second.headers.entries()
-        );
-
-      body =
-        await second.text();
-
+    } else {
+      body = await first.text();
     }
-
-    else {
-
-      body =
-        await first.text();
-
-    }
-
 
     sourceStatus = status;
-
     rawHeaders = headers;
-
     rawBody = body;
 
+  } catch (error) {
+    rawBody = "FETCH ERROR: " + error.message;
   }
-
-  catch (error) {
-
-    rawBody =
-      "FETCH ERROR: " +
-      error.message;
-
-  }
-
 
   return {
     sourceStatus,
     rawHeaders,
     rawBody
   };
-
 }
 
 
-// ================================
-// ОТКЛЮЧЕННАЯ ПОДПИСКА
-// ================================
+// =====================
+// DISABLED
+// =====================
 
 function disabledSubscription() {
-
   return JSON.stringify({
     servers: [],
     message: "Подписка отключена"
   });
-
 }
 
 
-// ================================
-// WEB SITE
-// ================================
+// =====================
+// WEBSITE
+// =====================
 
 function getWebsite() {
-
   return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
 
+<title>WLVPN</title>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  background: #0b1020;
+  color: white;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 7%;
+}
+
+.logo {
+  font-size: 25px;
+  font-weight: bold;
+}
+
+.admin {
+  color: white;
+  text-decoration: none;
+  background: #252d45;
+  padding: 10px 18px;
+  border-radius: 10px;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 30px;
+}
+
+h1 {
+  font-size: 50px;
+  margin: 0;
+}
+
+p {
+  color: #9ca6bd;
+  font-size: 18px;
+}
+
+.button {
+  margin-top: 20px;
+  padding: 15px 30px;
+  background: #5b7cff;
+  color: white;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+footer {
+  text-align: center;
+  padding: 25px;
+  color: #667085;
+}
+</style>
+
+</head>
+
+<body>
+
+<header>
+  <div class="logo">🏳 WLVPN</div>
+  <a class="admin" href="/admin">Админ</a>
+</header>
+
+<main>
+  <h1>WLVPN</h1>
+  <p>Быстрый и стабильный VPN сервис.</p>
+
+  <a
+    class="button"
+    href="https://t.me/snokuy"
+    target="_blank"
+  >
+    Telegram
+  </a>
+</main>
+
+<footer>
+© WLVPN
+</footer>
+
+</body>
+</html>`;
+}
+
+
+// =====================
+// ADMIN
+// =====================
+
+function getAdminPage() {
+  return `<!DOCTYPE html>
 <html lang="ru">
 
 <head>
@@ -214,10 +267,10 @@ function getWebsite() {
 
 <meta
 name="viewport"
-content="width=device-width, initial-scale=1.0"
+content="width=device-width,initial-scale=1.0"
 >
 
-<title>WLVPN</title>
+<title>WLVPN Admin</title>
 
 <style>
 
@@ -226,902 +279,446 @@ content="width=device-width, initial-scale=1.0"
 }
 
 body {
-
   margin: 0;
-
-  min-height: 100vh;
-
-  font-family:
-    Arial,
-    sans-serif;
-
-  background:
-    #0b1020;
-
-  color:
-    white;
-
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-}
-
-
-header {
-
-  display:
-    flex;
-
-  justify-content:
-    space-between;
-
-  align-items:
-    center;
-
-  padding:
-    20px 7%;
-
-}
-
-
-.logo {
-
-  font-size:
-    25px;
-
-  font-weight:
-    bold;
-
-}
-
-
-.admin {
-
-  color:
-    #ffffff;
-
-  text-decoration:
-    none;
-
-  background:
-    #252d45;
-
-  padding:
-    10px 18px;
-
-  border-radius:
-    10px;
-
-}
-
-
-main {
-
-  flex:
-    1;
-
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-  align-items:
-    center;
-
-  justify-content:
-    center;
-
-  text-align:
-    center;
-
-  padding:
-    30px;
-
-}
-
-
-h1 {
-
-  font-size:
-    50px;
-
-  margin:
-    0;
-
-}
-
-
-p {
-
-  color:
-    #9ca6bd;
-
-  font-size:
-    18px;
-
-  max-width:
-    600px;
-
-  line-height:
-    1.6;
-
-}
-
-
-.button {
-
-  margin-top:
-    20px;
-
-  padding:
-    15px 30px;
-
-  background:
-    #5b7cff;
-
-  color:
-    white;
-
-  border-radius:
-    12px;
-
-  text-decoration:
-    none;
-
-  font-weight:
-    bold;
-
-}
-
-
-footer {
-
-  text-align:
-    center;
-
-  padding:
-    25px;
-
-  color:
-    #667085;
-
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-
-<header>
-
-<div class="logo">
-
-🏳 WLVPN
-
-</div>
-
-
-<a
-class="admin"
-href="/admin"
->
-
-Админ
-
-</a>
-
-</header>
-
-
-<main>
-
-
-<h1>
-
-WLVPN
-
-</h1>
-
-
-<p>
-
-Быстрый и стабильный VPN сервис.
-
-</p>
-
-
-<a
-class="button"
-href="https://t.me/snokuy"
-target="_blank"
->
-
-Telegram
-
-</a>
-
-
-</main>
-
-
-<footer>
-
-© WLVPN
-
-</footer>
-
-
-</body>
-
-</html>`;
-
-}
-
-
-// ================================
-// ADMIN PANEL
-// ================================
-
-function getAdminPage() {
-
-  return `<!DOCTYPE html>
-
-<html lang="ru">
-
-<head>
-
-<meta charset="UTF-8">
-
-<meta
-name="viewport"
-content="width=device-width, initial-scale=1.0"
->
-
-<title>WLVPN Admin</title>
-
-<style>
-
-* {
-  box-sizing:
-    border-box;
-}
-
-body {
-
-  margin: 0;
-
   padding: 20px;
-
-  font-family:
-    Arial,
-    sans-serif;
-
-  background:
-    #0b1020;
-
-  color:
-    white;
-
+  font-family: Arial, sans-serif;
+  background: #0b1020;
+  color: white;
 }
-
 
 .container {
-
-  max-width:
-    900px;
-
-  margin:
-    auto;
-
+  max-width: 900px;
+  margin: auto;
 }
-
 
 h1 {
-
-  margin-bottom:
-    30px;
-
+  margin-bottom: 30px;
 }
-
 
 .create {
-
-  display:
-    flex;
-
-  gap:
-    10px;
-
-  margin-bottom:
-    30px;
-
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
 }
-
 
 input {
-
-  flex:
-    1;
-
-  padding:
-    14px;
-
-  border:
-    none;
-
-  border-radius:
-    10px;
-
-  background:
-    #20283d;
-
-  color:
-    white;
-
+  flex: 1;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  background: #20283d;
+  color: white;
 }
-
 
 button {
-
-  border:
-    none;
-
-  padding:
-    12px 18px;
-
-  border-radius:
-    10px;
-
-  background:
-    #5b7cff;
-
-  color:
-    white;
-
-  cursor:
-    pointer;
-
+  border: none;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: #5b7cff;
+  color: white;
+  cursor: pointer;
 }
-
 
 .list {
-
-  display:
-    flex;
-
-  flex-direction:
-    column;
-
-  gap:
-    15px;
-
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
-
 
 .item {
-
-  background:
-    #151b2c;
-
-  padding:
-    20px;
-
-  border-radius:
-    15px;
-
+  background: #151b2c;
+  padding: 20px;
+  border-radius: 15px;
 }
-
 
 .name {
-
-  font-size:
-    20px;
-
-  font-weight:
-    bold;
-
+  font-size: 20px;
+  font-weight: bold;
 }
 
-
-.token {
-
-  color:
-    #8490aa;
-
-  margin-top:
-    10px;
-
-  word-break:
-    break-all;
-
+.status {
+  margin-top: 10px;
+  color: #8490aa;
 }
-
-
-.actions {
-
-  display:
-    flex;
-
-  flex-wrap:
-    wrap;
-
-  gap:
-    10px;
-
-  margin-top:
-    15px;
-
-}
-
 
 .link {
-
-  margin-top:
-    10px;
-
-  color:
-    #5b7cff;
-
-  word-break:
-    break-all;
-
+  margin-top: 10px;
+  color: #7c9cff;
+  word-break: break-all;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 15px;
+}
 
 .disabled {
+  opacity: 0.5;
+}
 
-  opacity:
-    .5;
+.error {
+  color: #ff7777;
+}
+
+@media (max-width: 600px) {
+  .create {
+    flex-direction: column;
+  }
 }
 
 </style>
 
 </head>
 
-
 <body>
-
 
 <div class="container">
 
-
-<h1>
-
-🏳 WLVPN Admin
-
-</h1>
-
+<h1>🏳 WLVPN Admin</h1>
 
 <div class="create">
 
 <input
-id="name"
-placeholder="Название подписки"
-/>
-
+  id="name"
+  placeholder="Название подписки"
+>
 
 <button onclick="createSub()">
-
 Создать
-
 </button>
 
 </div>
 
-
 <div
-id="list"
-class="list"
+  id="list"
+  class="list"
 >
-
 Загрузка...
-
 </div>
-
 
 </div>
 
 
 <script>
 
+async function api(path, options) {
 
-async function api(
-  path,
-  options = {}
-) {
+  const response = await fetch(
+    path,
+    options || {}
+  );
 
-  const response =
-    await fetch(
-      path,
-      options
+  const text = await response.text();
+
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = {
+      error: text
+    };
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.error || "Ошибка API"
     );
+  }
 
-  return response.json();
-
+  return data;
 }
 
 
-// ================================
-// LOAD
-// ================================
+function escapeHtml(text) {
+
+  var div =
+    document.createElement("div");
+
+  div.textContent = text;
+
+  return div.innerHTML;
+}
+
 
 async function load() {
 
-  const data =
-    await api(
-      "/api/subscriptions"
-    );
+  var list =
+    document.getElementById("list");
 
-  const list =
-    document.getElementById(
-      "list"
-    );
+  try {
 
-  list.innerHTML =
-    "";
+    var data =
+      await api("/api/subscriptions");
 
+    list.innerHTML = "";
 
-  if (
-    !data.length
-  ) {
+    if (!data.length) {
+
+      list.innerHTML =
+        "<p>Подписок пока нет</p>";
+
+      return;
+    }
+
+    data.forEach(function(sub) {
+
+      var div =
+        document.createElement("div");
+
+      div.className =
+        "item" +
+        (sub.enabled ? "" : " disabled");
+
+      var link =
+        location.origin +
+        "/sub/" +
+        sub.token;
+
+      div.innerHTML =
+        '<div class="name">' +
+        escapeHtml(sub.name) +
+        '</div>' +
+
+        '<div class="status">' +
+        (sub.enabled
+          ? "🟢 Активна"
+          : "🔴 Отключена") +
+        '</div>' +
+
+        '<div class="link">' +
+        escapeHtml(link) +
+        '</div>' +
+
+        '<div class="actions">' +
+
+        '<button onclick="copyLink(\\'' +
+        sub.token +
+        '\\')">Копировать</button>' +
+
+        '<button onclick="renameSub(\\'' +
+        sub.id +
+        '\\')">Переименовать</button>' +
+
+        '<button onclick="toggleSub(\\'' +
+        sub.id +
+        '\\')">' +
+
+        (sub.enabled
+          ? "Отключить"
+          : "Включить") +
+
+        '</button>' +
+
+        '<button onclick="deleteSub(\\'' +
+        sub.id +
+        '\\')">Удалить</button>' +
+
+        '</div>';
+
+      list.appendChild(div);
+
+    });
+
+  } catch (error) {
 
     list.innerHTML =
-      "<p>Подписок пока нет</p>";
-
-    return;
+      '<p class="error">Ошибка: ' +
+      escapeHtml(error.message) +
+      '</p>';
 
   }
 
-
-  data.forEach(sub => {
-
-    const div =
-      document.createElement(
-        "div"
-      );
-
-
-    div.className =
-      "item " +
-      (
-        sub.enabled
-          ? ""
-          : "disabled"
-      );
-
-
-    const link =
-      location.origin +
-      "/sub/" +
-      sub.token;
-
-
-    div.innerHTML = `
-
-<div class="name">
-
-${escapeHtml(sub.name)}
-
-</div>
-
-
-<div class="token">
-
-${sub.enabled
-  ? "🟢 Активна"
-  : "🔴 Отключена"}
-
-</div>
-
-
-<div class="link">
-
-${link}
-
-</div>
-
-
-<div class="actions">
-
-
-<button
-onclick="copyLink('${sub.token}')"
->
-
-Копировать
-
-</button>
-
-
-<button
-onclick="renameSub('${sub.id}')"
->
-
-Переименовать
-
-</button>
-
-
-<button
-onclick="toggleSub('${sub.id}')"
->
-
-${
-  sub.enabled
-    ? "Отключить"
-    : "Включить"
 }
 
-</button>
-
-
-<button
-onclick="deleteSub('${sub.id}')"
->
-
-Удалить
-
-</button>
-
-
-</div>
-
-`;
-
-    list.appendChild(div);
-
-  });
-
-}
-
-
-// ================================
-// CREATE
-// ================================
 
 async function createSub() {
 
-  const input =
-    document.getElementById(
-      "name"
-    );
+  var input =
+    document.getElementById("name");
 
-
-  const name =
+  var name =
     input.value.trim();
 
-
   if (!name) {
-
-    alert(
-      "Введите название"
-    );
-
+    alert("Введите название");
     return;
-
   }
 
+  try {
 
-  await api(
-    "/api/subscriptions",
-    {
-      method:
-        "POST",
+    await api(
+      "/api/subscriptions",
+      {
+        method: "POST",
 
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
 
-      body:
-        JSON.stringify({
-          name
+        body: JSON.stringify({
+          name: name
         })
-    }
-  );
+      }
+    );
 
+    input.value = "";
 
-  input.value =
-    "";
+    load();
 
+  } catch (error) {
 
-  load();
+    alert(
+      "Ошибка: " +
+      error.message
+    );
+
+  }
 
 }
 
 
-// ================================
-// COPY
-// ================================
+async function copyLink(token) {
 
-function copyLink(token) {
-
-  const link =
+  var link =
     location.origin +
     "/sub/" +
     token;
 
+  try {
 
-  navigator.clipboard.writeText(
-    link
-  );
+    await navigator.clipboard.writeText(link);
 
+    alert("Ссылка скопирована");
 
-  alert(
-    "Ссылка скопирована"
-  );
+  } catch {
+
+    prompt(
+      "Скопируй ссылку:",
+      link
+    );
+
+  }
 
 }
 
-
-// ================================
-// RENAME
-// ================================
 
 async function renameSub(id) {
 
-  const name =
-    prompt(
-      "Новое название"
+  var name =
+    prompt("Новое название");
+
+  if (!name) return;
+
+  try {
+
+    await api(
+      "/api/subscriptions/" + id,
+      {
+        method: "PUT",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify({
+          name: name
+        })
+      }
     );
 
+    load();
 
-  if (!name) {
-    return;
+  } catch (error) {
+
+    alert(error.message);
+
   }
-
-
-  await api(
-    "/api/subscriptions/" +
-    id,
-    {
-      method:
-        "PUT",
-
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
-
-      body:
-        JSON.stringify({
-          name
-        })
-    }
-  );
-
-
-  load();
 
 }
 
-
-// ================================
-// TOGGLE
-// ================================
 
 async function toggleSub(id) {
 
-  await api(
-    "/api/subscriptions/" +
-    id +
-    "/toggle",
-    {
-      method:
-        "POST"
-    }
-  );
+  try {
 
+    await api(
+      "/api/subscriptions/" +
+      id +
+      "/toggle",
+      {
+        method: "POST"
+      }
+    );
 
-  load();
+    load();
+
+  } catch (error) {
+
+    alert(error.message);
+
+  }
 
 }
 
-
-// ================================
-// DELETE
-// ================================
 
 async function deleteSub(id) {
 
   if (
-    !confirm(
-      "Удалить подписку?"
-    )
+    !confirm("Удалить подписку?")
   ) {
     return;
   }
 
+  try {
 
-  await api(
-    "/api/subscriptions/" +
-    id,
-    {
-      method:
-        "DELETE"
-    }
-  );
-
-
-  load();
-
-}
-
-
-// ================================
-// ESCAPE
-// ================================
-
-function escapeHtml(text) {
-
-  const div =
-    document.createElement(
-      "div"
+    await api(
+      "/api/subscriptions/" + id,
+      {
+        method: "DELETE"
+      }
     );
 
-  div.textContent =
-    text;
+    load();
 
-  return div.innerHTML;
+  } catch (error) {
+
+    alert(error.message);
+
+  }
 
 }
 
 
 load();
 
-
 </script>
 
-
 </body>
-
 </html>`;
-
 }
 
 
-// ================================
-// MAIN WORKER
-// ================================
+// =====================
+// MAIN
+// =====================
 
 export default {
 
-  async fetch(
-    request,
-    env,
-    ctx
-  ) {
+  async fetch(request, env) {
 
     const url =
-      new URL(
-        request.url
-      );
+      new URL(request.url);
 
 
-    const userAgent =
-      request.headers.get(
-        "User-Agent"
-      ) || "";
-
-
-    const ua =
-      userAgent.toLowerCase();
-
-
-    // ================================
-    // ADMIN PAGE
-    // ================================
+    // ADMIN
 
     if (
-      url.pathname ===
-      "/admin"
+      url.pathname === "/admin"
     ) {
 
       return new Response(
@@ -1137,440 +734,430 @@ export default {
     }
 
 
-    // ================================
-    // API GET SUBSCRIPTIONS
-    // ================================
+    // GET SUBSCRIPTIONS
 
     if (
       url.pathname ===
-      "/api/subscriptions" &&
-
-      request.method ===
-      "GET"
+        "/api/subscriptions" &&
+      request.method === "GET"
     ) {
 
-      const subs =
-        await getSubscriptions(
-          env
-        );
+      try {
 
+        const subs =
+          await getSubscriptions(env);
 
-      return Response.json(
-        subs
-      );
+        return Response.json(subs);
 
-    }
-
-
-    // ================================
-    // API CREATE
-    // ================================
-
-    if (
-      url.pathname ===
-      "/api/subscriptions" &&
-
-      request.method ===
-      "POST"
-    ) {
-
-      const data =
-        await request.json();
-
-
-      const subs =
-        await getSubscriptions(
-          env
-        );
-
-
-      const sub = {
-
-        id:
-          generateId(),
-
-        token:
-          generateToken(),
-
-        name:
-          data.name ||
-          "WLVPN",
-
-        enabled:
-          true,
-
-        createdAt:
-          Date.now()
-
-      };
-
-
-      subs.push(sub);
-
-
-      await saveSubscriptions(
-        env,
-        subs
-      );
-
-
-      return Response.json(
-        {
-          success: true,
-          sub
-        }
-      );
-
-    }
-
-
-    // ================================
-    // API RENAME
-    // ================================
-
-    const renameMatch =
-      url.pathname.match(
-        /^\\/api\\/subscriptions\\/([^/]+)$/
-      );
-
-
-    if (
-      renameMatch &&
-
-      request.method ===
-      "PUT"
-    ) {
-
-      const id =
-        renameMatch[1];
-
-
-      const data =
-        await request.json();
-
-
-      const subs =
-        await getSubscriptions(
-          env
-        );
-
-
-      const sub =
-        subs.find(
-          s =>
-            s.id === id
-        );
-
-
-      if (!sub) {
+      } catch (error) {
 
         return Response.json(
           {
-            error:
-              "Not found"
+            error: error.message
           },
           {
-            status: 404
+            status: 500
           }
         );
 
       }
 
-
-      sub.name =
-        data.name ||
-        sub.name;
+    }
 
 
-      await saveSubscriptions(
-        env,
-        subs
-      );
+    // CREATE
 
+    if (
+      url.pathname ===
+        "/api/subscriptions" &&
+      request.method === "POST"
+    ) {
 
-      return Response.json({
-        success: true
-      });
+      try {
+
+        const data =
+          await request.json();
+
+        const subs =
+          await getSubscriptions(env);
+
+        const sub = {
+
+          id:
+            generateId(),
+
+          token:
+            generateToken(),
+
+          name:
+            data.name || "WLVPN",
+
+          enabled:
+            true,
+
+          createdAt:
+            Date.now()
+
+        };
+
+        subs.push(sub);
+
+        await saveSubscriptions(
+          env,
+          subs
+        );
+
+        return Response.json({
+          success: true,
+          sub: sub
+        });
+
+      } catch (error) {
+
+        return Response.json(
+          {
+            error: error.message
+          },
+          {
+            status: 500
+          }
+        );
+
+      }
 
     }
 
 
-    // ================================
-    // API TOGGLE
-    // ================================
+    // RENAME / DELETE
+
+    const subApiMatch =
+      url.pathname.match(
+        /^\/api\/subscriptions\/([^/]+)$/
+      );
+
+
+    if (
+      subApiMatch &&
+      request.method === "PUT"
+    ) {
+
+      try {
+
+        const id =
+          subApiMatch[1];
+
+        const data =
+          await request.json();
+
+        const subs =
+          await getSubscriptions(env);
+
+        const sub =
+          subs.find(
+            s => s.id === id
+          );
+
+        if (!sub) {
+
+          return Response.json(
+            {
+              error: "Подписка не найдена"
+            },
+            {
+              status: 404
+            }
+          );
+
+        }
+
+        sub.name =
+          data.name || sub.name;
+
+        await saveSubscriptions(
+          env,
+          subs
+        );
+
+        return Response.json({
+          success: true
+        });
+
+      } catch (error) {
+
+        return Response.json(
+          {
+            error: error.message
+          },
+          {
+            status: 500
+          }
+        );
+
+      }
+
+    }
+
+
+    if (
+      subApiMatch &&
+      request.method === "DELETE"
+    ) {
+
+      try {
+
+        const id =
+          subApiMatch[1];
+
+        let subs =
+          await getSubscriptions(env);
+
+        subs =
+          subs.filter(
+            s => s.id !== id
+          );
+
+        await saveSubscriptions(
+          env,
+          subs
+        );
+
+        return Response.json({
+          success: true
+        });
+
+      } catch (error) {
+
+        return Response.json(
+          {
+            error: error.message
+          },
+          {
+            status: 500
+          }
+        );
+
+      }
+
+    }
+
+
+    // TOGGLE
 
     const toggleMatch =
       url.pathname.match(
-        /^\\/api\\/subscriptions\\/([^/]+)\\/toggle$/
+        /^\/api\/subscriptions\/([^/]+)\/toggle$/
       );
 
 
     if (
       toggleMatch &&
-
-      request.method ===
-      "POST"
+      request.method === "POST"
     ) {
 
-      const id =
-        toggleMatch[1];
+      try {
 
+        const id =
+          toggleMatch[1];
 
-      const subs =
-        await getSubscriptions(
-          env
+        const subs =
+          await getSubscriptions(env);
+
+        const sub =
+          subs.find(
+            s => s.id === id
+          );
+
+        if (!sub) {
+
+          return Response.json(
+            {
+              error: "Подписка не найдена"
+            },
+            {
+              status: 404
+            }
+          );
+
+        }
+
+        sub.enabled =
+          !sub.enabled;
+
+        await saveSubscriptions(
+          env,
+          subs
         );
 
+        return Response.json({
+          success: true
+        });
 
-      const sub =
-        subs.find(
-          s =>
-            s.id === id
-        );
-
-
-      if (!sub) {
+      } catch (error) {
 
         return Response.json(
           {
-            error:
-              "Not found"
+            error: error.message
           },
           {
-            status: 404
+            status: 500
           }
         );
 
       }
 
-
-      sub.enabled =
-        !sub.enabled;
-
-
-      await saveSubscriptions(
-        env,
-        subs
-      );
-
-
-      return Response.json({
-        success: true
-      });
-
     }
 
 
-    // ================================
-    // API DELETE
-    // ================================
-
-    if (
-      renameMatch &&
-
-      request.method ===
-      "DELETE"
-    ) {
-
-      const id =
-        renameMatch[1];
-
-
-      let subs =
-        await getSubscriptions(
-          env
-        );
-
-
-      subs =
-        subs.filter(
-          s =>
-            s.id !== id
-        );
-
-
-      await saveSubscriptions(
-        env,
-        subs
-      );
-
-
-      return Response.json({
-        success: true
-      });
-
-    }
-
-
-    // ================================
-    // SUBSCRIPTION LINK
-    // ================================
+    // SUBSCRIPTION
 
     const subMatch =
       url.pathname.match(
-        /^\\/sub\\/([^/]+)$/
+        /^\/sub\/([^/]+)$/
       );
 
 
     if (subMatch) {
 
-      const token =
-        subMatch[1];
+      try {
 
+        const token =
+          subMatch[1];
 
-      const subs =
-        await getSubscriptions(
-          env
-        );
+        const subs =
+          await getSubscriptions(env);
 
+        const sub =
+          subs.find(
+            s => s.token === token
+          );
 
-      const sub =
-        subs.find(
-          s =>
-            s.token === token
-        );
+        if (!sub) {
 
-
-      if (!sub) {
-
-        return new Response(
-          "Subscription not found",
-          {
-            status: 404
-          }
-        );
-
-      }
-
-
-      // ================================
-      // DISABLED
-      // ================================
-
-      if (!sub.enabled) {
-
-        return new Response(
-          disabledSubscription(),
-          {
-            headers: {
-              "Content-Type":
-                "application/json; charset=utf-8",
-
-              "Profile-Title":
-                "Подписка отключена"
+          return new Response(
+            "Subscription not found",
+            {
+              status: 404
             }
+          );
+
+        }
+
+
+        // DISABLED
+
+        if (!sub.enabled) {
+
+          return new Response(
+            disabledSubscription(),
+            {
+              headers: {
+                "Content-Type":
+                  "application/json; charset=utf-8",
+
+                "Profile-Title":
+                  "Подписка отключена"
+              }
+            }
+          );
+
+        }
+
+
+        // SOURCE
+
+        const source =
+          await getSourceSubscription();
+
+        const outHeaders = {
+
+          "Content-Type":
+            "application/json; charset=utf-8",
+
+          "Access-Control-Allow-Origin":
+            "*",
+
+          "Cache-Control":
+            "no-cache",
+
+          "Profile-Title":
+            sub.name,
+
+          "Profile-Update-Interval":
+            "6"
+
+        };
+
+
+        const passthrough = [
+          "profile-web-page-url",
+          "support-url",
+          "providerid",
+          "subscription-userinfo",
+          "hide-settings",
+          "new-url"
+        ];
+
+
+        for (
+          const name of passthrough
+        ) {
+
+          const value =
+            source.rawHeaders[name];
+
+          if (value) {
+
+            const canon =
+              name
+                .split("-")
+                .map(
+                  word =>
+                    word.charAt(0)
+                      .toUpperCase() +
+                    word.slice(1)
+                )
+                .join("-");
+
+            outHeaders[canon] =
+              value;
+
+          }
+
+        }
+
+
+        return new Response(
+          source.rawBody,
+          {
+            status:
+              source.sourceStatus || 200,
+
+            headers:
+              outHeaders
+          }
+        );
+
+      } catch (error) {
+
+        return new Response(
+          "ERROR: " + error.message,
+          {
+            status: 500
           }
         );
 
       }
-
-
-      // ================================
-      // SOURCE
-      // ================================
-
-      const source =
-        await getSourceSubscription();
-
-
-      const outHeaders = {
-
-        "Content-Type":
-          "application/json; charset=utf-8",
-
-        "Access-Control-Allow-Origin":
-          "*",
-
-        "Cache-Control":
-          "no-cache",
-
-        "Profile-Title":
-          sub.name,
-
-        "Profile-Update-Interval":
-          "6"
-
-      };
-
-
-      const passthrough = [
-
-        "profile-web-page-url",
-
-        "support-url",
-
-        "providerid",
-
-        "subscription-userinfo",
-
-        "hide-settings",
-
-        "new-url"
-
-      ];
-
-
-      for (
-        const name
-        of passthrough
-      ) {
-
-        const value =
-          source.rawHeaders[
-            name
-          ];
-
-
-        if (value) {
-
-          const canon =
-            name
-              .split("-")
-              .map(
-                word =>
-                  word.charAt(0)
-                    .toUpperCase() +
-                  word.slice(1)
-              )
-              .join("-");
-
-
-          outHeaders[
-            canon
-          ] = value;
-
-        }
-
-      }
-
-
-      return new Response(
-        source.rawBody,
-        {
-          status:
-            source.sourceStatus ||
-            200,
-
-          headers:
-            outHeaders
-        }
-      );
 
     }
 
 
-    // ================================
     // DEBUG
-    // ================================
 
     if (
-      url.pathname ===
-      "/debug"
+      url.pathname === "/debug"
     ) {
 
       return Response.json({
-
-        userAgent,
 
         message:
           "WLVPN Worker OK",
@@ -1583,9 +1170,7 @@ export default {
     }
 
 
-    // ================================
-    // MAIN PAGE
-    // ================================
+    // WEBSITE
 
     return new Response(
       getWebsite(),
