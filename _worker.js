@@ -39,7 +39,6 @@ export default {
       sourceStatus = status;
       rawHeaders = headers;
 
-      // Декодируем base64
       try {
         const trimmed = body.trim();
         const padded = trimmed + "=".repeat((4 - trimmed.length % 4) % 4);
@@ -50,63 +49,114 @@ export default {
         decodedBody = body;
       }
 
-      // ---- МОДИФИКАЦИЯ СПИСКА ----
+      // ---- Парсим vless-строки в объекты outbound для sing-box ----
       let lines = decodedBody.split('\n').filter(l => l.trim().startsWith('vless://'));
 
-      // Убрать Финляндию и Турцию
+      // Убираем Финляндию и Турцию
       lines = lines.filter(line =>
         !line.includes('fi.datanode-internal.net') &&
         !line.includes('tr.datanode-internal.net')
       );
 
-      // Разделить обычные и мобильные
-      const nonMobile = lines.filter(l => !l.includes('hole-nn.datanode-internal.net'));
-      const mobileLines = lines.filter(l => l.includes('hole-nn.datanode-internal.net'));
+      // Мобильная → французский флаг
+      lines = lines.map(line => {
+        if (line.includes('hole-nn.datanode-internal.net')) {
+          const base = line.split('#')[0];
+          return base + '#' + encodeURIComponent('🇫🇷 Мобильная связь #1');
+        }
+        return line;
+      });
 
-      // Три уникальные копии мобильной
-      if (mobileLines.length > 0) {
-        const base = mobileLines[0].split('#')[0];
+      // ---- Конвертируем vless-URL → outbound ----
+      const outbounds = [];
+      const outboundTags = [];
 
-        const variants = [
-          { remark: '🇫🇷 Мобильная связь #1', fp: 'chrome'  },
-          { remark: '🇷🇺 Мобильная связь #2', fp: 'firefox' },
-          { remark: '🇧🇾 Мобильная связь #3', fp: 'safari'  },
-        ];
+      for (const line of lines) {
+        try {
+          const u = new URL(line);
+          const params = u.searchParams;
 
-        const newMobile = variants.map(v => {
-          let u = base;
-          if (/[?&]fp=/.test(u)) {
-            u = u.replace(/([?&])fp=[^&]*/, `$1fp=${v.fp}`);
+          const tag = decodeURIComponent(u.hash.replace(/^#/, ''));
+          const isGrpc = params.get('type') === 'grpc';
+
+          const out = {
+            type: "vless",
+            tag: tag,
+            server: u.hostname,
+            server_port: parseInt(u.port, 10),
+            uuid: u.username,
+            flow: params.get('flow') || "",
+            packet_encoding: "xudp",
+            tls: {
+              enabled: true,
+              server_name: params.get('sni') || "",
+              utls: {
+                enabled: true,
+                fingerprint: params.get('fp') || "chrome"
+              },
+              reality: {
+                enabled: true,
+                public_key: params.get('pbk') || "",
+                short_id: params.get('sid') || ""
+              }
+            }
+          };
+
+          if (isGrpc) {
+            out.transport = {
+              type: "grpc",
+              service_name: params.get('serviceName') || "",
+              idle_timeout: "15s",
+              ping_timeout: "15s"
+            };
           } else {
-            u += (u.includes('?') ? '&' : '?') + `fp=${v.fp}`;
+            out.transport = { type: "tcp" };
           }
-          return u + '#' + encodeURIComponent(v.remark);
-        });
 
-        lines = [...nonMobile, ...newMobile];
-      } else {
-        lines = nonMobile;
+          outbounds.push(out);
+          outboundTags.push(tag);
+        } catch (e) {
+          // пропускаем битую строку
+        }
       }
 
-      decodedBody = lines.join('\n');
+      // ---- Добавляем авто-выбор (urltest) в начало ----
+      const autoOutbound = {
+        type: "urltest",
+        tag: "♻️ Авто-выбор",
+        outbounds: outboundTags,
+        url: "http://www.gstatic.com/generate_204",
+        interval: "1m",
+        tolerance: 50,
+        idle_timeout: "30m"
+      };
+
+      const finalConfig = {
+        outbounds: [
+          autoOutbound,     // первый — сервер по умолчанию
+          ...outbounds,
+          { type: "direct", tag: "direct" }
+        ]
+      };
+
+      decodedBody = JSON.stringify(finalConfig);
       // ---- /МОДИФИКАЦИЯ ----
     } catch (e) {
       decodedBody = "FETCH ERROR: " + e.message;
     }
 
-    // /debug
     if (url.pathname === "/debug" || url.searchParams.get("debug") === "1") {
       return new Response(JSON.stringify({
         sourceStatus,
         rawHeaders,
-        decodedBodyPreview: decodedBody
+        decodedBodyPreview: decodedBody.slice(0, 3000)
       }, null, 2), {
         headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
       });
     }
 
     const outHeaders = {
-      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-cache",
       "Profile-Title": "wlvpn",
