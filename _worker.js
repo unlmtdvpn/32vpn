@@ -63,7 +63,9 @@ async function getSubscriptions(env) {
       );
 
     if (!data) {
+
       return [];
+
     }
 
     return JSON.parse(data);
@@ -196,156 +198,245 @@ function isVpnClient(userAgent) {
 
 async function getSourceSubscription() {
 
-  // ============================================
-  // ПЕРВАЯ ПОПЫТКА
-  // ============================================
+  const attempts = [
 
-  try {
+    {
 
-    const response =
-      await fetch(
-        TRAFFIC_SOURCE_URL,
-        {
-          method: "GET",
+      headers: {
 
-          headers: {
-            "User-Agent": FAKE_UA,
+        "User-Agent":
+          FAKE_UA,
 
-            "Accept":
-              "application/json, text/plain, */*",
+        "Accept":
+          "application/json, text/plain, */*",
 
-            "Accept-Language":
-              "ru-RU,ru;q=0.9,en;q=0.8"
-          },
+        "Accept-Language":
+          "ru-RU,ru;q=0.9,en;q=0.8"
 
-          redirect: "follow"
-        }
-      );
+      }
 
+    },
 
-    const rawHeaders =
-      Object.fromEntries(
-        response.headers.entries()
-      );
+    {
 
+      headers: {
 
-    const rawBody =
-      await response.text();
+        "User-Agent":
+          FAKE_UA
 
-
-    // ==========================================
-    // НЕПУСТОЙ ОТВЕТ
-    // ==========================================
-
-    if (
-      rawBody &&
-      rawBody.trim()
-    ) {
-
-      return {
-
-        sourceStatus:
-          response.status,
-
-        rawHeaders,
-
-        rawBody,
-
-        errorMessage:
-          ""
-
-      };
+      }
 
     }
 
-
-    // ==========================================
-    // ПУСТОЙ ОТВЕТ
-    // ПЕРЕХОДИМ К RETRY
-    // ==========================================
-
-  } catch (_) {
-
-    // Сетевая ошибка
-    // Переходим ко второй попытке
-
-  }
+  ];
 
 
-  // ============================================
-  // ВТОРАЯ ПОПЫТКА
-  // БЕЗ ДОПОЛНИТЕЛЬНЫХ HEADERS
-  // ============================================
+  let lastError =
+    "";
 
-  try {
 
-    const response =
-      await fetch(
-        TRAFFIC_SOURCE_URL,
-        {
-          headers: {
+  for (
+    const attempt
+    of attempts
+  ) {
 
-            "User-Agent":
-              FAKE_UA
+    let currentUrl =
+      TRAFFIC_SOURCE_URL;
 
-          },
 
-          redirect:
-            "follow"
+    const visitedUrls =
+      new Set();
+
+
+    // ============================================
+    // МАКСИМУМ 5 REDIRECT
+    // ============================================
+
+    for (
+      let redirectCount = 0;
+      redirectCount < 5;
+      redirectCount++
+    ) {
+
+      try {
+
+        // ==========================================
+        // ЗАЩИТА ОТ ЦИКЛА
+        // ==========================================
+
+        if (
+          visitedUrls.has(
+            currentUrl
+          )
+        ) {
+
+          lastError =
+            "Обнаружен цикл редиректов";
+
+          break;
+
         }
-      );
 
 
-    const rawHeaders =
-      Object.fromEntries(
-        response.headers.entries()
-      );
+        visitedUrls.add(
+          currentUrl
+        );
 
 
-    const rawBody =
-      await response.text();
+        // ==========================================
+        // FETCH
+        // ==========================================
+
+        const response =
+          await fetch(
+            currentUrl,
+            {
+
+              method:
+                "GET",
+
+              headers:
+                attempt.headers,
+
+              redirect:
+                "manual"
+
+            }
+          );
 
 
-    return {
+        const rawHeaders =
+          Object.fromEntries(
+            response.headers.entries()
+          );
 
-      sourceStatus:
-        response.status,
 
-      rawHeaders,
+        // ==========================================
+        // REDIRECT
+        // ==========================================
 
-      rawBody,
+        if (
+          response.status >= 300 &&
+          response.status < 400
+        ) {
 
-      errorMessage:
+          const location =
+            response.headers.get(
+              "Location"
+            );
 
-        rawBody &&
-        rawBody.trim()
 
-          ? ""
+          if (!location) {
 
-          : "Источник вернул пустой ответ"
+            lastError =
+              "Redirect без Location";
 
-    };
+            break;
 
-  } catch (secondError) {
+          }
 
-    return {
 
-      sourceStatus:
-        0,
+          try {
 
-      rawHeaders:
-        {},
+            currentUrl =
+              new URL(
+                location,
+                currentUrl
+              ).toString();
 
-      rawBody:
-        "",
+            continue;
 
-      errorMessage:
-        secondError.message ||
-        String(secondError)
+          } catch {
 
-    };
+            lastError =
+              "Некорректный URL redirect";
+
+            break;
+
+          }
+
+        }
+
+
+        // ==========================================
+        // ЧИТАЕМ BODY
+        // ==========================================
+
+        const rawBody =
+          await response.text();
+
+
+        // ==========================================
+        // ЕСТЬ ТЕЛО
+        // ==========================================
+
+        if (
+          rawBody &&
+          rawBody.trim()
+        ) {
+
+          return {
+
+            sourceStatus:
+              response.status,
+
+            rawHeaders,
+
+            rawBody,
+
+            errorMessage:
+              ""
+
+          };
+
+        }
+
+
+        // ==========================================
+        // ПУСТОЙ ОТВЕТ
+        // ==========================================
+
+        lastError =
+          "Источник вернул пустой ответ";
+
+        break;
+
+
+      } catch (error) {
+
+        lastError =
+          error.message ||
+          String(error);
+
+        break;
+
+      }
+
+    }
 
   }
+
+
+  // ============================================
+  // ВСЕ ПОПЫТКИ НЕУДАЧНЫ
+  // ============================================
+
+  return {
+
+    sourceStatus:
+      0,
+
+    rawHeaders:
+      {},
+
+    rawBody:
+      "",
+
+    errorMessage:
+      lastError ||
+      "Не удалось получить подписку"
+
+  };
 
 }
 
@@ -409,6 +500,7 @@ function createDisabledSubscription(
 
     return JSON.stringify(
       {
+
         ...data,
 
         servers: [
@@ -417,6 +509,7 @@ function createDisabledSubscription(
 
         message:
           "Subscription disabled"
+
       }
     );
 
@@ -425,10 +518,12 @@ function createDisabledSubscription(
 
   return JSON.stringify(
     {
+
       servers: [],
 
       message:
         "Subscription disabled"
+
     }
   );
 
@@ -459,7 +554,9 @@ function updateSubscriptionUserinfo(
   if (sourceUserinfo) {
 
     const params =
-      sourceUserinfo.split(";");
+      sourceUserinfo.split(
+        ";"
+      );
 
 
     for (
@@ -468,7 +565,9 @@ function updateSubscriptionUserinfo(
     ) {
 
       const index =
-        param.indexOf("=");
+        param.indexOf(
+          "="
+        );
 
 
       if (
@@ -482,14 +581,19 @@ function updateSubscriptionUserinfo(
 
       const key =
         param
-          .slice(0, index)
+          .slice(
+            0,
+            index
+          )
           .trim()
           .toLowerCase();
 
 
       const value =
         param
-          .slice(index + 1)
+          .slice(
+            index + 1
+          )
           .trim();
 
 
@@ -549,7 +653,8 @@ function updateSubscriptionUserinfo(
 
     (
       expire
-        ? "; expire=" + expire
+        ? "; expire=" +
+          expire
         : ""
     )
   );
@@ -614,813 +719,100 @@ name="viewport"
 content="width=device-width, initial-scale=1.0"
 >
 
-<meta
-name="theme-color"
-content="#090909"
->
-
 <title>wlvpn</title>
-
 
 <style>
 
 * {
-  box-sizing:
-    border-box;
+  box-sizing: border-box;
 }
-
-
-html {
-
-  min-height:
-    100%;
-
-}
-
 
 body {
-
-  margin:
-    0;
-
-  min-height:
-    100vh;
-
-  font-family:
-
-    Inter,
-
-    Arial,
-
-    sans-serif;
-
-  background:
-
-    #090909;
-
-  color:
-
-    #ffffff;
-
-  overflow-x:
-
-    hidden;
-
+  margin: 0;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
+  background: #090909;
+  color: white;
 }
-
-
-body::before {
-
-  content:
-
-    "";
-
-  position:
-
-    fixed;
-
-  width:
-
-    600px;
-
-  height:
-
-    600px;
-
-  top:
-
-    -250px;
-
-  left:
-
-    50%;
-
-  transform:
-
-    translateX(-50%);
-
-  background:
-
-    radial-gradient(
-      circle,
-      rgba(255,255,255,.12),
-      transparent 65%
-    );
-
-  pointer-events:
-
-    none;
-
-}
-
-
-body::after {
-
-  content:
-
-    "";
-
-  position:
-
-    fixed;
-
-  width:
-
-    400px;
-
-  height:
-
-    400px;
-
-  bottom:
-
-    -200px;
-
-  right:
-
-    -100px;
-
-  background:
-
-    radial-gradient(
-      circle,
-      rgba(255,255,255,.06),
-      transparent 70%
-    );
-
-  pointer-events:
-
-    none;
-
-}
-
 
 header {
-
-  position:
-
-    relative;
-
-  z-index:
-
-    2;
-
-  display:
-
-    flex;
-
-  justify-content:
-
-    space-between;
-
-  align-items:
-
-    center;
-
-  padding:
-
-    24px 7%;
-
+  display: flex;
+  justify-content: space-between;
+  padding: 24px 7%;
 }
-
 
 .logo {
-
-  display:
-
-    flex;
-
-  align-items:
-
-    center;
-
-  gap:
-
-    10px;
-
-  font-size:
-
-    21px;
-
-  font-weight:
-
-    700;
-
-  letter-spacing:
-
-    -.5px;
-
+  font-size: 21px;
+  font-weight: bold;
 }
-
-
-.logo-dot {
-
-  width:
-
-    10px;
-
-  height:
-
-    10px;
-
-  border-radius:
-
-    50%;
-
-  background:
-
-    #ffffff;
-
-  box-shadow:
-
-    0 0 20px
-    rgba(255,255,255,.8);
-
-}
-
 
 .admin {
-
-  color:
-
-    #ffffff;
-
-  text-decoration:
-
-    none;
-
-  font-size:
-
-    14px;
-
-  padding:
-
-    11px 18px;
-
-  border:
-
-    1px solid
-    rgba(255,255,255,.15);
-
-  background:
-
-    rgba(255,255,255,.05);
-
-  backdrop-filter:
-
-    blur(20px);
-
-  border-radius:
-
-    14px;
-
-  transition:
-
-    .2s;
-
+  color: white;
+  text-decoration: none;
 }
-
-
-.admin:hover {
-
-  background:
-
-    rgba(255,255,255,.12);
-
-}
-
 
 main {
-
-  position:
-
-    relative;
-
-  z-index:
-
-    1;
-
-  min-height:
-
-    calc(
-      100vh - 160px
-    );
-
-  display:
-
-    flex;
-
-  flex-direction:
-
-    column;
-
-  align-items:
-
-    center;
-
-  justify-content:
-
-    center;
-
-  text-align:
-
-    center;
-
-  padding:
-
-    40px 20px;
-
+  min-height: 75vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
 }
-
-
-.badge {
-
-  display:
-
-    flex;
-
-  align-items:
-
-    center;
-
-  gap:
-
-    8px;
-
-  padding:
-
-    9px 15px;
-
-  border:
-
-    1px solid
-    rgba(255,255,255,.12);
-
-  background:
-
-    rgba(255,255,255,.05);
-
-  backdrop-filter:
-
-    blur(20px);
-
-  border-radius:
-
-    100px;
-
-  font-size:
-
-    13px;
-
-  color:
-
-    #bdbdbd;
-
-  margin-bottom:
-
-    28px;
-
-}
-
-
-.badge-dot {
-
-  width:
-
-    7px;
-
-  height:
-
-    7px;
-
-  border-radius:
-
-    50%;
-
-  background:
-
-    #ffffff;
-
-}
-
 
 h1 {
-
-  margin:
-
-    0;
-
-  font-size:
-
-    clamp(
-      65px,
-      14vw,
-      150px
-    );
-
-  font-weight:
-
-    800;
-
-  letter-spacing:
-
-    -8px;
-
-  line-height:
-
-    .9;
-
-  background:
-
-    linear-gradient(
-      180deg,
-      #ffffff,
-      #777777
-    );
-
-  -webkit-background-clip:
-
-    text;
-
-  -webkit-text-fill-color:
-
-    transparent;
-
+  font-size: 90px;
+  margin: 0;
 }
-
 
 .subtitle {
-
-  max-width:
-
-    600px;
-
-  margin:
-
-    30px auto 0;
-
-  font-size:
-
-    18px;
-
-  line-height:
-
-    1.7;
-
-  color:
-
-    #929292;
-
+  color: #999;
+  max-width: 600px;
 }
-
 
 .buttons {
-
-  display:
-
-    flex;
-
-  gap:
-
-    12px;
-
-  margin-top:
-
-    35px;
-
-  flex-wrap:
-
-    wrap;
-
-  justify-content:
-
-    center;
-
+  display: flex;
+  gap: 12px;
+  margin-top: 30px;
 }
-
 
 .button {
-
-  display:
-
-    flex;
-
-  align-items:
-
-    center;
-
-  justify-content:
-
-    center;
-
-  min-width:
-
-    160px;
-
-  padding:
-
-    15px 24px;
-
-  border-radius:
-
-    16px;
-
-  text-decoration:
-
-    none;
-
-  font-weight:
-
-    600;
-
-  transition:
-
-    .2s;
-
+  padding: 15px 25px;
+  border-radius: 15px;
+  text-decoration: none;
 }
-
 
 .primary {
-
-  background:
-
-    #ffffff;
-
-  color:
-
-    #090909;
-
-  box-shadow:
-
-    0 10px 40px
-    rgba(255,255,255,.12);
-
+  background: white;
+  color: black;
 }
-
-
-.primary:hover {
-
-  transform:
-
-    translateY(-2px);
-
-  box-shadow:
-
-    0 15px 50px
-    rgba(255,255,255,.2);
-
-}
-
 
 .secondary {
-
-  color:
-
-    #ffffff;
-
-  border:
-
-    1px solid
-    rgba(255,255,255,.14);
-
-  background:
-
-    rgba(255,255,255,.04);
-
-  backdrop-filter:
-
-    blur(20px);
-
+  color: white;
+  border: 1px solid #444;
 }
-
-
-.secondary:hover {
-
-  background:
-
-    rgba(255,255,255,.1);
-
-}
-
-
-.features {
-
-  width:
-
-    100%;
-
-  max-width:
-
-    850px;
-
-  display:
-
-    grid;
-
-  grid-template-columns:
-
-    repeat(
-      3,
-      1fr
-    );
-
-  gap:
-
-    14px;
-
-  margin-top:
-
-    70px;
-
-}
-
-
-.feature {
-
-  padding:
-
-    25px;
-
-  text-align:
-
-    left;
-
-  border-radius:
-
-    22px;
-
-  border:
-
-    1px solid
-    rgba(255,255,255,.09);
-
-  background:
-
-    linear-gradient(
-      135deg,
-      rgba(255,255,255,.07),
-      rgba(255,255,255,.02)
-    );
-
-  backdrop-filter:
-
-    blur(20px);
-
-}
-
-
-.feature-icon {
-
-  font-size:
-
-    25px;
-
-  margin-bottom:
-
-    15px;
-
-}
-
-
-.feature-title {
-
-  font-weight:
-
-    700;
-
-  margin-bottom:
-
-    8px;
-
-}
-
-
-.feature-text {
-
-  font-size:
-
-    14px;
-
-  color:
-
-    #8c8c8c;
-
-  line-height:
-
-    1.5;
-
-}
-
 
 footer {
-
-  position:
-
-    relative;
-
-  z-index:
-
-    2;
-
-  display:
-
-    flex;
-
-  justify-content:
-
-    space-between;
-
-  padding:
-
-    25px 7%;
-
-  color:
-
-    #555;
-
-  font-size:
-
-    13px;
-
-}
-
-
-footer a {
-
-  color:
-
-    #777;
-
-  text-decoration:
-
-    none;
-
-}
-
-
-@media (
-  max-width: 700px
-) {
-
-  header {
-
-    padding:
-
-      20px;
-
-  }
-
-
-  h1 {
-
-    letter-spacing:
-
-      -4px;
-
-  }
-
-
-  .features {
-
-    grid-template-columns:
-
-      1fr;
-
-    margin-top:
-
-      50px;
-
-  }
-
-
-  footer {
-
-    padding:
-
-      20px;
-
-  }
-
+  display: flex;
+  justify-content: space-between;
+  padding: 25px 7%;
+  color: #777;
 }
 
 </style>
 
 </head>
 
-
 <body>
-
 
 <header>
 
 <div class="logo">
 
-<div class="logo-dot"></div>
-
 wlvpn
 
 </div>
-
 
 <a
 class="admin"
@@ -1433,18 +825,7 @@ href="/admin"
 
 </header>
 
-
 <main>
-
-
-<div class="badge">
-
-<div class="badge-dot"></div>
-
-Стабильный VPN сервис
-
-</div>
-
 
 <h1>
 
@@ -1452,18 +833,14 @@ wlvpn
 
 </h1>
 
-
 <p class="subtitle">
 
 Быстрый, простой и современный VPN.
-Подключайся и оставайся онлайн
-без лишних ограничений.
+Подключайся и оставайся онлайн.
 
 </p>
 
-
 <div class="buttons">
-
 
 <a
 class="button primary"
@@ -1475,7 +852,6 @@ Telegram
 
 </a>
 
-
 <a
 class="button secondary"
 href="https://t.me/snokyu"
@@ -1486,90 +862,9 @@ target="_blank"
 
 </a>
 
-
 </div>
-
-
-<div class="features">
-
-
-<div class="feature">
-
-<div class="feature-icon">
-
-⚡
-
-</div>
-
-<div class="feature-title">
-
-Скорость
-
-</div>
-
-<div class="feature-text">
-
-Быстрое подключение
-и стабильная работа.
-
-</div>
-
-</div>
-
-
-<div class="feature">
-
-<div class="feature-icon">
-
-◉
-
-</div>
-
-<div class="feature-title">
-
-Пинг
-
-</div>
-
-<div class="feature-text">
-
-Стабильное соединение
-с низкой задержкой.
-
-</div>
-
-</div>
-
-
-<div class="feature">
-
-<div class="feature-icon">
-
-◈
-
-</div>
-
-<div class="feature-title">
-
-Защита
-
-</div>
-
-<div class="feature-text">
-
-Современные технологии
-для безопасного подключения.
-
-</div>
-
-</div>
-
-
-</div>
-
 
 </main>
-
 
 <footer>
 
@@ -1578,7 +873,6 @@ target="_blank"
 © 2026 wlvpn
 
 </div>
-
 
 <a
 href="https://t.me/snokyu"
@@ -1589,9 +883,7 @@ target="_blank"
 
 </a>
 
-
 </footer>
-
 
 </body>
 
@@ -1621,348 +913,115 @@ content="width=device-width, initial-scale=1.0"
 
 <title>wlvpn admin</title>
 
-
 <style>
 
 * {
-
-  box-sizing:
-
-    border-box;
-
+  box-sizing: border-box;
 }
-
 
 body {
-
-  margin:
-
-    0;
-
-  min-height:
-
-    100vh;
-
-  background:
-
-    #090909;
-
-  color:
-
-    white;
-
-  font-family:
-
-    Arial,
-
-    sans-serif;
-
+  margin: 0;
+  min-height: 100vh;
+  background: #090909;
+  color: white;
+  font-family: Arial, sans-serif;
 }
-
 
 .container {
-
-  max-width:
-
-    900px;
-
-  margin:
-
-    auto;
-
-  padding:
-
-    30px 20px;
-
+  max-width: 900px;
+  margin: auto;
+  padding: 30px 20px;
 }
-
 
 .header {
-
-  display:
-
-    flex;
-
-  justify-content:
-
-    space-between;
-
-  align-items:
-
-    center;
-
-  margin-bottom:
-
-    40px;
-
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 40px;
 }
-
 
 .back {
-
-  color:
-
-    #888;
-
-  text-decoration:
-
-    none;
-
+  color: #888;
+  text-decoration: none;
 }
-
-
-h1 {
-
-  margin:
-
-    0;
-
-}
-
 
 .create {
-
-  display:
-
-    flex;
-
-  gap:
-
-    10px;
-
-  margin-bottom:
-
-    30px;
-
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
 }
-
 
 input {
-
-  width:
-
-    100%;
-
-  padding:
-
-    15px;
-
-  background:
-
-    #151515;
-
-  color:
-
-    white;
-
-  border:
-
-    1px solid #292929;
-
-  border-radius:
-
-    14px;
-
-  outline:
-
-    none;
-
+  width: 100%;
+  padding: 15px;
+  background: #151515;
+  color: white;
+  border: 1px solid #292929;
+  border-radius: 14px;
 }
-
 
 button {
-
-  padding:
-
-    13px 18px;
-
-  border:
-
-    none;
-
-  border-radius:
-
-    13px;
-
-  background:
-
-    white;
-
-  color:
-
-    black;
-
-  font-weight:
-
-    600;
-
-  cursor:
-
-    pointer;
-
+  padding: 13px 18px;
+  border: none;
+  border-radius: 13px;
+  background: white;
+  color: black;
+  cursor: pointer;
 }
-
 
 .list {
-
-  display:
-
-    flex;
-
-  flex-direction:
-
-    column;
-
-  gap:
-
-    14px;
-
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
-
 
 .item {
-
-  padding:
-
-    22px;
-
-  border:
-
-    1px solid #242424;
-
-  border-radius:
-
-    20px;
-
-  background:
-
-    #111111;
-
+  padding: 22px;
+  border: 1px solid #242424;
+  border-radius: 20px;
+  background: #111;
 }
-
 
 .name {
-
-  font-size:
-
-    20px;
-
-  font-weight:
-
-    bold;
-
+  font-size: 20px;
+  font-weight: bold;
 }
-
 
 .status {
-
-  margin-top:
-
-    10px;
-
-  color:
-
-    #999;
-
+  margin-top: 10px;
+  color: #999;
 }
-
 
 .link {
-
-  margin-top:
-
-    14px;
-
-  padding:
-
-    12px;
-
-  background:
-
-    #090909;
-
-  border-radius:
-
-    10px;
-
-  color:
-
-    #777;
-
-  word-break:
-
-    break-all;
-
-  font-size:
-
-    13px;
-
+  margin-top: 14px;
+  padding: 12px;
+  background: #090909;
+  border-radius: 10px;
+  color: #777;
+  word-break: break-all;
 }
-
 
 .actions {
-
-  display:
-
-    flex;
-
-  flex-wrap:
-
-    wrap;
-
-  gap:
-
-    8px;
-
-  margin-top:
-
-    15px;
-
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 15px;
 }
-
 
 .disabled {
-
-  opacity:
-
-    .5;
-
-}
-
-
-@media (
-  max-width: 600px
-) {
-
-  .create {
-
-    flex-direction:
-
-      column;
-
-  }
-
+  opacity: .5;
 }
 
 </style>
 
 </head>
 
-
 <body>
-
 
 <div class="container">
 
-
 <div class="header">
 
-<h1>
-
-wlvpn admin
-
-</h1>
-
+<h1>wlvpn admin</h1>
 
 <a
 class="back"
@@ -1973,18 +1032,14 @@ href="/"
 
 </a>
 
-
 </div>
 
-
 <div class="create">
-
 
 <input
 id="name"
 placeholder="Название подписки"
 >
-
 
 <button
 onclick="createSub()"
@@ -1994,9 +1049,7 @@ onclick="createSub()"
 
 </button>
 
-
 </div>
-
 
 <div
 id="list"
@@ -2007,12 +1060,9 @@ class="list"
 
 </div>
 
-
 </div>
 
-
 <script>
-
 
 async function api(
   path,
@@ -2048,12 +1098,10 @@ async function load() {
     "";
 
 
-  if (
-    !data.length
-  ) {
+  if (!data.length) {
 
     list.innerHTML =
-      "<p style='color:#777'>Подписок пока нет</p>";
+      "<p>Подписок пока нет</p>";
 
     return;
 
@@ -2085,6 +1133,7 @@ async function load() {
 
 
       div.innerHTML =
+
         '<div class="name">' +
         escapeHtml(sub.name) +
         '</div>' +
@@ -2125,9 +1174,7 @@ async function load() {
 
 
       div
-        .querySelector(
-          ".copy"
-        )
+        .querySelector(".copy")
         .onclick =
           () =>
             copyLink(
@@ -2136,9 +1183,7 @@ async function load() {
 
 
       div
-        .querySelector(
-          ".rename"
-        )
+        .querySelector(".rename")
         .onclick =
           () =>
             renameSub(
@@ -2147,9 +1192,7 @@ async function load() {
 
 
       div
-        .querySelector(
-          ".toggle"
-        )
+        .querySelector(".toggle")
         .onclick =
           () =>
             toggleSub(
@@ -2158,9 +1201,7 @@ async function load() {
 
 
       div
-        .querySelector(
-          ".delete"
-        )
+        .querySelector(".delete")
         .onclick =
           () =>
             deleteSub(
@@ -2204,6 +1245,7 @@ async function createSub() {
   await api(
     "/api/subscriptions",
     {
+
       method:
         "POST",
 
@@ -2220,6 +1262,7 @@ async function createSub() {
             name
           }
         )
+
     }
   );
 
@@ -2233,9 +1276,7 @@ async function createSub() {
 }
 
 
-async function copyLink(
-  token
-) {
+async function copyLink(token) {
 
   const link =
     location.origin +
@@ -2247,9 +1288,7 @@ async function copyLink(
 
     await navigator
       .clipboard
-      .writeText(
-        link
-      );
+      .writeText(link);
 
 
     alert(
@@ -2268,9 +1307,7 @@ async function copyLink(
 }
 
 
-async function renameSub(
-  id
-) {
+async function renameSub(id) {
 
   const name =
     prompt(
@@ -2279,7 +1316,9 @@ async function renameSub(
 
 
   if (!name) {
+
     return;
+
   }
 
 
@@ -2287,6 +1326,7 @@ async function renameSub(
     "/api/subscriptions/" +
     id,
     {
+
       method:
         "PUT",
 
@@ -2303,6 +1343,7 @@ async function renameSub(
             name
           }
         )
+
     }
   );
 
@@ -2312,17 +1353,17 @@ async function renameSub(
 }
 
 
-async function toggleSub(
-  id
-) {
+async function toggleSub(id) {
 
   await api(
     "/api/subscriptions/" +
     id +
     "/toggle",
     {
+
       method:
         "POST"
+
     }
   );
 
@@ -2332,16 +1373,16 @@ async function toggleSub(
 }
 
 
-async function deleteSub(
-  id
-) {
+async function deleteSub(id) {
 
   if (
     !confirm(
       "Удалить подписку?"
     )
   ) {
+
     return;
+
   }
 
 
@@ -2349,8 +1390,10 @@ async function deleteSub(
     "/api/subscriptions/" +
     id,
     {
+
       method:
         "DELETE"
+
     }
   );
 
@@ -2360,9 +1403,7 @@ async function deleteSub(
 }
 
 
-function escapeHtml(
-  text
-) {
+function escapeHtml(text) {
 
   const div =
     document.createElement(
@@ -2379,9 +1420,7 @@ function escapeHtml(
 
 load();
 
-
 </script>
-
 
 </body>
 
@@ -2391,7 +1430,7 @@ load();
 
 
 // ================================================
-// СТРАНИЦА ПОДПИСКИ В БРАУЗЕРЕ
+// СТРАНИЦА ПОДПИСКИ
 // ================================================
 
 function getSubscriptionPage(sub) {
@@ -2402,7 +1441,7 @@ function getSubscriptionPage(sub) {
       : "Отключена";
 
 
-  const statusIcon =
+  const icon =
     sub.enabled
       ? "🟢"
       : "🔴";
@@ -2423,216 +1462,52 @@ content="width=device-width, initial-scale=1.0"
 
 <title>wlvpn</title>
 
-
 <style>
 
-* {
-
-  box-sizing:
-
-    border-box;
-
-}
-
-
 body {
-
-  margin:
-
-    0;
-
-  min-height:
-
-    100vh;
-
-  display:
-
-    flex;
-
-  align-items:
-
-    center;
-
-  justify-content:
-
-    center;
-
-  padding:
-
-    20px;
-
-  background:
-
-    #090909;
-
-  color:
-
-    white;
-
-  font-family:
-
-    Arial,
-
-    sans-serif;
-
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #090909;
+  color: white;
+  font-family: Arial, sans-serif;
 }
-
 
 .card {
-
-  width:
-
-    100%;
-
-  max-width:
-
-    500px;
-
-  padding:
-
-    40px;
-
-  border-radius:
-
-    25px;
-
-  text-align:
-
-    center;
-
-  border:
-
-    1px solid
-    rgba(255,255,255,.1);
-
-  background:
-
-    rgba(255,255,255,.04);
-
+  width: 90%;
+  max-width: 500px;
+  padding: 40px;
+  text-align: center;
+  border: 1px solid #222;
+  border-radius: 25px;
+  background: #111;
 }
-
-
-.logo {
-
-  font-size:
-
-    28px;
-
-  font-weight:
-
-    bold;
-
-}
-
 
 .name {
-
-  margin-top:
-
-    35px;
-
-  font-size:
-
-    25px;
-
+  margin-top: 30px;
+  font-size: 25px;
 }
-
 
 .status {
-
-  margin-top:
-
-    15px;
-
-  color:
-
-    #aaa;
-
-}
-
-
-.info {
-
-  margin-top:
-
-    30px;
-
-  padding:
-
-    18px;
-
-  border-radius:
-
-    15px;
-
-  background:
-
-    #111;
-
-  color:
-
-    #777;
-
-  font-size:
-
-    14px;
-
-}
-
-
-.telegram {
-
-  display:
-
-    inline-block;
-
-  margin-top:
-
-    25px;
-
-  padding:
-
-    13px 20px;
-
-  border-radius:
-
-    13px;
-
-  background:
-
-    white;
-
-  color:
-
-    black;
-
-  text-decoration:
-
-    none;
-
-  font-weight:
-
-    bold;
-
+  margin-top: 15px;
+  color: #aaa;
 }
 
 </style>
 
 </head>
 
-
 <body>
-
 
 <div class="card">
 
+<h1>
 
-<div class="logo">
+wlvpn
 
-🏳 wlvpn
-
-</div>
-
+</h1>
 
 <div class="name">
 
@@ -2640,343 +1515,17 @@ ${escapeHtml(sub.name)}
 
 </div>
 
-
 <div class="status">
 
-${statusIcon} ${status}
+${icon} ${status}
 
 </div>
 
-
-<div class="info">
-
-Это VPN подписка wlvpn.
-Для подключения откройте ссылку
-в VPN клиенте.
-
 </div>
-
-
-<a
-class="telegram"
-href="https://t.me/snokyu"
-target="_blank"
->
-
-@snokyu
-
-</a>
-
-
-</div>
-
 
 </body>
 
 </html>`;
-
-}
-
-
-// ================================================
-// СОЗДАТЬ ОТВЕТ ПОДПИСКИ
-// ОБЩАЯ ЛОГИКА ДЛЯ VPN И DEBUG
-// ================================================
-
-async function buildSubscriptionResponse(
-  env,
-  token
-) {
-
-  const subscriptions =
-    await getSubscriptions(
-      env
-    );
-
-
-  const sub =
-    subscriptions.find(
-      item =>
-        item.token === token
-    );
-
-
-  // ==========================================
-  // NOT FOUND
-  // ==========================================
-
-  if (!sub) {
-
-    return {
-
-      found:
-        false,
-
-      sub:
-        null,
-
-      status:
-        404,
-
-      headers: {},
-
-      body:
-        "Subscription not found"
-
-    };
-
-  }
-
-
-  // ==========================================
-  // ПОЛУЧАЕМ ИСТОЧНИК
-  // ==========================================
-
-  const source =
-    await getSourceSubscription();
-
-
-  // ==========================================
-  // USERINFO
-  // ==========================================
-
-  const sourceUserinfo =
-    getHeader(
-      source.rawHeaders,
-      "subscription-userinfo"
-    );
-
-
-  // ==========================================
-  // ОБЩИЕ HEADERS
-  // ==========================================
-
-  const outHeaders = {
-
-    "Content-Type":
-      getHeader(
-        source.rawHeaders,
-        "content-type"
-      ) ||
-      "application/json; charset=utf-8",
-
-    "Access-Control-Allow-Origin":
-      "*",
-
-    "Cache-Control":
-      "no-store",
-
-    "Profile-Title":
-      sub.name,
-
-    "Profile-Update-Interval":
-      "6",
-
-    "Subscription-Userinfo":
-      updateSubscriptionUserinfo(
-        sourceUserinfo
-      ),
-
-    "announce":
-      "🏳 wlvpn | Стабильный VPN"
-
-  };
-
-
-  // ==========================================
-  // PASSTHROUGH HEADERS
-  // ==========================================
-
-  const passthrough = [
-
-    "profile-web-page-url",
-
-    "support-url",
-
-    "providerid",
-
-    "hide-settings",
-
-    "new-url"
-
-  ];
-
-
-  for (
-    const name
-    of passthrough
-  ) {
-
-    const value =
-      getHeader(
-        source.rawHeaders,
-        name
-      );
-
-
-    if (value) {
-
-      const canonical =
-        name
-          .split("-")
-          .map(
-            part =>
-              part.charAt(0)
-                .toUpperCase() +
-              part.slice(1)
-          )
-          .join("-");
-
-
-      outHeaders[
-        canonical
-      ] =
-        value;
-
-    }
-
-  }
-
-
-  // ==========================================
-  // DISABLED
-  // ==========================================
-
-  if (
-    !sub.enabled
-  ) {
-
-    outHeaders[
-      "Profile-Title"
-    ] =
-      "Subscription disabled";
-
-
-    // Если источник доступен
-    // берём реальный сервер
-
-    if (
-      source.rawBody &&
-      source.rawBody.trim()
-    ) {
-
-      return {
-
-        found:
-          true,
-
-        sub,
-
-        status:
-          200,
-
-        headers:
-          outHeaders,
-
-        body:
-          createDisabledSubscription(
-            source.rawBody
-          )
-
-      };
-
-    }
-
-
-    // Источник недоступен
-
-    return {
-
-      found:
-        true,
-
-      sub,
-
-      status:
-        200,
-
-      headers:
-        outHeaders,
-
-      body:
-        JSON.stringify(
-          {
-
-            servers: [],
-
-            message:
-              "Subscription disabled"
-
-          }
-        )
-
-    };
-
-  }
-
-
-  // ==========================================
-  // АКТИВНАЯ ПОДПИСКА
-  // ИСТОЧНИК ПУСТОЙ
-  // ==========================================
-
-  if (
-    !source.rawBody ||
-    !source.rawBody.trim()
-  ) {
-
-    return {
-
-      found:
-        true,
-
-      sub,
-
-      status:
-        200,
-
-      headers:
-        outHeaders,
-
-      body:
-        JSON.stringify(
-          {
-
-            servers: [],
-
-            message:
-              source.errorMessage ||
-              "Источник подписки временно недоступен"
-
-          }
-        )
-
-    };
-
-  }
-
-
-  // ==========================================
-  // ВОЗВРАЩАЕМ СЕРВЕРЫ
-  // ==========================================
-
-  return {
-
-    found:
-      true,
-
-    sub,
-
-    status:
-      200,
-
-    headers:
-      outHeaders,
-
-    body:
-      source.rawBody
-
-  };
 
 }
 
@@ -2987,12 +1536,10 @@ async function buildSubscriptionResponse(
 
 export default {
 
-
   async fetch(
     request,
     env
   ) {
-
 
     const url =
       new URL(
@@ -3018,12 +1565,14 @@ export default {
       return new Response(
         getAdminPage(),
         {
+
           headers: {
 
             "Content-Type":
               "text/html; charset=utf-8"
 
           }
+
         }
       );
 
@@ -3041,14 +1590,8 @@ export default {
       "GET"
     ) {
 
-      const subscriptions =
-        await getSubscriptions(
-          env
-        );
-
-
       return Response.json(
-        subscriptions
+        await getSubscriptions(env)
       );
 
     }
@@ -3168,10 +1711,6 @@ export default {
       "POST"
     ) {
 
-      const id =
-        toggleMatch[1];
-
-
       const subscriptions =
         await getSubscriptions(
           env
@@ -3181,7 +1720,8 @@ export default {
       const sub =
         subscriptions.find(
           item =>
-            item.id === id
+            item.id ===
+            toggleMatch[1]
         );
 
 
@@ -3255,10 +1795,6 @@ export default {
 
       try {
 
-        const id =
-          idMatch[1];
-
-
         const data =
           await request.json();
 
@@ -3272,7 +1808,8 @@ export default {
         const sub =
           subscriptions.find(
             item =>
-              item.id === id
+              item.id ===
+              idMatch[1]
           );
 
 
@@ -3369,10 +1906,6 @@ export default {
       "DELETE"
     ) {
 
-      const id =
-        idMatch[1];
-
-
       let subscriptions =
         await getSubscriptions(
           env
@@ -3382,7 +1915,8 @@ export default {
       const exists =
         subscriptions.some(
           item =>
-            item.id === id
+            item.id ===
+            idMatch[1]
         );
 
 
@@ -3412,7 +1946,8 @@ export default {
       subscriptions =
         subscriptions.filter(
           item =>
-            item.id !== id
+            item.id !==
+            idMatch[1]
         );
 
 
@@ -3427,59 +1962,6 @@ export default {
 
           success:
             true
-
-        }
-      );
-
-    }
-
-
-    // ============================================
-    // DEBUG ПОДПИСКИ
-    // ОТДАЁТ ТОЧНО ТО ЖЕ,
-    // ЧТО ПОЛУЧАЕТ VPN КЛИЕНТ
-    // ============================================
-
-    const debugMatch =
-      url.pathname.match(
-        /^\/debug\/([^/]+)$/
-      );
-
-
-    if (debugMatch) {
-
-      const token =
-        debugMatch[1];
-
-
-      const result =
-        await buildSubscriptionResponse(
-          env,
-          token
-        );
-
-
-      // Debug показывает подписку
-      // как обычный текст
-
-      return new Response(
-        result.body,
-        {
-
-          status:
-            result.status,
-
-          headers: {
-
-            ...result.headers,
-
-            "Content-Type":
-              "text/plain; charset=utf-8",
-
-            "Cache-Control":
-              "no-store"
-
-          }
 
         }
       );
@@ -3512,13 +1994,10 @@ export default {
       const sub =
         subscriptions.find(
           item =>
-            item.token === token
+            item.token ===
+            token
         );
 
-
-      // ==========================================
-      // NOT FOUND
-      // ==========================================
 
       if (!sub) {
 
@@ -3565,25 +2044,221 @@ export default {
 
 
       // ==========================================
-      // VPN КЛИЕНТ
+      // ПОЛУЧАЕМ ИСТОЧНИК
       // ==========================================
 
-      const result =
-        await buildSubscriptionResponse(
-          env,
-          token
+      const source =
+        await getSourceSubscription();
+
+
+      const sourceUserinfo =
+        getHeader(
+          source.rawHeaders,
+          "subscription-userinfo"
         );
 
 
+      const outHeaders = {
+
+        "Content-Type":
+          getHeader(
+            source.rawHeaders,
+            "content-type"
+          ) ||
+          "application/json; charset=utf-8",
+
+        "Access-Control-Allow-Origin":
+          "*",
+
+        "Cache-Control":
+          "no-store",
+
+        "Profile-Title":
+          sub.name,
+
+        "Profile-Update-Interval":
+          "6",
+
+        "Subscription-Userinfo":
+          updateSubscriptionUserinfo(
+            sourceUserinfo
+          ),
+
+        "announce":
+          "wlvpn | Стабильный VPN"
+
+      };
+
+
+      // ==========================================
+      // DISABLED
+      // ==========================================
+
+      if (!sub.enabled) {
+
+        if (
+          source.rawBody &&
+          source.rawBody.trim()
+        ) {
+
+          return new Response(
+            createDisabledSubscription(
+              source.rawBody
+            ),
+            {
+
+              status:
+                200,
+
+              headers: {
+
+                ...outHeaders,
+
+                "Profile-Title":
+                  "Subscription disabled"
+
+              }
+
+            }
+          );
+
+        }
+
+
+        return new Response(
+          JSON.stringify(
+            {
+
+              servers: [],
+
+              message:
+                "Subscription disabled"
+
+            }
+          ),
+          {
+
+            status:
+              200,
+
+            headers: {
+
+              ...outHeaders,
+
+              "Profile-Title":
+                "Subscription disabled"
+
+            }
+
+          }
+        );
+
+      }
+
+
+      // ==========================================
+      // ПУСТОЙ ИСТОЧНИК
+      // ==========================================
+
+      if (
+        !source.rawBody ||
+        !source.rawBody.trim()
+      ) {
+
+        return new Response(
+          JSON.stringify(
+            {
+
+              servers: [],
+
+              message:
+                source.errorMessage ||
+                "Источник подписки временно недоступен"
+
+            }
+          ),
+          {
+
+            status:
+              200,
+
+            headers:
+              outHeaders
+
+          }
+        );
+
+      }
+
+
+      // ==========================================
+      // PASSTHROUGH HEADERS
+      // ==========================================
+
+      const passthrough = [
+
+        "profile-web-page-url",
+
+        "support-url",
+
+        "providerid",
+
+        "hide-settings",
+
+        "new-url"
+
+      ];
+
+
+      for (
+        const name
+        of passthrough
+      ) {
+
+        const value =
+          getHeader(
+            source.rawHeaders,
+            name
+          );
+
+
+        if (value) {
+
+          const canonical =
+            name
+              .split("-")
+              .map(
+                part =>
+                  part.charAt(0)
+                    .toUpperCase() +
+                  part.slice(1)
+              )
+              .join("-");
+
+
+          outHeaders[
+            canonical
+          ] =
+            value;
+
+        }
+
+      }
+
+
+      // ==========================================
+      // ВОЗВРАЩАЕМ ПОДПИСКУ
+      // ==========================================
+
       return new Response(
-        result.body,
+        source.rawBody,
         {
 
           status:
-            result.status,
+            200,
 
           headers:
-            result.headers
+            outHeaders
 
         }
       );
@@ -3600,28 +2275,40 @@ export default {
       "/debug"
     ) {
 
-      const subscriptions =
-        await getSubscriptions(
-          env
-        );
+      const source =
+        await getSourceSubscription();
 
 
-      return Response.json(
+      return new Response(
+        source.rawBody ||
+        JSON.stringify(
+          {
+
+            servers: [],
+
+            message:
+              source.errorMessage
+
+          }
+        ),
         {
 
-          worker:
-            "wlvpn",
+          status:
+            200,
 
-          kvAvailable:
-            !!env.KV,
+          headers: {
 
-          subscriptions:
-            subscriptions.length,
+            "Content-Type":
+              getHeader(
+                source.rawHeaders,
+                "content-type"
+              ) ||
+              "application/json; charset=utf-8",
 
-          userAgent,
+            "Cache-Control":
+              "no-store"
 
-          usage:
-            "/debug/ТОКЕН"
+          }
 
         }
       );
@@ -3630,7 +2317,7 @@ export default {
 
 
     // ============================================
-    // ГЛАВНАЯ СТРАНИЦА
+    // ГЛАВНАЯ
     // ============================================
 
     return new Response(
