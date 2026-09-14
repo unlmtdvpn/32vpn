@@ -196,20 +196,11 @@ function isVpnClient(userAgent) {
 
 async function getSourceSubscription() {
 
-  let sourceStatus = 0;
-
-  let rawHeaders = {};
-
-  let rawBody = "";
-
-  let errorMessage = "";
-
+  // ============================================
+  // ПЕРВАЯ ПОПЫТКА
+  // ============================================
 
   try {
-
-    // ============================================
-    // ПЕРВАЯ ПОПЫТКА
-    // ============================================
 
     const response =
       await fetch(
@@ -232,115 +223,114 @@ async function getSourceSubscription() {
       );
 
 
-    sourceStatus =
-      response.status;
-
-    rawHeaders =
+    const rawHeaders =
       Object.fromEntries(
         response.headers.entries()
       );
 
-    rawBody =
+
+    const rawBody =
       await response.text();
 
 
-    // ============================================
-    // ЕСЛИ ПОЛУЧИЛИ ПУСТОЙ ОТВЕТ
-    // ============================================
+    // ==========================================
+    // ЕСЛИ ПРИШЁЛ НЕПУСТОЙ ОТВЕТ — ОК
+    // ==========================================
 
     if (
-      !rawBody ||
-      !rawBody.trim()
+      rawBody &&
+      rawBody.trim()
     ) {
 
-      errorMessage =
-        "Источник вернул пустой ответ";
-
-    }
-
-
-    return {
-
-      sourceStatus,
-
-      rawHeaders,
-
-      rawBody,
-
-      errorMessage
-
-    };
-
-  } catch (error) {
-
-    errorMessage =
-      error.message ||
-      String(error);
-
-
-    // ============================================
-    // ВТОРАЯ ПОПЫТКА
-    // БЕЗ ДОПОЛНИТЕЛЬНЫХ HEADERS
-    // ============================================
-
-    try {
-
-      const response =
-        await fetch(
-          TRAFFIC_SOURCE_URL,
-          {
-            headers: {
-              "User-Agent":
-                FAKE_UA
-            },
-
-            redirect:
-              "follow"
-          }
-        );
-
-
-      sourceStatus =
-        response.status;
-
-      rawHeaders =
-        Object.fromEntries(
-          response.headers.entries()
-        );
-
-      rawBody =
-        await response.text();
-
-
       return {
-
-        sourceStatus,
+        sourceStatus:
+          response.status,
 
         rawHeaders,
 
         rawBody,
 
         errorMessage: ""
-
-      };
-
-    } catch (secondError) {
-
-      return {
-
-        sourceStatus: 0,
-
-        rawHeaders: {},
-
-        rawBody: "",
-
-        errorMessage:
-          secondError.message ||
-          String(secondError)
-
       };
 
     }
+
+
+    // ==========================================
+    // ЕСЛИ ПУСТО — ИДЁМ НА ВТОРУЮ ПОПЫТКУ
+    // ==========================================
+
+  } catch (_) {
+
+    // Сетевая ошибка — тоже идём на повтор
+
+  }
+
+
+  // ============================================
+  // ВТОРАЯ ПОПЫТКА БЕЗ ДОП. HEADERS
+  // ============================================
+
+  try {
+
+    const response =
+      await fetch(
+        TRAFFIC_SOURCE_URL,
+        {
+          headers: {
+            "User-Agent":
+              FAKE_UA
+          },
+
+          redirect:
+            "follow"
+        }
+      );
+
+
+    const rawHeaders =
+      Object.fromEntries(
+        response.headers.entries()
+      );
+
+
+    const rawBody =
+      await response.text();
+
+
+    return {
+
+      sourceStatus:
+        response.status,
+
+      rawHeaders,
+
+      rawBody,
+
+      errorMessage:
+
+        rawBody &&
+        rawBody.trim()
+
+          ? ""
+
+          : "Источник вернул пустой ответ"
+
+    };
+
+  } catch (secondError) {
+
+    return {
+      sourceStatus: 0,
+
+      rawHeaders: {},
+
+      rawBody: "",
+
+      errorMessage:
+        secondError.message ||
+        String(secondError)
+    };
 
   }
 
@@ -368,9 +358,6 @@ function parseSubscription(body) {
 
 // ================================================
 // СОЗДАТЬ ОТКЛЮЧЕННУЮ ПОДПИСКУ
-// ВАЖНО:
-// БЕРЁМ РЕАЛЬНЫЙ ПЕРВЫЙ СЕРВЕР
-// ЧТОБЫ КОНФИГ БЫЛ ВАЛИДНЫМ
 // ================================================
 
 function createDisabledSubscription(
@@ -382,10 +369,6 @@ function createDisabledSubscription(
       sourceBody
     );
 
-
-  // ============================================
-  // ЕСЛИ ИСТОЧНИК JSON И ЕСТЬ SERVERS
-  // ============================================
 
   if (
     data &&
@@ -401,18 +384,15 @@ function createDisabledSubscription(
       );
 
 
-    // ==========================================
-    // РАЗНЫЕ ВОЗМОЖНЫЕ НАЗВАНИЯ
-    // ==========================================
-
     server.name =
-      "Подписка отключена 🚫";
+      "Subscription disabled";
 
     server.remark =
-      "Подписка отключена 🚫";
+      "Subscription disabled";
 
     server.ps =
-      "Подписка отключена 🚫";
+      "Subscription disabled";
+
 
     return JSON.stringify(
       {
@@ -423,22 +403,19 @@ function createDisabledSubscription(
         ],
 
         message:
-          "Подписка отключена 🚫"
+          "Subscription disabled"
       }
     );
 
   }
 
 
-  // ============================================
-  // FALLBACK
-  // ============================================
-
   return JSON.stringify(
     {
       servers: [],
+
       message:
-        "Подписка отключена 🚫"
+        "Subscription disabled"
     }
   );
 
@@ -461,6 +438,9 @@ function updateSubscriptionUserinfo(
 
   let total =
     "0";
+
+  let expire =
+    "";
 
 
   if (sourceUserinfo) {
@@ -527,6 +507,16 @@ function updateSubscriptionUserinfo(
 
       }
 
+
+      if (
+        key === "expire"
+      ) {
+
+        expire =
+          value || "";
+
+      }
+
     }
 
   }
@@ -538,7 +528,13 @@ function updateSubscriptionUserinfo(
     "; download=" +
     download +
     "; total=" +
-    total
+    total +
+
+    (
+      expire
+        ? "; expire=" + expire
+        : ""
+    )
   );
 
 }
@@ -656,10 +652,6 @@ body {
 }
 
 
-/* ================================= */
-/* BACKGROUND */
-/* ================================= */
-
 body::before {
 
   content:
@@ -745,10 +737,6 @@ body::after {
 
 }
 
-
-/* ================================= */
-/* HEADER */
-/* ================================= */
 
 header {
 
@@ -885,10 +873,6 @@ header {
 }
 
 
-/* ================================= */
-/* MAIN */
-/* ================================= */
-
 main {
 
   position:
@@ -1003,10 +987,6 @@ main {
 }
 
 
-/* ================================= */
-/* TITLE */
-/* ================================= */
-
 h1 {
 
   margin:
@@ -1076,10 +1056,6 @@ h1 {
 
 }
 
-
-/* ================================= */
-/* BUTTONS */
-/* ================================= */
 
 .buttons {
 
@@ -1210,10 +1186,6 @@ h1 {
 }
 
 
-/* ================================= */
-/* CARDS */
-/* ================================= */
-
 .features {
 
   width:
@@ -1322,10 +1294,6 @@ h1 {
 
 }
 
-
-/* ================================= */
-/* FOOTER */
-/* ================================= */
 
 footer {
 
@@ -2045,10 +2013,6 @@ async function api(
 }
 
 
-// ============================================
-// LOAD
-// ============================================
-
 async function load() {
 
   const data =
@@ -2197,10 +2161,6 @@ async function load() {
 }
 
 
-// ============================================
-// CREATE
-// ============================================
-
 async function createSub() {
 
   const input =
@@ -2256,10 +2216,6 @@ async function createSub() {
 }
 
 
-// ============================================
-// COPY
-// ============================================
-
 async function copyLink(
   token
 ) {
@@ -2294,10 +2250,6 @@ async function copyLink(
 
 }
 
-
-// ============================================
-// RENAME
-// ============================================
 
 async function renameSub(
   id
@@ -2343,10 +2295,6 @@ async function renameSub(
 }
 
 
-// ============================================
-// TOGGLE
-// ============================================
-
 async function toggleSub(
   id
 ) {
@@ -2366,10 +2314,6 @@ async function toggleSub(
 
 }
 
-
-// ============================================
-// DELETE
-// ============================================
 
 async function deleteSub(
   id
@@ -2398,10 +2342,6 @@ async function deleteSub(
 
 }
 
-
-// ============================================
-// ESCAPE
-// ============================================
 
 function escapeHtml(
   text
@@ -3221,8 +3161,6 @@ export default {
 
       // ==========================================
       // ПОЛУЧАЕМ ИСТОЧНИК
-      // ДАЖЕ ПРИ ОТКЛЮЧЕННОЙ ПОДПИСКЕ
-      // ЧТОБЫ ПОЛУЧИТЬ ВАЛИДНЫЙ СЕРВЕР
       // ==========================================
 
       const source =
@@ -3280,10 +3218,6 @@ export default {
         !sub.enabled
       ) {
 
-        // Если источник доступен,
-        // берём настоящий сервер
-        // и переименовываем его
-
         if (
           source.rawBody &&
           source.rawBody.trim()
@@ -3302,7 +3236,7 @@ export default {
                 ...outHeaders,
 
                 "Profile-Title":
-                  "Подписка отключена 🚫"
+                  "Subscription disabled"
 
               }
             }
@@ -3311,14 +3245,13 @@ export default {
         }
 
 
-        // Если источник временно недоступен
-
         return new Response(
           JSON.stringify(
             {
               servers: [],
+
               message:
-                "Подписка отключена 🚫"
+                "Subscription disabled"
             }
           ),
           {
@@ -3330,7 +3263,7 @@ export default {
               ...outHeaders,
 
               "Profile-Title":
-                "Подписка отключена 🚫"
+                "Subscription disabled"
 
             }
           }
@@ -3348,14 +3281,13 @@ export default {
         !source.rawBody.trim()
       ) {
 
-        // Не отдаём HTTP 502 клиенту.
-        // Возвращаем JSON с понятной ошибкой.
-
         return new Response(
           JSON.stringify(
             {
               servers: [],
+
               message:
+                source.errorMessage ||
                 "Источник подписки временно недоступен"
             }
           ),
@@ -3433,9 +3365,6 @@ export default {
       return new Response(
         source.rawBody,
         {
-          // Всегда 200 для VPN клиента,
-          // чтобы не получать HTTP ERROR 502
-
           status:
             200,
 
