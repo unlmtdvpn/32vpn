@@ -1,109 +1,83 @@
-const SOURCE = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const TRAFFIC_SOURCE_URL = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
+    const FAKE_UA = 'INCY/3.6.5/android';
 
-const UAS = {
-  happ: "Happ/4.3.0/Android/17877369741321921609",
-  v2rayng: "v2rayNG/1.9.16",
-  streak: "Streisand/1.4.2",
-  browser: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  empty: ""
-};
+    let sourceStatus = 0;
+    let rawHeaders = {};
+    let rawBody = "";
 
-async function tryFetch(ua) {
+    try {
+      const first = await fetch(TRAFFIC_SOURCE_URL, {
+        headers: { 'User-Agent': FAKE_UA, 'Accept': '*/*' },
+        redirect: 'manual',
+        cf: { cacheTtl: 0 }
+      });
 
-  const headers = {
-    "Accept": "*/*",
-    "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8"
-  };
+      let status = first.status;
+      let headers = Object.fromEntries(first.headers.entries());
+      let body = '';
 
-  if (ua) headers["User-Agent"] = ua;
+      if (status >= 300 && status < 400) {
+        let cookie = '';
+        for (const [k, v] of Object.entries(headers)) {
+          if (k.toLowerCase() === 'set-cookie') { cookie = v.split(';')[0]; break; }
+        }
+        const second = await fetch(TRAFFIC_SOURCE_URL, {
+          headers: { 'User-Agent': FAKE_UA, 'Accept': '*/*', 'Cookie': cookie },
+          redirect: 'manual',
+          cf: { cacheTtl: 0 }
+        });
+        status = second.status;
+        headers = Object.fromEntries(second.headers.entries());
+        body = await second.text();
+      } else {
+        body = await first.text();
+      }
 
-  try {
+      sourceStatus = status;
+      rawHeaders = headers;
+      rawBody = body;
+    } catch (e) {
+      rawBody = "FETCH ERROR: " + e.message;
+    }
 
-    const res = await fetch(SOURCE, {
-      headers,
-      redirect: "manual"
-    });
+    if (url.pathname === "/debug" || url.searchParams.get("debug") === "1") {
+      return new Response(JSON.stringify({
+        sourceStatus,
+        rawHeaders,
+        bodyPreview: rawBody.slice(0, 3000)
+      }, null, 2), {
+        headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-cache" }
+      });
+    }
 
-    const location = res.headers.get("location") || "";
-    const body = res.status >= 300 && res.status < 400 ? "" : await res.text();
-
-    return {
-      ua,
-      status: res.status,
-      location,
-      bodyPreview: body.slice(0, 300),
-      bodyLen: body.length
+    const outHeaders = {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Cache-Control": "no-cache",
+      "Profile-Title": "wlvpn",
+      "announce": "🏳 wlvpn - стабильный VPN сервис."
     };
 
-  } catch (e) {
-
-    return { ua, error: e.message || String(e) };
-
-  }
-
-}
-
-export default {
-
-  async fetch(request) {
-
-    const url = new URL(request.url);
-
-    // /debug — все варианты сразу
-    if (url.pathname === "/debug") {
-
-      const results = [];
-
-      for (const [name, ua] of Object.entries(UAS)) {
-        const r = await tryFetch(ua);
-        results.push({ name, ...r });
+    const PASSTHROUGH = [
+      "profile-update-interval",
+      "profile-web-page-url",
+      "support-url",
+      "providerid",
+      "subscription-userinfo",
+      "hide-settings",
+      "new-url"
+    ];
+    for (const name of PASSTHROUGH) {
+      const v = rawHeaders[name];
+      if (v) {
+        const canon = name.split('-').map(s => s[0].toUpperCase() + s.slice(1)).join('-');
+        outHeaders[canon] = v;
       }
-
-      return new Response(
-        JSON.stringify(results, null, 2),
-        { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }
-      );
-
     }
 
-    // /ua/happ, /ua/v2rayng, /ua/browser и т.д.
-    const m = url.pathname.match(/^\/ua\/([a-z0-9]+)$/);
-
-    if (m) {
-
-      const key = m[1];
-      const ua = UAS[key];
-
-      if (ua === undefined) {
-        return new Response("Unknown UA: " + key, { status: 400 });
-      }
-
-      const r = await tryFetch(ua);
-
-      return new Response(
-        JSON.stringify(r, null, 2),
-        { headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } }
-      );
-
-    }
-
-    // Обычный ответ
-    const r = await tryFetch(UAS.happ);
-
-    const body = r.bodyPreview && r.bodyLen > 300 ? r.bodyPreview + "..." : (r.bodyPreview || "");
-
-    return new Response(
-      JSON.stringify({ servers: [], message: r.error || r.location || (r.bodyLen ? "OK" : "Empty") }),
-      {
-        status: 200,
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-store"
-        }
-      }
-    );
-
+    return new Response(rawBody, { headers: outHeaders });
   }
-
 };
