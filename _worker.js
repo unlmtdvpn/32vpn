@@ -1,6 +1,6 @@
 const SOURCE = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
 
-const UA = "Happ/4.3.0/Android/17877369741321921609";
+const UA = "Happ/4.3.0/Android";
 
 export default {
 
