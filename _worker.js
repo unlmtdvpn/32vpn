@@ -234,7 +234,7 @@ async function getSourceSubscription() {
 
 
     // ==========================================
-    // ЕСЛИ ПРИШЁЛ НЕПУСТОЙ ОТВЕТ — ОК
+    // НЕПУСТОЙ ОТВЕТ
     // ==========================================
 
     if (
@@ -243,6 +243,7 @@ async function getSourceSubscription() {
     ) {
 
       return {
+
         sourceStatus:
           response.status,
 
@@ -250,25 +251,30 @@ async function getSourceSubscription() {
 
         rawBody,
 
-        errorMessage: ""
+        errorMessage:
+          ""
+
       };
 
     }
 
 
     // ==========================================
-    // ЕСЛИ ПУСТО — ИДЁМ НА ВТОРУЮ ПОПЫТКУ
+    // ПУСТОЙ ОТВЕТ
+    // ПЕРЕХОДИМ К RETRY
     // ==========================================
 
   } catch (_) {
 
-    // Сетевая ошибка — тоже идём на повтор
+    // Сетевая ошибка
+    // Переходим ко второй попытке
 
   }
 
 
   // ============================================
-  // ВТОРАЯ ПОПЫТКА БЕЗ ДОП. HEADERS
+  // ВТОРАЯ ПОПЫТКА
+  // БЕЗ ДОПОЛНИТЕЛЬНЫХ HEADERS
   // ============================================
 
   try {
@@ -278,8 +284,10 @@ async function getSourceSubscription() {
         TRAFFIC_SOURCE_URL,
         {
           headers: {
+
             "User-Agent":
               FAKE_UA
+
           },
 
           redirect:
@@ -321,15 +329,20 @@ async function getSourceSubscription() {
   } catch (secondError) {
 
     return {
-      sourceStatus: 0,
 
-      rawHeaders: {},
+      sourceStatus:
+        0,
 
-      rawBody: "",
+      rawHeaders:
+        {},
+
+      rawBody:
+        "",
 
       errorMessage:
         secondError.message ||
         String(secondError)
+
     };
 
   }
@@ -461,7 +474,9 @@ function updateSubscriptionUserinfo(
       if (
         index === -1
       ) {
+
         continue;
+
       }
 
 
@@ -525,8 +540,10 @@ function updateSubscriptionUserinfo(
   return (
     "upload=" +
     upload +
+
     "; download=" +
     download +
+
     "; total=" +
     total +
 
@@ -2662,6 +2679,309 @@ target="_blank"
 
 
 // ================================================
+// СОЗДАТЬ ОТВЕТ ПОДПИСКИ
+// ОБЩАЯ ЛОГИКА ДЛЯ VPN И DEBUG
+// ================================================
+
+async function buildSubscriptionResponse(
+  env,
+  token
+) {
+
+  const subscriptions =
+    await getSubscriptions(
+      env
+    );
+
+
+  const sub =
+    subscriptions.find(
+      item =>
+        item.token === token
+    );
+
+
+  // ==========================================
+  // NOT FOUND
+  // ==========================================
+
+  if (!sub) {
+
+    return {
+
+      found:
+        false,
+
+      sub:
+        null,
+
+      status:
+        404,
+
+      headers: {},
+
+      body:
+        "Subscription not found"
+
+    };
+
+  }
+
+
+  // ==========================================
+  // ПОЛУЧАЕМ ИСТОЧНИК
+  // ==========================================
+
+  const source =
+    await getSourceSubscription();
+
+
+  // ==========================================
+  // USERINFO
+  // ==========================================
+
+  const sourceUserinfo =
+    getHeader(
+      source.rawHeaders,
+      "subscription-userinfo"
+    );
+
+
+  // ==========================================
+  // ОБЩИЕ HEADERS
+  // ==========================================
+
+  const outHeaders = {
+
+    "Content-Type":
+      getHeader(
+        source.rawHeaders,
+        "content-type"
+      ) ||
+      "application/json; charset=utf-8",
+
+    "Access-Control-Allow-Origin":
+      "*",
+
+    "Cache-Control":
+      "no-store",
+
+    "Profile-Title":
+      sub.name,
+
+    "Profile-Update-Interval":
+      "6",
+
+    "Subscription-Userinfo":
+      updateSubscriptionUserinfo(
+        sourceUserinfo
+      ),
+
+    "announce":
+      "🏳 wlvpn | Стабильный VPN"
+
+  };
+
+
+  // ==========================================
+  // PASSTHROUGH HEADERS
+  // ==========================================
+
+  const passthrough = [
+
+    "profile-web-page-url",
+
+    "support-url",
+
+    "providerid",
+
+    "hide-settings",
+
+    "new-url"
+
+  ];
+
+
+  for (
+    const name
+    of passthrough
+  ) {
+
+    const value =
+      getHeader(
+        source.rawHeaders,
+        name
+      );
+
+
+    if (value) {
+
+      const canonical =
+        name
+          .split("-")
+          .map(
+            part =>
+              part.charAt(0)
+                .toUpperCase() +
+              part.slice(1)
+          )
+          .join("-");
+
+
+      outHeaders[
+        canonical
+      ] =
+        value;
+
+    }
+
+  }
+
+
+  // ==========================================
+  // DISABLED
+  // ==========================================
+
+  if (
+    !sub.enabled
+  ) {
+
+    outHeaders[
+      "Profile-Title"
+    ] =
+      "Subscription disabled";
+
+
+    // Если источник доступен
+    // берём реальный сервер
+
+    if (
+      source.rawBody &&
+      source.rawBody.trim()
+    ) {
+
+      return {
+
+        found:
+          true,
+
+        sub,
+
+        status:
+          200,
+
+        headers:
+          outHeaders,
+
+        body:
+          createDisabledSubscription(
+            source.rawBody
+          )
+
+      };
+
+    }
+
+
+    // Источник недоступен
+
+    return {
+
+      found:
+        true,
+
+      sub,
+
+      status:
+        200,
+
+      headers:
+        outHeaders,
+
+      body:
+        JSON.stringify(
+          {
+
+            servers: [],
+
+            message:
+              "Subscription disabled"
+
+          }
+        )
+
+    };
+
+  }
+
+
+  // ==========================================
+  // АКТИВНАЯ ПОДПИСКА
+  // ИСТОЧНИК ПУСТОЙ
+  // ==========================================
+
+  if (
+    !source.rawBody ||
+    !source.rawBody.trim()
+  ) {
+
+    return {
+
+      found:
+        true,
+
+      sub,
+
+      status:
+        200,
+
+      headers:
+        outHeaders,
+
+      body:
+        JSON.stringify(
+          {
+
+            servers: [],
+
+            message:
+              source.errorMessage ||
+              "Источник подписки временно недоступен"
+
+          }
+        )
+
+    };
+
+  }
+
+
+  // ==========================================
+  // ВОЗВРАЩАЕМ СЕРВЕРЫ
+  // ==========================================
+
+  return {
+
+    found:
+      true,
+
+    sub,
+
+    status:
+      200,
+
+    headers:
+      outHeaders,
+
+    body:
+      source.rawBody
+
+  };
+
+}
+
+
+// ================================================
 // MAIN WORKER
 // ================================================
 
@@ -2798,10 +3118,12 @@ export default {
 
         return Response.json(
           {
+
             success:
               true,
 
             sub
+
           }
         );
 
@@ -2809,15 +3131,19 @@ export default {
 
         return Response.json(
           {
+
             success:
               false,
 
             error:
               "Invalid request"
+
           },
           {
+
             status:
               400
+
           }
         );
 
@@ -2863,15 +3189,19 @@ export default {
 
         return Response.json(
           {
+
             success:
               false,
 
             error:
               "Not found"
+
           },
           {
+
             status:
               404
+
           }
         );
 
@@ -2890,11 +3220,13 @@ export default {
 
       return Response.json(
         {
+
           success:
             true,
 
           enabled:
             sub.enabled
+
         }
       );
 
@@ -2948,15 +3280,19 @@ export default {
 
           return Response.json(
             {
+
               success:
                 false,
 
               error:
                 "Not found"
+
             },
             {
+
               status:
                 404
+
             }
           );
 
@@ -2991,8 +3327,10 @@ export default {
 
         return Response.json(
           {
+
             success:
               true
+
           }
         );
 
@@ -3000,15 +3338,19 @@ export default {
 
         return Response.json(
           {
+
             success:
               false,
 
             error:
               "Invalid request"
+
           },
           {
+
             status:
               400
+
           }
         );
 
@@ -3048,15 +3390,19 @@ export default {
 
         return Response.json(
           {
+
             success:
               false,
 
             error:
               "Not found"
+
           },
           {
+
             status:
               404
+
           }
         );
 
@@ -3078,8 +3424,63 @@ export default {
 
       return Response.json(
         {
+
           success:
             true
+
+        }
+      );
+
+    }
+
+
+    // ============================================
+    // DEBUG ПОДПИСКИ
+    // ОТДАЁТ ТОЧНО ТО ЖЕ,
+    // ЧТО ПОЛУЧАЕТ VPN КЛИЕНТ
+    // ============================================
+
+    const debugMatch =
+      url.pathname.match(
+        /^\/debug\/([^/]+)$/
+      );
+
+
+    if (debugMatch) {
+
+      const token =
+        debugMatch[1];
+
+
+      const result =
+        await buildSubscriptionResponse(
+          env,
+          token
+        );
+
+
+      // Debug показывает подписку
+      // как обычный текст
+
+      return new Response(
+        result.body,
+        {
+
+          status:
+            result.status,
+
+          headers: {
+
+            ...result.headers,
+
+            "Content-Type":
+              "text/plain; charset=utf-8",
+
+            "Cache-Control":
+              "no-store"
+
+          }
+
         }
       );
 
@@ -3124,8 +3525,10 @@ export default {
         return new Response(
           "Subscription not found",
           {
+
             status:
               404
+
           }
         );
 
@@ -3147,12 +3550,14 @@ export default {
             sub
           ),
           {
+
             headers: {
 
               "Content-Type":
                 "text/html; charset=utf-8"
 
             }
+
           }
         );
 
@@ -3160,216 +3565,26 @@ export default {
 
 
       // ==========================================
-      // ПОЛУЧАЕМ ИСТОЧНИК
+      // VPN КЛИЕНТ
       // ==========================================
 
-      const source =
-        await getSourceSubscription();
-
-
-      // ==========================================
-      // ОБЩИЕ HEADERS
-      // ==========================================
-
-      const sourceUserinfo =
-        getHeader(
-          source.rawHeaders,
-          "subscription-userinfo"
+      const result =
+        await buildSubscriptionResponse(
+          env,
+          token
         );
 
-
-      const outHeaders = {
-
-        "Content-Type":
-          getHeader(
-            source.rawHeaders,
-            "content-type"
-          ) ||
-          "application/json; charset=utf-8",
-
-        "Access-Control-Allow-Origin":
-          "*",
-
-        "Cache-Control":
-          "no-store",
-
-        "Profile-Title":
-          sub.name,
-
-        "Profile-Update-Interval":
-          "6",
-
-        "Subscription-Userinfo":
-          updateSubscriptionUserinfo(
-            sourceUserinfo
-          ),
-
-        "announce":
-          "🏳 wlvpn | Стабильный VPN"
-
-      };
-
-
-      // ==========================================
-      // DISABLED
-      // ==========================================
-
-      if (
-        !sub.enabled
-      ) {
-
-        if (
-          source.rawBody &&
-          source.rawBody.trim()
-        ) {
-
-          return new Response(
-            createDisabledSubscription(
-              source.rawBody
-            ),
-            {
-              status:
-                200,
-
-              headers: {
-
-                ...outHeaders,
-
-                "Profile-Title":
-                  "Subscription disabled"
-
-              }
-            }
-          );
-
-        }
-
-
-        return new Response(
-          JSON.stringify(
-            {
-              servers: [],
-
-              message:
-                "Subscription disabled"
-            }
-          ),
-          {
-            status:
-              200,
-
-            headers: {
-
-              ...outHeaders,
-
-              "Profile-Title":
-                "Subscription disabled"
-
-            }
-          }
-        );
-
-      }
-
-
-      // ==========================================
-      // АКТИВНАЯ ПОДПИСКА
-      // ==========================================
-
-      if (
-        !source.rawBody ||
-        !source.rawBody.trim()
-      ) {
-
-        return new Response(
-          JSON.stringify(
-            {
-              servers: [],
-
-              message:
-                source.errorMessage ||
-                "Источник подписки временно недоступен"
-            }
-          ),
-          {
-            status:
-              200,
-
-            headers:
-              outHeaders
-          }
-        );
-
-      }
-
-
-      // ==========================================
-      // HEADERS ИЗ ИСТОЧНИКА
-      // ==========================================
-
-      const passthrough = [
-
-        "profile-web-page-url",
-
-        "support-url",
-
-        "providerid",
-
-        "hide-settings",
-
-        "new-url"
-
-      ];
-
-
-      for (
-        const name
-        of passthrough
-      ) {
-
-        const value =
-          getHeader(
-            source.rawHeaders,
-            name
-          );
-
-
-        if (value) {
-
-          const canonical =
-            name
-              .split("-")
-              .map(
-                part =>
-                  part.charAt(0)
-                    .toUpperCase() +
-                  part.slice(1)
-              )
-              .join("-");
-
-
-          outHeaders[
-            canonical
-          ] =
-            value;
-
-        }
-
-      }
-
-
-      // ==========================================
-      // ВОЗВРАЩАЕМ СЕРВЕРЫ
-      // ==========================================
 
       return new Response(
-        source.rawBody,
+        result.body,
         {
+
           status:
-            200,
+            result.status,
 
           headers:
-            outHeaders
+            result.headers
+
         }
       );
 
@@ -3393,6 +3608,7 @@ export default {
 
       return Response.json(
         {
+
           worker:
             "wlvpn",
 
@@ -3402,7 +3618,11 @@ export default {
           subscriptions:
             subscriptions.length,
 
-          userAgent
+          userAgent,
+
+          usage:
+            "/debug/ТОКЕН"
+
         }
       );
 
@@ -3416,12 +3636,14 @@ export default {
     return new Response(
       getWebsite(),
       {
+
         headers: {
 
           "Content-Type":
             "text/html; charset=utf-8"
 
         }
+
       }
     );
 
