@@ -13,7 +13,7 @@ const TRAFFIC_SOURCE_URL =
 
 
 const FAKE_UA =
-  "INCY/3.6.5/android";
+  "Happ/4.3.0/Android/17877369741321921609";
 
 
 // ================================================
