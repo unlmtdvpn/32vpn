@@ -1,11 +1,13 @@
-// ========================================
-// WLVPN SUBSCRIPTION WORKER
-// ========================================
+// ================================================
+// WLVPN CLOUDLFARE WORKER
+// Browser = Website
+// VPN Client = Subscription
+// ================================================
 
 
-// ========================================
-// НАСТРОЙКИ
-// ========================================
+// ================================================
+// SETTINGS
+// ================================================
 
 const TRAFFIC_SOURCE_URL =
   "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
@@ -14,22 +16,9 @@ const FAKE_UA =
   "INCY/3.6.5/android";
 
 
-// ========================================
-// ДАТА ОКОНЧАНИЯ
-// 7 ОКТЯБРЯ 2026
-// ========================================
-
-const EXPIRE_TIMESTAMP =
-  Math.floor(
-    new Date(
-      "2026-10-07T23:59:59Z"
-    ).getTime() / 1000
-  );
-
-
-// ========================================
-// ПРОВЕРКА VPN КЛИЕНТА
-// ========================================
+// ================================================
+// VPN CLIENT DETECTION
+// ================================================
 
 function isVpnClient(userAgent) {
 
@@ -43,11 +32,36 @@ function isVpnClient(userAgent) {
 
     "happ",
 
-    "v2rayrun",
+    "v2raytun",
 
-    "v2 ray run"
+    "v2ray",
+
+    "v2rayng",
+
+    "sing-box",
+
+    "singbox",
+
+    "clash",
+
+    "nekobox",
+
+    "nekoray",
+
+    "shadowrocket",
+
+    "streisand",
+
+    "hiddify",
+
+    "surfboard",
+
+    "loon",
+
+    "quantumult"
 
   ];
+
 
   return clients.some(
     client =>
@@ -57,119 +71,34 @@ function isVpnClient(userAgent) {
 }
 
 
-// ========================================
-// ОБНОВЛЕНИЕ SUBSCRIPTION-USERINFO
-// ========================================
-
-function updateSubscriptionUserinfo(sourceUserinfo) {
-
-  let upload = "0";
-
-  let download = "0";
-
-  let total = "0";
-
-
-  if (sourceUserinfo) {
-
-    const params =
-      sourceUserinfo.split(";");
-
-
-    for (
-      const param
-      of params
-    ) {
-
-      const parts =
-        param
-          .trim()
-          .split("=");
-
-
-      const key =
-        parts[0]
-          ?.trim()
-          .toLowerCase();
-
-
-      const value =
-        parts
-          .slice(1)
-          .join("=")
-          .trim();
-
-
-      if (
-        key === "upload"
-      ) {
-
-        upload =
-          value || "0";
-
-      }
-
-
-      if (
-        key === "download"
-      ) {
-
-        download =
-          value || "0";
-
-      }
-
-
-      if (
-        key === "total"
-      ) {
-
-        total =
-          value || "0";
-
-      }
-
-    }
-
-  }
-
-
-  return (
-    "upload=" +
-    upload +
-
-    "; download=" +
-    download +
-
-    "; total=" +
-    total +
-
-    "; expire=" +
-    EXPIRE_TIMESTAMP
-  );
-
-}
-
-
-// ========================================
-// ПОЛУЧЕНИЕ ИСХОДНОЙ ПОДПИСКИ
-// ========================================
+// ================================================
+// FETCH SOURCE SUBSCRIPTION
+// ================================================
 
 async function getSourceSubscription() {
 
-  let sourceStatus = 0;
+  let sourceStatus =
+    0;
 
-  let rawHeaders = {};
+  let rawHeaders =
+    {};
 
-  let rawBody = "";
+  let rawBody =
+    "";
 
 
   try {
+
+    // ============================================
+    // FIRST REQUEST
+    // ============================================
 
     const first =
       await fetch(
         TRAFFIC_SOURCE_URL,
         {
+          method:
+            "GET",
 
           headers: {
 
@@ -209,26 +138,19 @@ async function getSourceSubscription() {
       "";
 
 
-    // ========================================
-    // ОБРАБОТКА REDIRECT
-    // ========================================
+    // ============================================
+    // HANDLE REDIRECT
+    // ============================================
 
     if (
       status >= 300 &&
       status < 400
     ) {
 
-      const location =
-        first.headers.get(
-          "location"
-        );
-
-
       let cookie =
         "";
 
 
-      // Получаем cookie
       const setCookie =
         first.headers.get(
           "set-cookie"
@@ -244,128 +166,93 @@ async function getSourceSubscription() {
       }
 
 
-      // Если есть Location — идём туда
+      const location =
+        first.headers.get(
+          "location"
+        );
+
+
+      // ==========================================
+      // REDIRECT URL
+      // ==========================================
+
+      let nextUrl =
+        TRAFFIC_SOURCE_URL;
+
+
       if (location) {
 
-        const redirectUrl =
+        nextUrl =
           new URL(
             location,
             TRAFFIC_SOURCE_URL
           ).toString();
 
-
-        const second =
-          await fetch(
-            redirectUrl,
-            {
-
-              headers: {
-
-                "User-Agent":
-                  FAKE_UA,
-
-                "Accept":
-                  "*/*",
-
-                ...(cookie
-                  ? {
-                      "Cookie":
-                        cookie
-                    }
-                  : {})
-
-              },
-
-              redirect:
-                "follow",
-
-              cf: {
-
-                cacheTtl:
-                  0
-
-              }
-
-            }
-          );
-
-
-        status =
-          second.status;
-
-
-        headers =
-          Object.fromEntries(
-            second.headers.entries()
-          );
-
-
-        body =
-          await second.text();
-
       }
 
 
-      // Если Location нет
-      else {
+      // ==========================================
+      // SECOND REQUEST
+      // ==========================================
 
-        const second =
-          await fetch(
-            TRAFFIC_SOURCE_URL,
-            {
+      const second =
+        await fetch(
+          nextUrl,
+          {
 
-              headers: {
+            method:
+              "GET",
 
-                "User-Agent":
-                  FAKE_UA,
+            headers: {
 
-                "Accept":
-                  "*/*",
+              "User-Agent":
+                FAKE_UA,
 
-                ...(cookie
-                  ? {
-                      "Cookie":
-                        cookie
-                    }
-                  : {})
+              "Accept":
+                "*/*",
 
-              },
+              ...(cookie
+                ? {
+                    "Cookie":
+                      cookie
+                  }
+                : {})
 
-              redirect:
-                "follow",
+            },
 
-              cf: {
+            redirect:
+              "follow",
 
-                cacheTtl:
-                  0
+            cf: {
 
-              }
+              cacheTtl:
+                0
 
             }
-          );
+
+          }
+        );
 
 
-        status =
-          second.status;
+      status =
+        second.status;
 
 
-        headers =
-          Object.fromEntries(
-            second.headers.entries()
-          );
+      headers =
+        Object.fromEntries(
+          second.headers.entries()
+        );
 
 
-        body =
-          await second.text();
-
-      }
+      body =
+        await second.text();
 
     }
 
 
-    // ========================================
-    // БЕЗ REDIRECT
-    // ========================================
+    // ============================================
+    // NORMAL RESPONSE
+    // ============================================
 
     else {
 
@@ -397,7 +284,10 @@ async function getSourceSubscription() {
 
     rawBody =
       "FETCH ERROR: " +
-      error.message;
+      (
+        error.message ||
+        String(error)
+      );
 
   }
 
@@ -415,9 +305,327 @@ async function getSourceSubscription() {
 }
 
 
-// ========================================
-// ВЕБ-СТРАНИЦА
-// ========================================
+// ================================================
+// GET HEADER CASE INSENSITIVE
+// ================================================
+
+function getHeader(
+  headers,
+  name
+) {
+
+  const target =
+    name.toLowerCase();
+
+
+  for (
+    const [key, value]
+    of Object.entries(headers)
+  ) {
+
+    if (
+      key.toLowerCase() ===
+      target
+    ) {
+
+      return value;
+
+    }
+
+  }
+
+
+  return null;
+
+}
+
+
+// ================================================
+// GET SERVER COUNT
+// Does NOT expose configs
+// ================================================
+
+function getServerCount(body) {
+
+  if (!body) {
+    return 0;
+  }
+
+
+  try {
+
+    const data =
+      JSON.parse(body);
+
+
+    // JSON ARRAY
+
+    if (
+      Array.isArray(data)
+    ) {
+
+      return data.length;
+
+    }
+
+
+    // SERVERS
+
+    if (
+      Array.isArray(
+        data.servers
+      )
+    ) {
+
+      return data.servers.length;
+
+    }
+
+
+    // OUTBOUNDS
+
+    if (
+      Array.isArray(
+        data.outbounds
+      )
+    ) {
+
+      return data.outbounds.length;
+
+    }
+
+  }
+
+
+  catch {
+
+    // ============================================
+    // VLESS / VMESS / TROJAN LINKS
+    // ============================================
+
+    const lines =
+      body
+        .split(/\r?\n/)
+        .filter(
+          line =>
+            line.trim()
+        );
+
+
+    return lines.length;
+
+  }
+
+
+  return 0;
+
+}
+
+
+// ================================================
+// GET SERVER NAMES ONLY
+// NEVER RETURN CONFIGS
+// ================================================
+
+function getServerNames(body) {
+
+  const names =
+    [];
+
+
+  if (!body) {
+
+    return names;
+
+  }
+
+
+  try {
+
+    const data =
+      JSON.parse(body);
+
+
+    if (
+      Array.isArray(data)
+    ) {
+
+      for (
+        const server
+        of data
+      ) {
+
+        if (
+          server &&
+          typeof server ===
+          "object"
+        ) {
+
+          names.push(
+            server.name ||
+            server.tag ||
+            server.remarks ||
+            "VPN Server"
+          );
+
+        }
+
+      }
+
+    }
+
+
+    else if (
+      Array.isArray(
+        data.servers
+      )
+    ) {
+
+      for (
+        const server
+        of data.servers
+      ) {
+
+        names.push(
+          server.name ||
+          server.tag ||
+          server.remarks ||
+          "VPN Server"
+        );
+
+      }
+
+    }
+
+  }
+
+
+  catch {
+
+    // ============================================
+    // EXTRACT NAMES FROM URL FRAGMENTS
+    // vless://...#Germany
+    // ============================================
+
+    const lines =
+      body
+        .split(/\r?\n/)
+        .filter(
+          line =>
+            line.trim()
+        );
+
+
+    for (
+      let i = 0;
+      i < lines.length;
+      i++
+    ) {
+
+      const line =
+        lines[i]
+          .trim();
+
+
+      let name =
+        "VPN Server " +
+        (
+          i + 1
+        );
+
+
+      try {
+
+        const hashIndex =
+          line.indexOf("#");
+
+
+        if (
+          hashIndex !== -1
+        ) {
+
+          name =
+            decodeURIComponent(
+              line.slice(
+                hashIndex + 1
+              )
+            );
+
+        }
+
+      }
+
+
+      catch {}
+
+
+      // ==========================================
+      // LIMIT NAME LENGTH
+      // ==========================================
+
+      name =
+        name
+          .replace(
+            /[<>]/g,
+            ""
+          )
+          .slice(
+            0,
+            80
+          );
+
+
+      names.push(name);
+
+    }
+
+  }
+
+
+  return names;
+
+}
+
+
+// ================================================
+// ESCAPE HTML
+// ================================================
+
+function escapeHtml(text) {
+
+  return String(text || "")
+
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+
+    .replace(
+      /</g,
+      "&lt;"
+    )
+
+    .replace(
+      />/g,
+      "&gt;"
+    )
+
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+
+    .replace(
+      /'/g,
+      "&#039;"
+    );
+
+}
+
+
+// ================================================
+// WEBSITE
+// ================================================
 
 function getWebsite() {
 
@@ -430,278 +638,1103 @@ function getWebsite() {
 <meta charset="UTF-8">
 
 <meta
-  name="viewport"
-  content="width=device-width, initial-scale=1.0"
+name="viewport"
+content="width=device-width, initial-scale=1.0"
 >
 
-<title>WLVPN — Стабильный VPN</title>
+<title>wlvpn — стабильный VPN</title>
+
 
 <style>
 
+
+/* ========================================
+RESET
+======================================== */
+
 * {
-  box-sizing: border-box;
+
+margin: 0;
+padding: 0;
+
+box-sizing:
+border-box;
+
 }
+
+
+/* ========================================
+BODY
+======================================== */
 
 body {
 
-  margin: 0;
+min-height:
+100vh;
 
-  min-height: 100vh;
+font-family:
+Arial,
+sans-serif;
 
-  font-family:
-    Arial,
-    sans-serif;
+color:
+#ffffff;
 
-  background:
-    linear-gradient(
-      135deg,
-      #090d18,
-      #121a31
-    );
+overflow-x:
+hidden;
 
-  color:
-    white;
+background:
+#080808;
 
 }
 
-header {
 
-  padding:
-    24px;
+/* ========================================
+LIQUID BACKGROUND
+======================================== */
 
-  display:
-    flex;
+.blob {
 
-  justify-content:
-    center;
+position:
+fixed;
+
+border-radius:
+50%;
+
+filter:
+blur(100px);
+
+opacity:
+0.25;
+
+pointer-events:
+none;
+
+animation:
+liquid
+12s
+infinite
+ease-in-out;
 
 }
+
+
+.blob1 {
+
+width:
+450px;
+
+height:
+450px;
+
+background:
+#ffffff;
+
+top:
+-200px;
+
+left:
+-150px;
+
+}
+
+
+.blob2 {
+
+width:
+400px;
+
+height:
+400px;
+
+background:
+#777777;
+
+top:
+30%;
+
+right:
+-200px;
+
+animation-delay:
+-4s;
+
+}
+
+
+.blob3 {
+
+width:
+500px;
+
+height:
+500px;
+
+background:
+#444444;
+
+bottom:
+-300px;
+
+left:
+30%;
+
+animation-delay:
+-8s;
+
+}
+
+
+@keyframes liquid {
+
+0%,
+100% {
+
+transform:
+translate(0, 0)
+scale(1);
+
+}
+
+50% {
+
+transform:
+translate(60px, -50px)
+scale(1.15);
+
+}
+
+}
+
+
+/* ========================================
+CONTAINER
+======================================== */
+
+.container {
+
+position:
+relative;
+
+z-index:
+2;
+
+width:
+100%;
+
+max-width:
+1200px;
+
+min-height:
+100vh;
+
+margin:
+auto;
+
+padding:
+24px;
+
+}
+
+
+/* ========================================
+NAVIGATION
+======================================== */
+
+nav {
+
+display:
+flex;
+
+align-items:
+center;
+
+justify-content:
+space-between;
+
+padding:
+16px 20px;
+
+border-radius:
+24px;
+
+background:
+rgba(
+255,
+255,
+255,
+0.07
+);
+
+border:
+1px
+solid
+rgba(
+255,
+255,
+255,
+0.14
+);
+
+backdrop-filter:
+blur(30px);
+
+-webkit-backdrop-filter:
+blur(30px);
+
+}
+
 
 .logo {
 
-  font-size:
-    28px;
+font-size:
+22px;
 
-  font-weight:
-    bold;
+font-weight:
+700;
 
-  letter-spacing:
-    1px;
+letter-spacing:
+-0.5px;
+
+}
+
+
+.status {
+
+display:
+flex;
+
+align-items:
+center;
+
+gap:
+8px;
+
+font-size:
+14px;
+
+color:
+#b5b5b5;
 
 }
 
-main {
 
-  min-height:
-    calc(100vh - 160px);
+.dot {
 
-  display:
-    flex;
+width:
+8px;
 
-  flex-direction:
-    column;
+height:
+8px;
 
-  align-items:
-    center;
+border-radius:
+50%;
 
-  justify-content:
-    center;
+background:
+#ffffff;
 
-  text-align:
-    center;
-
-  padding:
-    30px;
+box-shadow:
+0
+0
+12px
+rgba(
+255,
+255,
+255,
+0.8
+);
 
 }
+
+
+/* ========================================
+HERO
+======================================== */
+
+.hero {
+
+min-height:
+75vh;
+
+display:
+flex;
+
+flex-direction:
+column;
+
+align-items:
+center;
+
+justify-content:
+center;
+
+text-align:
+center;
+
+}
+
+
+/* ========================================
+GLASS
+======================================== */
+
+.glass {
+
+width:
+100%;
+
+max-width:
+900px;
+
+padding:
+70px
+35px;
+
+border-radius:
+36px;
+
+background:
+
+linear-gradient(
+135deg,
+
+rgba(
+255,
+255,
+255,
+0.12
+),
+
+rgba(
+255,
+255,
+255,
+0.03
+)
+
+);
+
+border:
+
+1px
+solid
+rgba(
+255,
+255,
+255,
+0.18
+);
+
+backdrop-filter:
+
+blur(35px)
+saturate(150%);
+
+-webkit-backdrop-filter:
+
+blur(35px)
+saturate(150%);
+
+box-shadow:
+
+inset
+0
+1px
+0
+rgba(
+255,
+255,
+255,
+0.12
+),
+
+0
+30px
+100px
+rgba(
+0,
+0,
+0,
+0.6
+);
+
+}
+
+
+/* ========================================
+BADGE
+======================================== */
 
 .badge {
 
-  padding:
-    8px 16px;
+display:
+inline-flex;
 
-  border-radius:
-    30px;
+padding:
+9px
+16px;
 
-  background:
-    rgba(
-      91,
-      124,
-      255,
-      .15
-    );
+border-radius:
+50px;
 
-  color:
-    #9db0ff;
+background:
+rgba(
+255,
+255,
+255,
+0.08
+);
 
-  margin-bottom:
-    20px;
+border:
+1px
+solid
+rgba(
+255,
+255,
+255,
+0.12
+);
+
+color:
+#bdbdbd;
+
+font-size:
+12px;
+
+letter-spacing:
+1px;
+
+margin-bottom:
+25px;
 
 }
+
+
+/* ========================================
+TITLE
+======================================== */
 
 h1 {
 
-  margin:
-    0;
+font-size:
+clamp(
+64px,
+12vw,
+120px
+);
 
-  font-size:
-    clamp(
-      42px,
-      10vw,
-      80px
-    );
+letter-spacing:
+-7px;
+
+line-height:
+0.9;
+
+margin-bottom:
+28px;
+
+background:
+
+linear-gradient(
+180deg,
+
+#ffffff,
+
+#8c8c8c
+);
+
+-webkit-background-clip:
+text;
+
+background-clip:
+text;
+
+-webkit-text-fill-color:
+transparent;
 
 }
+
+
+/* ========================================
+DESCRIPTION
+======================================== */
 
 .description {
 
-  max-width:
-    600px;
+max-width:
+580px;
 
-  color:
-    #9ca6bd;
+margin:
+auto;
 
-  font-size:
-    18px;
+color:
+#a8a8a8;
 
-  line-height:
-    1.6;
+font-size:
+18px;
 
-  margin-top:
-    20px;
-
-}
-
-.info {
-
-  margin-top:
-    30px;
-
-  display:
-    flex;
-
-  gap:
-    15px;
-
-  flex-wrap:
-    wrap;
-
-  justify-content:
-    center;
+line-height:
+1.7;
 
 }
 
-.card {
 
-  background:
-    rgba(
-      255,
-      255,
-      255,
-      .05
-    );
+/* ========================================
+BUTTONS
+======================================== */
 
-  border:
-    1px solid
-    rgba(
-      255,
-      255,
-      255,
-      .08
-    );
+.buttons {
 
-  border-radius:
-    16px;
+display:
+flex;
 
-  padding:
-    20px;
+justify-content:
+center;
 
-  min-width:
-    180px;
+gap:
+12px;
+
+flex-wrap:
+wrap;
+
+margin-top:
+38px;
 
 }
 
-.card-title {
 
-  color:
-    #8490aa;
+.btn {
 
-  font-size:
-    14px;
+display:
+inline-flex;
+
+align-items:
+center;
+
+justify-content:
+center;
+
+min-width:
+160px;
+
+padding:
+15px
+25px;
+
+border-radius:
+16px;
+
+text-decoration:
+none;
+
+font-size:
+15px;
+
+font-weight:
+600;
+
+transition:
+all
+0.25s
+ease;
+
+}
+
+
+.primary {
+
+background:
+#ffffff;
+
+color:
+#000000;
 
 }
 
-.card-value {
 
-  margin-top:
-    8px;
+.primary:hover {
 
-  font-size:
-    17px;
+transform:
+translateY(-4px);
 
-  font-weight:
-    bold;
+box-shadow:
+0
+15px
+40px
+rgba(
+255,
+255,
+255,
+0.15
+);
+
+}
+
+
+.secondary {
+
+color:
+#ffffff;
+
+background:
+rgba(
+255,
+255,
+255,
+0.07
+);
+
+border:
+1px
+solid
+rgba(
+255,
+255,
+255,
+0.14
+);
 
 }
 
-.telegram {
 
-  margin-top:
-    35px;
+.secondary:hover {
 
-  padding:
-    15px 28px;
+transform:
+translateY(-4px);
 
-  border-radius:
-    12px;
-
-  text-decoration:
-    none;
-
-  color:
-    white;
-
-  background:
-    #5b7cff;
-
-  font-weight:
-    bold;
+background:
+rgba(
+255,
+255,
+255,
+0.12
+);
 
 }
+
+
+/* ========================================
+STATS
+======================================== */
+
+.stats {
+
+display:
+flex;
+
+justify-content:
+center;
+
+gap:
+14px;
+
+flex-wrap:
+wrap;
+
+margin-top:
+45px;
+
+}
+
+
+.stat {
+
+min-width:
+165px;
+
+padding:
+20px;
+
+border-radius:
+22px;
+
+background:
+rgba(
+255,
+255,
+255,
+0.06
+);
+
+border:
+1px
+solid
+rgba(
+255,
+255,
+255,
+0.10
+);
+
+backdrop-filter:
+blur(20px);
+
+}
+
+
+.stat-value {
+
+font-size:
+18px;
+
+font-weight:
+700;
+
+color:
+#ffffff;
+
+}
+
+
+.stat-title {
+
+margin-top:
+7px;
+
+font-size:
+12px;
+
+color:
+#858585;
+
+}
+
+
+/* ========================================
+SERVERS
+======================================== */
+
+.servers {
+
+width:
+100%;
+
+max-width:
+900px;
+
+margin:
+20px
+auto
+60px;
+
+padding:
+25px;
+
+border-radius:
+28px;
+
+background:
+rgba(
+255,
+255,
+255,
+0.05
+);
+
+border:
+1px
+solid
+rgba(
+255,
+255,
+255,
+0.10
+);
+
+backdrop-filter:
+blur(25px);
+
+}
+
+
+.servers-title {
+
+font-size:
+20px;
+
+font-weight:
+700;
+
+margin-bottom:
+18px;
+
+text-align:
+left;
+
+}
+
+
+.server-list {
+
+display:
+flex;
+
+flex-direction:
+column;
+
+gap:
+10px;
+
+}
+
+
+.server {
+
+display:
+flex;
+
+align-items:
+center;
+
+justify-content:
+space-between;
+
+padding:
+16px;
+
+border-radius:
+16px;
+
+background:
+rgba(
+255,
+255,
+255,
+0.05
+);
+
+border:
+1px
+solid
+rgba(
+255,
+255,
+255,
+0.08
+);
+
+}
+
+
+.server-name {
+
+font-size:
+15px;
+
+font-weight:
+600;
+
+overflow:
+hidden;
+
+text-overflow:
+ellipsis;
+
+white-space:
+nowrap;
+
+max-width:
+70%;
+
+}
+
+
+.server-ping {
+
+font-size:
+13px;
+
+color:
+#a8a8a8;
+
+}
+
+
+/* ========================================
+FOOTER
+======================================== */
 
 footer {
 
-  text-align:
-    center;
+text-align:
+center;
 
-  padding:
-    25px;
+padding:
+30px
+0
+10px;
 
-  color:
-    #667085;
+font-size:
+13px;
+
+color:
+#666666;
 
 }
+
+
+/* ========================================
+MOBILE
+======================================== */
+
+@media (
+max-width:
+600px
+) {
+
+.container {
+
+padding:
+14px;
+
+}
+
+
+nav {
+
+padding:
+14px
+16px;
+
+border-radius:
+18px;
+
+}
+
+
+.status {
+
+font-size:
+12px;
+
+}
+
+
+.glass {
+
+padding:
+55px
+20px;
+
+border-radius:
+28px;
+
+}
+
+
+h1 {
+
+letter-spacing:
+-4px;
+
+}
+
+
+.description {
+
+font-size:
+16px;
+
+}
+
+
+.stat {
+
+min-width:
+140px;
+
+}
+
+
+.server {
+
+padding:
+14px;
+
+}
+
+}
+
 
 </style>
 
 </head>
 
+
 <body>
 
-<header>
 
-<div class="logo">
+<!-- BACKGROUND -->
 
-🏳 WLVPN
+<div
+class="blob blob1"
+></div>
+
+<div
+class="blob blob2"
+></div>
+
+<div
+class="blob blob3"
+></div>
+
+
+<div
+class="container"
+>
+
+
+<!-- NAV -->
+
+<nav>
+
+
+<div
+class="logo"
+>
+
+🏳 wlvpn
 
 </div>
 
-</header>
+
+<div
+class="status"
+>
+
+<div
+class="dot"
+></div>
+
+Пинг:
+
+<span
+id="ping"
+>
+
+...
+
+</span>
+
+</div>
 
 
-<main>
+</nav>
 
-<div class="badge">
+
+<!-- HERO -->
+
+<main
+class="hero"
+>
+
+
+<div
+class="glass"
+>
+
+
+<div
+class="badge"
+>
 
 СТАБИЛЬНЫЙ VPN СЕРВИС
 
@@ -710,95 +1743,482 @@ footer {
 
 <h1>
 
-WLVPN
+wlvpn
 
 </h1>
 
 
-<div class="description">
+<div
+class="description"
+>
 
-Быстрый, удобный и стабильный VPN сервис.
-Используйте официальное приложение для подключения к WLVPN.
+Быстрый, приватный и стабильный VPN.
 
-</div>
-
-
-<div class="info">
-
-
-<div class="card">
-
-<div class="card-title">
-
-Сервис
-
-</div>
-
-<div class="card-value">
-
-🟢 Онлайн
-
-</div>
+Подключайся за секунды
+и пользуйся интернетом
+без лишних ограничений.
 
 </div>
 
 
-<div class="card">
-
-<div class="card-title">
-
-Подписка
-
-</div>
-
-<div class="card-value">
-
-До 7 октября 2026
-
-</div>
-
-</div>
-
-
-<div class="card">
-
-<div class="card-title">
-
-Обновление
-
-</div>
-
-<div class="card-value">
-
-Автоматическое
-
-</div>
-
-</div>
-
-
-</div>
+<div
+class="buttons"
+>
 
 
 <a
-  class="telegram"
-  href="https://t.me/snokuy"
-  target="_blank"
+
+class="btn primary"
+
+href="https://t.me/snokuy"
+
+target="_blank"
+
 >
 
-Telegram @snokuy
+Telegram
 
 </a>
+
+
+<a
+
+class="btn secondary"
+
+href="#servers"
+
+>
+
+Серверы
+
+</a>
+
+
+</div>
+
+
+<div
+class="stats"
+>
+
+
+<div
+class="stat"
+>
+
+<div
+class="stat-value"
+id="pingCard"
+>
+
+...
+
+</div>
+
+<div
+class="stat-title"
+>
+
+Пинг сайта
+
+</div>
+
+</div>
+
+
+<div
+class="stat"
+>
+
+<div
+class="stat-value"
+id="serverCount"
+>
+
+...
+
+</div>
+
+<div
+class="stat-title"
+>
+
+Серверов
+
+</div>
+
+</div>
+
+
+<div
+class="stat"
+>
+
+<div
+class="stat-value"
+>
+
+Защищено
+
+</div>
+
+<div
+class="stat-title"
+>
+
+Соединение
+
+</div>
+
+</div>
+
+
+</div>
+
+
+</div>
 
 
 </main>
 
 
+<!-- SERVERS -->
+
+<section
+class="servers"
+id="servers"
+>
+
+
+<div
+class="servers-title"
+>
+
+🌐 Серверы wlvpn
+
+</div>
+
+
+<div
+class="server-list"
+id="serverList"
+>
+
+<div
+class="server"
+>
+
+<div
+class="server-name"
+>
+
+Загрузка серверов...
+
+</div>
+
+</div>
+
+</div>
+
+
+</section>
+
+
+<!-- FOOTER -->
+
 <footer>
 
-© WLVPN
+© 2026 wlvpn · стабильное подключение
 
 </footer>
+
+
+</div>
+
+
+<script>
+
+
+// ========================================
+// WEBSITE PING
+// ========================================
+
+async function checkPing() {
+
+
+const pingElement =
+document.getElementById(
+"ping"
+);
+
+
+const pingCard =
+document.getElementById(
+"pingCard"
+);
+
+
+const start =
+performance.now();
+
+
+try {
+
+
+await fetch(
+
+"/ping?t=" +
+Date.now(),
+
+{
+
+method:
+"GET",
+
+cache:
+"no-store"
+
+}
+
+);
+
+
+const end =
+performance.now();
+
+
+const ping =
+Math.round(
+end - start
+);
+
+
+pingElement.textContent =
+ping +
+" ms";
+
+
+pingCard.textContent =
+ping +
+" ms";
+
+
+}
+
+
+catch {
+
+
+pingElement.textContent =
+"Ошибка";
+
+
+pingCard.textContent =
+"Недоступен";
+
+
+}
+
+
+}
+
+
+// ========================================
+// LOAD SERVERS
+// ========================================
+
+async function loadServers() {
+
+
+const list =
+document.getElementById(
+"serverList"
+);
+
+
+const count =
+document.getElementById(
+"serverCount"
+);
+
+
+try {
+
+
+const response =
+await fetch(
+"/api/servers",
+{
+cache:
+"no-store"
+}
+);
+
+
+const data =
+await response.json();
+
+
+count.textContent =
+data.count ||
+0;
+
+
+list.innerHTML =
+"";
+
+
+if (
+
+!data.servers ||
+
+!data.servers.length
+
+) {
+
+
+list.innerHTML =
+
+'<div class="server">' +
+
+'<div class="server-name">' +
+
+'Серверы временно недоступны' +
+
+'</div>' +
+
+'</div>';
+
+
+return;
+
+}
+
+
+data.servers.forEach(
+(
+server,
+index
+) => {
+
+
+const item =
+document.createElement(
+"div"
+);
+
+
+item.className =
+"server";
+
+
+const name =
+document.createElement(
+"div"
+);
+
+
+name.className =
+"server-name";
+
+
+name.textContent =
+server;
+
+
+const ping =
+document.createElement(
+"div"
+);
+
+
+ping.className =
+"server-ping";
+
+
+ping.textContent =
+"● VPN";
+
+
+item.appendChild(
+name
+);
+
+
+item.appendChild(
+ping
+);
+
+
+list.appendChild(
+item
+);
+
+
+}
+);
+
+
+}
+
+
+catch {
+
+
+count.textContent =
+"?";
+
+
+list.innerHTML =
+
+'<div class="server">' +
+
+'<div class="server-name">' +
+
+'Не удалось загрузить серверы' +
+
+'</div>' +
+
+'</div>';
+
+
+}
+
+
+}
+
+
+// ========================================
+// START
+// ========================================
+
+checkPing();
+
+
+loadServers();
+
+
+// ========================================
+// UPDATE PING
+// ========================================
+
+setInterval(
+checkPing,
+5000
+);
+
+
+// ========================================
+// UPDATE SERVER LIST
+// ========================================
+
+setInterval(
+loadServers,
+30000
+);
+
+
+</script>
 
 
 </body>
@@ -808,279 +2228,403 @@ Telegram @snokuy
 }
 
 
-// ========================================
+// ================================================
 // MAIN WORKER
-// ========================================
+// ================================================
 
 export default {
 
-  async fetch(
-    request,
-    env,
-    ctx
-  ) {
 
-    const url =
-      new URL(
-        request.url
-      );
+// ==============================================
+// FETCH
+// ==============================================
 
+async fetch(
+request,
+env,
+ctx
+) {
 
-    const userAgent =
-      request.headers.get(
-        "User-Agent"
-      ) || "";
 
+const url =
+new URL(
+request.url
+);
 
-    // ========================================
-    // DEBUG
-    // ========================================
 
-    if (
-      url.pathname ===
-      "/debug"
-    ) {
+const userAgent =
+request.headers.get(
+"User-Agent"
+) || "";
 
-      const source =
-        await getSourceSubscription();
 
+// ==============================================
+// PING ENDPOINT
+// ==============================================
 
-      return new Response(
-        JSON.stringify(
-          {
+if (
+url.pathname ===
+"/ping"
+) {
 
-            worker:
-              "WLVPN",
 
-            userAgent,
+return new Response(
+"pong",
+{
+headers: {
 
-            isVpnClient:
-              isVpnClient(
-                userAgent
-              ),
+"Content-Type":
+"text/plain",
 
-            sourceStatus:
-              source.sourceStatus,
+"Cache-Control":
+"no-store"
 
-            rawHeaders:
-              source.rawHeaders,
+}
+}
+);
 
-            subscriptionUserinfo:
-              updateSubscriptionUserinfo(
-                source.rawHeaders[
-                  "subscription-userinfo"
-                ]
-              ),
 
-            bodyPreview:
-              source.rawBody.slice(
-                0,
-                3000
-              )
+}
 
-          },
-          null,
-          2
-        ),
 
-        {
+// ==============================================
+// SERVER API
+// Names only
+// NEVER configs
+// ==============================================
 
-          headers: {
+if (
+url.pathname ===
+"/api/servers"
+) {
 
-            "Content-Type":
-              "application/json; charset=utf-8",
 
-            "Cache-Control":
-              "no-cache"
+const source =
+await getSourceSubscription();
 
-          }
 
-        }
-      );
+const names =
+getServerNames(
+source.rawBody
+);
 
-    }
 
+const count =
+getServerCount(
+source.rawBody
+);
 
-    // ========================================
-    // ЕСЛИ НЕ VPN КЛИЕНТ
-    // ========================================
 
-    if (
-      !isVpnClient(
-        userAgent
-      )
-    ) {
+// ============================================
+// REMOVE DUPLICATES
+// ============================================
 
-      return new Response(
-        getWebsite(),
-        {
+const uniqueNames =
+[
+...new Set(
+names
+)
+].slice(
+0,
+50
+);
 
-          headers: {
 
-            "Content-Type":
-              "text/html; charset=utf-8",
+return Response.json(
+{
 
-            "Cache-Control":
-              "no-cache"
+count:
 
-          }
+count ||
+uniqueNames.length,
 
-        }
-      );
+servers:
+uniqueNames
 
-    }
+},
+{
 
+headers: {
 
-    // ========================================
-    // ПОЛУЧАЕМ ПОДПИСКУ
-    // ========================================
+"Cache-Control":
+"no-store"
 
-    const source =
-      await getSourceSubscription();
+}
 
+}
+);
 
-    // ========================================
-    // ЕСЛИ ИСТОЧНИК НЕ РАБОТАЕТ
-    // ========================================
 
-    if (
-      !source.rawBody ||
-      source.sourceStatus >= 400
-    ) {
+}
 
-      return new Response(
-        source.rawBody ||
-        "Subscription source error",
-        {
 
-          status:
-            source.sourceStatus ||
-            502,
+// ==============================================
+// DEBUG
+// ==============================================
 
-          headers: {
+if (
 
-            "Content-Type":
-              "text/plain; charset=utf-8",
+url.pathname ===
+"/debug"
 
-            "Cache-Control":
-              "no-cache"
+||
 
-          }
+url.searchParams.get(
+"debug"
+) ===
+"1"
 
-        }
-      );
+) {
 
-    }
 
+const source =
+await getSourceSubscription();
 
-    // ========================================
-    // HEADERS ПОДПИСКИ
-    // ========================================
 
-    const outHeaders = {
+return Response.json(
+{
 
-      "Content-Type":
-        "application/json; charset=utf-8",
+worker:
+"WLVPN",
 
-      "Access-Control-Allow-Origin":
-        "*",
+userAgent,
 
-      "Cache-Control":
-        "no-cache",
+sourceStatus:
+source.sourceStatus,
 
-      "Profile-Title":
-        "wlvpn",
+serverCount:
+getServerCount(
+source.rawBody
+),
 
-      "Profile-Update-Interval":
-        "6",
+headers:
+source.rawHeaders,
 
-      // ТРАФИК ИЗ ИСТОЧНИКА
-      // ДАТА ДО 7 ОКТЯБРЯ 2026
+bodyPreview:
+source.rawBody.slice(
+0,
+2000
+)
 
-      "Subscription-Userinfo":
-        updateSubscriptionUserinfo(
-          source.rawHeaders[
-            "subscription-userinfo"
-          ]
-        ),
+},
+{
 
-      "announce":
-        "🏳 wlvpn | Стабильный VPN Сервис 🚀"
+headers: {
 
-    };
+"Cache-Control":
+"no-store"
 
+}
 
-    // ========================================
-    // ДОПОЛНИТЕЛЬНЫЕ HEADERS ИЗ ИСТОЧНИКА
-    // ========================================
+}
+);
 
-    const PASSTHROUGH = [
 
-      "profile-web-page-url",
+}
 
-      "support-url",
 
-      "providerid",
+// ==============================================
+// VPN CLIENT
+// ==============================================
 
-      "hide-settings",
+if (
+isVpnClient(
+userAgent
+)
+) {
 
-      "new-url"
 
-    ];
+const source =
+await getSourceSubscription();
 
 
-    for (
-      const name
-      of PASSTHROUGH
-    ) {
+// ============================================
+// SOURCE ERROR
+// ============================================
 
-      const value =
-        source.rawHeaders[
-          name
-        ];
+if (
 
+source.sourceStatus < 200
 
-      if (value) {
+||
 
-        const canonicalName =
-          name
-            .split("-")
-            .map(
-              part =>
-                part.charAt(0)
-                  .toUpperCase() +
-                part.slice(1)
-            )
-            .join("-");
+source.sourceStatus >= 400
 
+) {
 
-        outHeaders[
-          canonicalName
-        ] =
-          value;
 
-      }
+return new Response(
+source.rawBody ||
+"Subscription source error",
+{
 
-    }
+status:
+502,
 
+headers: {
 
-    // ========================================
-    // ОТДАЁМ ПОДПИСКУ VPN КЛИЕНТУ
-    // ========================================
+"Content-Type":
+"text/plain; charset=utf-8",
 
-    return new Response(
-      source.rawBody,
-      {
+"Cache-Control":
+"no-store"
 
-        status:
-          source.sourceStatus,
+}
 
-        headers:
-          outHeaders
+}
+);
 
-      }
-    );
+}
 
-  }
+
+// ============================================
+// OUTPUT HEADERS
+// ============================================
+
+const outHeaders =
+{
+
+"Content-Type":
+getHeader(
+source.rawHeaders,
+"content-type"
+) ||
+"application/json; charset=utf-8",
+
+
+"Access-Control-Allow-Origin":
+"*",
+
+
+"Cache-Control":
+"no-cache",
+
+
+"Profile-Title":
+"wlvpn",
+
+
+"Profile-Update-Interval":
+"6",
+
+
+"announce":
+"🏳 wlvpn | Стабильный VPN Сервис 🚀"
+
+};
+
+
+// ============================================
+// PASSTHROUGH HEADERS
+// ============================================
+
+const PASSTHROUGH =
+[
+
+"profile-web-page-url",
+
+"support-url",
+
+"providerid",
+
+"subscription-userinfo",
+
+"hide-settings",
+
+"new-url"
+
+];
+
+
+// ============================================
+// COPY HEADERS
+// ============================================
+
+for (
+const name
+of PASSTHROUGH
+) {
+
+
+const value =
+getHeader(
+source.rawHeaders,
+name
+);
+
+
+if (value) {
+
+
+const canonicalName =
+name
+.split("-")
+.map(
+part =>
+part.charAt(0)
+.toUpperCase() +
+part.slice(1)
+)
+.join("-");
+
+
+outHeaders[
+canonicalName
+] =
+value;
+
+
+}
+
+
+}
+
+
+// ============================================
+// RETURN SUBSCRIPTION
+// ============================================
+
+return new Response(
+source.rawBody,
+{
+
+status:
+source.sourceStatus ||
+200,
+
+headers:
+outHeaders
+
+}
+);
+
+
+}
+
+
+// ==============================================
+// BROWSER
+// ==============================================
+
+return new Response(
+getWebsite(),
+{
+
+headers: {
+
+"Content-Type":
+"text/html; charset=utf-8",
+
+"Cache-Control":
+"no-store"
+
+}
+
+}
+);
+
+
+}
+
 
 };
