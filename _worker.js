@@ -36,43 +36,83 @@ function getHeader(headers, name) {
 }
 
 
-// ================================================
-// FETCH С ЗАЩИТОЙ ОТ РЕДИРЕКТ-ЦИКЛА
+// // ================================================
+// FETCH С ЗАЩИТОЙ ОТ РЕДИРЕКТ-ЦИКЛА + COOKIE JAR
 // ================================================
 
 async function fetchWithRedirectGuard(
   url,
   extraHeaders,
-  maxRedirects = 5
+  maxRedirects = 6
 ) {
 
   const visited = new Set();
 
   let currentUrl = url;
 
+  let cookies = "";
+
   let response = null;
+
+  let sameUrlRetries = 0;
 
   for (let i = 0; i <= maxRedirects; i++) {
 
-    if (visited.has(currentUrl)) {
-      throw new Error(
-        "Redirect loop detected: " + currentUrl
-      );
+    // ------------------------------------------
+    // Собираем заголовки запроса
+    // ------------------------------------------
+
+    const headers = { ...extraHeaders };
+
+    if (cookies) {
+      headers["Cookie"] = cookies;
     }
 
-    visited.add(currentUrl);
+    // ------------------------------------------
+    // Запрос с manual-редиректом
+    // ------------------------------------------
 
     response = await fetch(currentUrl, {
-
       method: "GET",
-
-      headers: extraHeaders,
-
+      headers,
       redirect: "manual"
-
     });
 
+    // ------------------------------------------
+    // Сохраняем полученные cookies
+    // ------------------------------------------
+
+    const setCookies =
+      typeof response.headers.getSetCookie === "function"
+        ? response.headers.getSetCookie()
+        : (response.headers.get("set-cookie")
+            ? [response.headers.get("set-cookie")]
+            : []);
+
+    for (const raw of setCookies) {
+
+      const pair = raw.split(";")[0].trim();
+
+      if (!pair) continue;
+
+      const name = pair.split("=")[0];
+
+      // Убираем старую cookie с тем же именем
+      const kept = cookies
+        .split(";")
+        .map(c => c.trim())
+        .filter(c => c && !c.startsWith(name + "="));
+
+      kept.push(pair);
+
+      cookies = kept.join("; ");
+
+    }
+
+    // ------------------------------------------
     // Не редирект — выходим
+    // ------------------------------------------
+
     if (response.status < 300 || response.status >= 400) {
       break;
     }
@@ -83,15 +123,39 @@ async function fetchWithRedirectGuard(
       break;
     }
 
-    // Резолвим относительные location
     const next = new URL(location, currentUrl).toString();
 
-    // Если ведёт туда же — это цикл, прекращаем
-    if (next === currentUrl || visited.has(next)) {
+    // ------------------------------------------
+    // Редирект на тот же URL
+    // ------------------------------------------
+
+    if (next === currentUrl) {
+
+      // Если пришла новая cookie — делаем повтор
+      if (setCookies.length > 0 && sameUrlRetries < 3) {
+        sameUrlRetries++;
+        continue;
+      }
+
       throw new Error(
-        "Redirect loop detected: " + currentUrl + " -> " + next
+        "Redirect loop detected (same URL, no new cookie): " +
+        currentUrl
+      );
+
+    }
+
+    // ------------------------------------------
+    // Редирект на уже посещённый URL — цикл
+    // ------------------------------------------
+
+    if (visited.has(next)) {
+      throw new Error(
+        "Redirect loop detected: " +
+        currentUrl + " -> " + next
       );
     }
+
+    visited.add(currentUrl);
 
     currentUrl = next;
 
@@ -100,7 +164,6 @@ async function fetchWithRedirectGuard(
   return { response, finalUrl: currentUrl };
 
 }
-
 
 // ================================================
 // ПОЛУЧИТЬ ИСТОЧНИК ПОДПИСКИ
