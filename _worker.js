@@ -1,9 +1,38 @@
 export default {
   async fetch(request) {
-    const url = new URL(request.url);
-
     const SOURCE = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
     const UA = "INCY/3.6.5/android";
+
+    // ============================================
+    // ПРОВЕРКА КЛИЕНТА
+    // ============================================
+
+    const incomingUA = request.headers.get("User-Agent") || "";
+
+    const isAllowed =
+      /incy/i.test(incomingUA) ||
+      /happ/i.test(incomingUA);
+
+    if (!isAllowed) {
+      return new Response(
+        JSON.stringify({
+          servers: [],
+          message: "Forbidden"
+        }),
+        {
+          status: 403,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "no-cache"
+          }
+        }
+      );
+    }
+
+    // ============================================
+    // ЗАПРОС К ИСТОЧНИКУ
+    // ============================================
 
     let status = 0;
     let headers = {};
@@ -44,21 +73,9 @@ export default {
       body = "FETCH ERROR: " + e.message;
     }
 
-    if (url.pathname === "/debug" || url.searchParams.get("debug") === "1") {
-      return new Response(
-        JSON.stringify({
-          sourceStatus: status,
-          rawHeaders: headers,
-          bodyPreview: body.slice(0, 3000)
-        }, null, 2),
-        {
-          headers: {
-            "Content-Type": "application/json; charset=utf-8",
-            "Cache-Control": "no-cache"
-          }
-        }
-      );
-    }
+    // ============================================
+    // ЗАГОЛОВКИ ОТВЕТА
+    // ============================================
 
     const outHeaders = {
       "Content-Type": "application/json; charset=utf-8",
