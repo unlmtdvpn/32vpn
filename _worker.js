@@ -1,12 +1,11 @@
 // ================================================
-// WLVPN CLOUDLFARE WORKER
-// Browser = Website
-// VPN Client = Subscription
+// WLVPN
+// Cloudflare Worker + KV
 // ================================================
 
 
 // ================================================
-// SETTINGS
+// НАСТРОЙКИ
 // ================================================
 
 const TRAFFIC_SOURCE_URL =
@@ -17,14 +16,158 @@ const FAKE_UA =
 
 
 // ================================================
+// СРОК ПОДПИСКИ
+// ================================================
+
+const EXPIRE_DATE =
+  "2026-10-07T23:59:59Z";
+
+
+// ================================================
+// ID
+// ================================================
+
+function generateId() {
+
+  return crypto.randomUUID();
+
+}
+
+
+// ================================================
+// TOKEN
+// ================================================
+
+function generateToken() {
+
+  const bytes =
+    new Uint8Array(24);
+
+  crypto.getRandomValues(
+    bytes
+  );
+
+
+  return Array.from(
+    bytes
+  )
+    .map(
+      b =>
+        b
+          .toString(16)
+          .padStart(2, "0")
+    )
+    .join("");
+
+}
+
+
+// ================================================
+// GET SUBSCRIPTIONS
+// ================================================
+
+async function getSubscriptions(env) {
+
+  const data =
+    await env.KV.get(
+      "subscriptions"
+    );
+
+
+  if (!data) {
+
+    return [];
+
+  }
+
+
+  try {
+
+    return JSON.parse(
+      data
+    );
+
+  }
+
+  catch {
+
+    return [];
+
+  }
+
+}
+
+
+// ================================================
+// SAVE SUBSCRIPTIONS
+// ================================================
+
+async function saveSubscriptions(
+  env,
+  subscriptions
+) {
+
+  await env.KV.put(
+    "subscriptions",
+    JSON.stringify(
+      subscriptions
+    )
+  );
+
+}
+
+
+// ================================================
+// GET HEADER
+// ================================================
+
+function getHeader(
+  headers,
+  name
+) {
+
+  const target =
+    name.toLowerCase();
+
+
+  for (
+    const [key, value]
+    of Object.entries(
+      headers
+    )
+  ) {
+
+    if (
+      key.toLowerCase() ===
+      target
+    ) {
+
+      return value;
+
+    }
+
+  }
+
+
+  return null;
+
+}
+
+
+// ================================================
 // VPN CLIENT DETECTION
 // ================================================
 
-function isVpnClient(userAgent) {
+function isVpnClient(
+  userAgent
+) {
 
   const ua =
-    (userAgent || "")
-      .toLowerCase();
+    (
+      userAgent ||
+      ""
+    ).toLowerCase();
+
 
   const clients = [
 
@@ -34,15 +177,17 @@ function isVpnClient(userAgent) {
 
     "v2raytun",
 
-    "v2ray",
-
     "v2rayng",
+
+    "v2ray",
 
     "sing-box",
 
     "singbox",
 
     "clash",
+
+    "mihomo",
 
     "nekobox",
 
@@ -65,14 +210,117 @@ function isVpnClient(userAgent) {
 
   return clients.some(
     client =>
-      ua.includes(client)
+      ua.includes(
+        client
+      )
   );
 
 }
 
 
 // ================================================
-// FETCH SOURCE SUBSCRIPTION
+// SUBSCRIPTION USERINFO
+// ================================================
+
+function updateSubscriptionUserinfo(
+  sourceUserinfo
+) {
+
+  const expire =
+    Math.floor(
+      new Date(
+        EXPIRE_DATE
+      ).getTime() / 1000
+    );
+
+
+  let upload =
+    "0";
+
+  let download =
+    "0";
+
+  let total =
+    "0";
+
+
+  if (
+    sourceUserinfo
+  ) {
+
+    const params =
+      sourceUserinfo.split(
+        ";"
+      );
+
+
+    for (
+      const param
+      of params
+    ) {
+
+      const [
+        key,
+        value
+      ] =
+        param
+          .trim()
+          .split("=");
+
+
+      if (
+        key ===
+        "upload"
+      ) {
+
+        upload =
+          value || "0";
+
+      }
+
+
+      if (
+        key ===
+        "download"
+      ) {
+
+        download =
+          value || "0";
+
+      }
+
+
+      if (
+        key ===
+        "total"
+      ) {
+
+        total =
+          value || "0";
+
+      }
+
+    }
+
+  }
+
+
+  return (
+    "upload=" +
+    upload +
+    "; download=" +
+    download +
+    "; total=" +
+    total +
+    "; expire=" +
+    expire
+  );
+
+}
+
+
+// ================================================
+// FETCH SOURCE
 // ================================================
 
 async function getSourceSubscription() {
@@ -89,14 +337,11 @@ async function getSourceSubscription() {
 
   try {
 
-    // ============================================
-    // FIRST REQUEST
-    // ============================================
-
-    const first =
+    const response =
       await fetch(
         TRAFFIC_SOURCE_URL,
         {
+
           method:
             "GET",
 
@@ -111,167 +356,24 @@ async function getSourceSubscription() {
           },
 
           redirect:
-            "manual",
-
-          cf: {
-
-            cacheTtl:
-              0
-
-          }
+            "follow"
 
         }
       );
 
 
-    let status =
-      first.status;
-
-
-    let headers =
-      Object.fromEntries(
-        first.headers.entries()
-      );
-
-
-    let body =
-      "";
-
-
-    // ============================================
-    // HANDLE REDIRECT
-    // ============================================
-
-    if (
-      status >= 300 &&
-      status < 400
-    ) {
-
-      let cookie =
-        "";
-
-
-      const setCookie =
-        first.headers.get(
-          "set-cookie"
-        );
-
-
-      if (setCookie) {
-
-        cookie =
-          setCookie
-            .split(";")[0];
-
-      }
-
-
-      const location =
-        first.headers.get(
-          "location"
-        );
-
-
-      // ==========================================
-      // REDIRECT URL
-      // ==========================================
-
-      let nextUrl =
-        TRAFFIC_SOURCE_URL;
-
-
-      if (location) {
-
-        nextUrl =
-          new URL(
-            location,
-            TRAFFIC_SOURCE_URL
-          ).toString();
-
-      }
-
-
-      // ==========================================
-      // SECOND REQUEST
-      // ==========================================
-
-      const second =
-        await fetch(
-          nextUrl,
-          {
-
-            method:
-              "GET",
-
-            headers: {
-
-              "User-Agent":
-                FAKE_UA,
-
-              "Accept":
-                "*/*",
-
-              ...(cookie
-                ? {
-                    "Cookie":
-                      cookie
-                  }
-                : {})
-
-            },
-
-            redirect:
-              "follow",
-
-            cf: {
-
-              cacheTtl:
-                0
-
-            }
-
-          }
-        );
-
-
-      status =
-        second.status;
-
-
-      headers =
-        Object.fromEntries(
-          second.headers.entries()
-        );
-
-
-      body =
-        await second.text();
-
-    }
-
-
-    // ============================================
-    // NORMAL RESPONSE
-    // ============================================
-
-    else {
-
-      body =
-        await first.text();
-
-    }
-
-
     sourceStatus =
-      status;
+      response.status;
 
 
     rawHeaders =
-      headers;
+      Object.fromEntries(
+        response.headers.entries()
+      );
 
 
     rawBody =
-      body;
+      await response.text();
 
   }
 
@@ -306,283 +408,30 @@ async function getSourceSubscription() {
 
 
 // ================================================
-// GET HEADER CASE INSENSITIVE
+// DISABLED SUBSCRIPTION
 // ================================================
 
-function getHeader(
-  headers,
-  name
-) {
+function disabledSubscription() {
 
-  const target =
-    name.toLowerCase();
+  return JSON.stringify(
+    {
 
+      servers: [
 
-  for (
-    const [key, value]
-    of Object.entries(headers)
-  ) {
+        {
 
-    if (
-      key.toLowerCase() ===
-      target
-    ) {
+          name:
+            "Подписка отключена 🚫",
 
-      return value;
-
-    }
-
-  }
-
-
-  return null;
-
-}
-
-
-// ================================================
-// GET SERVER COUNT
-// Does NOT expose configs
-// ================================================
-
-function getServerCount(body) {
-
-  if (!body) {
-    return 0;
-  }
-
-
-  try {
-
-    const data =
-      JSON.parse(body);
-
-
-    // JSON ARRAY
-
-    if (
-      Array.isArray(data)
-    ) {
-
-      return data.length;
-
-    }
-
-
-    // SERVERS
-
-    if (
-      Array.isArray(
-        data.servers
-      )
-    ) {
-
-      return data.servers.length;
-
-    }
-
-
-    // OUTBOUNDS
-
-    if (
-      Array.isArray(
-        data.outbounds
-      )
-    ) {
-
-      return data.outbounds.length;
-
-    }
-
-  }
-
-
-  catch {
-
-    // ============================================
-    // VLESS / VMESS / TROJAN LINKS
-    // ============================================
-
-    const lines =
-      body
-        .split(/\r?\n/)
-        .filter(
-          line =>
-            line.trim()
-        );
-
-
-    return lines.length;
-
-  }
-
-
-  return 0;
-
-}
-
-
-// ================================================
-// GET SERVER NAMES ONLY
-// NEVER RETURN CONFIGS
-// ================================================
-
-function getServerNames(body) {
-
-  const names =
-    [];
-
-
-  if (!body) {
-
-    return names;
-
-  }
-
-
-  try {
-
-    const data =
-      JSON.parse(body);
-
-
-    if (
-      Array.isArray(data)
-    ) {
-
-      for (
-        const server
-        of data
-      ) {
-
-        if (
-          server &&
-          typeof server ===
-          "object"
-        ) {
-
-          names.push(
-            server.name ||
-            server.tag ||
-            server.remarks ||
-            "VPN Server"
-          );
+          type:
+            "disabled"
 
         }
 
-      }
+      ]
 
     }
-
-
-    else if (
-      Array.isArray(
-        data.servers
-      )
-    ) {
-
-      for (
-        const server
-        of data.servers
-      ) {
-
-        names.push(
-          server.name ||
-          server.tag ||
-          server.remarks ||
-          "VPN Server"
-        );
-
-      }
-
-    }
-
-  }
-
-
-  catch {
-
-    // ============================================
-    // EXTRACT NAMES FROM URL FRAGMENTS
-    // vless://...#Germany
-    // ============================================
-
-    const lines =
-      body
-        .split(/\r?\n/)
-        .filter(
-          line =>
-            line.trim()
-        );
-
-
-    for (
-      let i = 0;
-      i < lines.length;
-      i++
-    ) {
-
-      const line =
-        lines[i]
-          .trim();
-
-
-      let name =
-        "VPN Server " +
-        (
-          i + 1
-        );
-
-
-      try {
-
-        const hashIndex =
-          line.indexOf("#");
-
-
-        if (
-          hashIndex !== -1
-        ) {
-
-          name =
-            decodeURIComponent(
-              line.slice(
-                hashIndex + 1
-              )
-            );
-
-        }
-
-      }
-
-
-      catch {}
-
-
-      // ==========================================
-      // LIMIT NAME LENGTH
-      // ==========================================
-
-      name =
-        name
-          .replace(
-            /[<>]/g,
-            ""
-          )
-          .slice(
-            0,
-            80
-          );
-
-
-      names.push(name);
-
-    }
-
-  }
-
-
-  return names;
+  );
 
 }
 
@@ -591,30 +440,33 @@ function getServerNames(body) {
 // ESCAPE HTML
 // ================================================
 
-function escapeHtml(text) {
+function escapeHtml(
+  text
+) {
 
-  return String(text || "")
+  const div =
+    String(
+      text || ""
+    );
 
+
+  return div
     .replace(
       /&/g,
       "&amp;"
     )
-
     .replace(
       /</g,
       "&lt;"
     )
-
     .replace(
       />/g,
       "&gt;"
     )
-
     .replace(
       /"/g,
       "&quot;"
     )
-
     .replace(
       /'/g,
       "&#039;"
@@ -624,7 +476,7 @@ function escapeHtml(text) {
 
 
 // ================================================
-// WEBSITE
+// MAIN WEBSITE
 // ================================================
 
 function getWebsite() {
@@ -642,1104 +494,207 @@ name="viewport"
 content="width=device-width, initial-scale=1.0"
 >
 
-<title>wlvpn — стабильный VPN</title>
-
+<title>wlvpn</title>
 
 <style>
 
-
-/* ========================================
-RESET
-======================================== */
-
 * {
-
-margin: 0;
-padding: 0;
-
-box-sizing:
-border-box;
-
+  box-sizing: border-box;
 }
-
-
-/* ========================================
-BODY
-======================================== */
 
 body {
 
-min-height:
-100vh;
+  margin: 0;
 
-font-family:
-Arial,
-sans-serif;
+  min-height: 100vh;
 
-color:
-#ffffff;
+  font-family:
+    Arial,
+    sans-serif;
 
-overflow-x:
-hidden;
+  background:
+    #090909;
 
-background:
-#080808;
+  color:
+    white;
 
-}
+  display:
+    flex;
 
-
-/* ========================================
-LIQUID BACKGROUND
-======================================== */
-
-.blob {
-
-position:
-fixed;
-
-border-radius:
-50%;
-
-filter:
-blur(100px);
-
-opacity:
-0.25;
-
-pointer-events:
-none;
-
-animation:
-liquid
-12s
-infinite
-ease-in-out;
+  flex-direction:
+    column;
 
 }
 
+header {
 
-.blob1 {
+  display:
+    flex;
 
-width:
-450px;
+  justify-content:
+    space-between;
 
-height:
-450px;
+  align-items:
+    center;
 
-background:
-#ffffff;
-
-top:
--200px;
-
-left:
--150px;
+  padding:
+    22px
+    8%;
 
 }
-
-
-.blob2 {
-
-width:
-400px;
-
-height:
-400px;
-
-background:
-#777777;
-
-top:
-30%;
-
-right:
--200px;
-
-animation-delay:
--4s;
-
-}
-
-
-.blob3 {
-
-width:
-500px;
-
-height:
-500px;
-
-background:
-#444444;
-
-bottom:
--300px;
-
-left:
-30%;
-
-animation-delay:
--8s;
-
-}
-
-
-@keyframes liquid {
-
-0%,
-100% {
-
-transform:
-translate(0, 0)
-scale(1);
-
-}
-
-50% {
-
-transform:
-translate(60px, -50px)
-scale(1.15);
-
-}
-
-}
-
-
-/* ========================================
-CONTAINER
-======================================== */
-
-.container {
-
-position:
-relative;
-
-z-index:
-2;
-
-width:
-100%;
-
-max-width:
-1200px;
-
-min-height:
-100vh;
-
-margin:
-auto;
-
-padding:
-24px;
-
-}
-
-
-/* ========================================
-NAVIGATION
-======================================== */
-
-nav {
-
-display:
-flex;
-
-align-items:
-center;
-
-justify-content:
-space-between;
-
-padding:
-16px 20px;
-
-border-radius:
-24px;
-
-background:
-rgba(
-255,
-255,
-255,
-0.07
-);
-
-border:
-1px
-solid
-rgba(
-255,
-255,
-255,
-0.14
-);
-
-backdrop-filter:
-blur(30px);
-
--webkit-backdrop-filter:
-blur(30px);
-
-}
-
 
 .logo {
 
-font-size:
-22px;
+  font-size:
+    24px;
 
-font-weight:
-700;
-
-letter-spacing:
--0.5px;
+  font-weight:
+    bold;
 
 }
 
+.admin {
 
-.status {
+  color:
+    white;
 
-display:
-flex;
+  text-decoration:
+    none;
 
-align-items:
-center;
+  padding:
+    10px
+    18px;
 
-gap:
-8px;
+  border:
+    1px
+    solid
+    #444;
 
-font-size:
-14px;
-
-color:
-#b5b5b5;
-
-}
-
-
-.dot {
-
-width:
-8px;
-
-height:
-8px;
-
-border-radius:
-50%;
-
-background:
-#ffffff;
-
-box-shadow:
-0
-0
-12px
-rgba(
-255,
-255,
-255,
-0.8
-);
+  border-radius:
+    12px;
 
 }
 
+main {
 
-/* ========================================
-HERO
-======================================== */
+  flex:
+    1;
 
-.hero {
+  display:
+    flex;
 
-min-height:
-75vh;
+  flex-direction:
+    column;
 
-display:
-flex;
+  align-items:
+    center;
 
-flex-direction:
-column;
+  justify-content:
+    center;
 
-align-items:
-center;
+  text-align:
+    center;
 
-justify-content:
-center;
-
-text-align:
-center;
+  padding:
+    30px;
 
 }
-
-
-/* ========================================
-GLASS
-======================================== */
-
-.glass {
-
-width:
-100%;
-
-max-width:
-900px;
-
-padding:
-70px
-35px;
-
-border-radius:
-36px;
-
-background:
-
-linear-gradient(
-135deg,
-
-rgba(
-255,
-255,
-255,
-0.12
-),
-
-rgba(
-255,
-255,
-255,
-0.03
-)
-
-);
-
-border:
-
-1px
-solid
-rgba(
-255,
-255,
-255,
-0.18
-);
-
-backdrop-filter:
-
-blur(35px)
-saturate(150%);
-
--webkit-backdrop-filter:
-
-blur(35px)
-saturate(150%);
-
-box-shadow:
-
-inset
-0
-1px
-0
-rgba(
-255,
-255,
-255,
-0.12
-),
-
-0
-30px
-100px
-rgba(
-0,
-0,
-0,
-0.6
-);
-
-}
-
-
-/* ========================================
-BADGE
-======================================== */
-
-.badge {
-
-display:
-inline-flex;
-
-padding:
-9px
-16px;
-
-border-radius:
-50px;
-
-background:
-rgba(
-255,
-255,
-255,
-0.08
-);
-
-border:
-1px
-solid
-rgba(
-255,
-255,
-255,
-0.12
-);
-
-color:
-#bdbdbd;
-
-font-size:
-12px;
-
-letter-spacing:
-1px;
-
-margin-bottom:
-25px;
-
-}
-
-
-/* ========================================
-TITLE
-======================================== */
 
 h1 {
 
-font-size:
-clamp(
-64px,
-12vw,
-120px
-);
+  font-size:
+    70px;
 
-letter-spacing:
--7px;
+  margin:
+    0;
 
-line-height:
-0.9;
-
-margin-bottom:
-28px;
-
-background:
-
-linear-gradient(
-180deg,
-
-#ffffff,
-
-#8c8c8c
-);
-
--webkit-background-clip:
-text;
-
-background-clip:
-text;
-
--webkit-text-fill-color:
-transparent;
+  letter-spacing:
+    -4px;
 
 }
 
+p {
 
-/* ========================================
-DESCRIPTION
-======================================== */
+  color:
+    #999;
 
-.description {
+  font-size:
+    18px;
 
-max-width:
-580px;
+  max-width:
+    500px;
 
-margin:
-auto;
-
-color:
-#a8a8a8;
-
-font-size:
-18px;
-
-line-height:
-1.7;
+  line-height:
+    1.6;
 
 }
 
+.button {
 
-/* ========================================
-BUTTONS
-======================================== */
+  margin-top:
+    25px;
 
-.buttons {
+  padding:
+    15px
+    30px;
 
-display:
-flex;
+  background:
+    white;
 
-justify-content:
-center;
+  color:
+    black;
 
-gap:
-12px;
+  text-decoration:
+    none;
 
-flex-wrap:
-wrap;
+  border-radius:
+    14px;
 
-margin-top:
-38px;
-
-}
-
-
-.btn {
-
-display:
-inline-flex;
-
-align-items:
-center;
-
-justify-content:
-center;
-
-min-width:
-160px;
-
-padding:
-15px
-25px;
-
-border-radius:
-16px;
-
-text-decoration:
-none;
-
-font-size:
-15px;
-
-font-weight:
-600;
-
-transition:
-all
-0.25s
-ease;
+  font-weight:
+    bold;
 
 }
-
-
-.primary {
-
-background:
-#ffffff;
-
-color:
-#000000;
-
-}
-
-
-.primary:hover {
-
-transform:
-translateY(-4px);
-
-box-shadow:
-0
-15px
-40px
-rgba(
-255,
-255,
-255,
-0.15
-);
-
-}
-
-
-.secondary {
-
-color:
-#ffffff;
-
-background:
-rgba(
-255,
-255,
-255,
-0.07
-);
-
-border:
-1px
-solid
-rgba(
-255,
-255,
-255,
-0.14
-);
-
-}
-
-
-.secondary:hover {
-
-transform:
-translateY(-4px);
-
-background:
-rgba(
-255,
-255,
-255,
-0.12
-);
-
-}
-
-
-/* ========================================
-STATS
-======================================== */
-
-.stats {
-
-display:
-flex;
-
-justify-content:
-center;
-
-gap:
-14px;
-
-flex-wrap:
-wrap;
-
-margin-top:
-45px;
-
-}
-
-
-.stat {
-
-min-width:
-165px;
-
-padding:
-20px;
-
-border-radius:
-22px;
-
-background:
-rgba(
-255,
-255,
-255,
-0.06
-);
-
-border:
-1px
-solid
-rgba(
-255,
-255,
-255,
-0.10
-);
-
-backdrop-filter:
-blur(20px);
-
-}
-
-
-.stat-value {
-
-font-size:
-18px;
-
-font-weight:
-700;
-
-color:
-#ffffff;
-
-}
-
-
-.stat-title {
-
-margin-top:
-7px;
-
-font-size:
-12px;
-
-color:
-#858585;
-
-}
-
-
-/* ========================================
-SERVERS
-======================================== */
-
-.servers {
-
-width:
-100%;
-
-max-width:
-900px;
-
-margin:
-20px
-auto
-60px;
-
-padding:
-25px;
-
-border-radius:
-28px;
-
-background:
-rgba(
-255,
-255,
-255,
-0.05
-);
-
-border:
-1px
-solid
-rgba(
-255,
-255,
-255,
-0.10
-);
-
-backdrop-filter:
-blur(25px);
-
-}
-
-
-.servers-title {
-
-font-size:
-20px;
-
-font-weight:
-700;
-
-margin-bottom:
-18px;
-
-text-align:
-left;
-
-}
-
-
-.server-list {
-
-display:
-flex;
-
-flex-direction:
-column;
-
-gap:
-10px;
-
-}
-
-
-.server {
-
-display:
-flex;
-
-align-items:
-center;
-
-justify-content:
-space-between;
-
-padding:
-16px;
-
-border-radius:
-16px;
-
-background:
-rgba(
-255,
-255,
-255,
-0.05
-);
-
-border:
-1px
-solid
-rgba(
-255,
-255,
-255,
-0.08
-);
-
-}
-
-
-.server-name {
-
-font-size:
-15px;
-
-font-weight:
-600;
-
-overflow:
-hidden;
-
-text-overflow:
-ellipsis;
-
-white-space:
-nowrap;
-
-max-width:
-70%;
-
-}
-
-
-.server-ping {
-
-font-size:
-13px;
-
-color:
-#a8a8a8;
-
-}
-
-
-/* ========================================
-FOOTER
-======================================== */
 
 footer {
 
-text-align:
-center;
+  text-align:
+    center;
 
-padding:
-30px
-0
-10px;
+  padding:
+    25px;
 
-font-size:
-13px;
-
-color:
-#666666;
+  color:
+    #666;
 
 }
-
-
-/* ========================================
-MOBILE
-======================================== */
-
-@media (
-max-width:
-600px
-) {
-
-.container {
-
-padding:
-14px;
-
-}
-
-
-nav {
-
-padding:
-14px
-16px;
-
-border-radius:
-18px;
-
-}
-
-
-.status {
-
-font-size:
-12px;
-
-}
-
-
-.glass {
-
-padding:
-55px
-20px;
-
-border-radius:
-28px;
-
-}
-
-
-h1 {
-
-letter-spacing:
--4px;
-
-}
-
-
-.description {
-
-font-size:
-16px;
-
-}
-
-
-.stat {
-
-min-width:
-140px;
-
-}
-
-
-.server {
-
-padding:
-14px;
-
-}
-
-}
-
 
 </style>
 
 </head>
 
-
 <body>
 
+<header>
 
-<!-- BACKGROUND -->
-
-<div
-class="blob blob1"
-></div>
-
-<div
-class="blob blob2"
-></div>
-
-<div
-class="blob blob3"
-></div>
-
-
-<div
-class="container"
->
-
-
-<!-- NAV -->
-
-<nav>
-
-
-<div
-class="logo"
->
+<div class="logo">
 
 🏳 wlvpn
 
 </div>
 
-
-<div
-class="status"
+<a
+class="admin"
+href="/admin"
 >
 
-<div
-class="dot"
-></div>
+Админ
 
-Пинг:
+</a>
 
-<span
-id="ping"
->
-
-...
-
-</span>
-
-</div>
+</header>
 
 
-</nav>
-
-
-<!-- HERO -->
-
-<main
-class="hero"
->
-
-
-<div
-class="glass"
->
-
-
-<div
-class="badge"
->
-
-СТАБИЛЬНЫЙ VPN СЕРВИС
-
-</div>
-
+<main>
 
 <h1>
 
@@ -1747,191 +702,319 @@ wlvpn
 
 </h1>
 
+<p>
 
-<div
-class="description"
->
+Быстрый и стабильный VPN сервис.
 
-Быстрый, приватный и стабильный VPN.
-
-Подключайся за секунды
-и пользуйся интернетом
-без лишних ограничений.
-
-</div>
-
-
-<div
-class="buttons"
->
-
+</p>
 
 <a
-
-class="btn primary"
-
+class="button"
 href="https://t.me/snokuy"
-
 target="_blank"
-
 >
 
 Telegram
 
 </a>
 
-
-<a
-
-class="btn secondary"
-
-href="#servers"
-
->
-
-Серверы
-
-</a>
-
-
-</div>
-
-
-<div
-class="stats"
->
-
-
-<div
-class="stat"
->
-
-<div
-class="stat-value"
-id="pingCard"
->
-
-...
-
-</div>
-
-<div
-class="stat-title"
->
-
-Пинг сайта
-
-</div>
-
-</div>
-
-
-<div
-class="stat"
->
-
-<div
-class="stat-value"
-id="serverCount"
->
-
-...
-
-</div>
-
-<div
-class="stat-title"
->
-
-Серверов
-
-</div>
-
-</div>
-
-
-<div
-class="stat"
->
-
-<div
-class="stat-value"
->
-
-Защищено
-
-</div>
-
-<div
-class="stat-title"
->
-
-Соединение
-
-</div>
-
-</div>
-
-
-</div>
-
-
-</div>
-
-
 </main>
 
 
-<!-- SERVERS -->
-
-<section
-class="servers"
-id="servers"
->
-
-
-<div
-class="servers-title"
->
-
-🌐 Серверы wlvpn
-
-</div>
-
-
-<div
-class="server-list"
-id="serverList"
->
-
-<div
-class="server"
->
-
-<div
-class="server-name"
->
-
-Загрузка серверов...
-
-</div>
-
-</div>
-
-</div>
-
-
-</section>
-
-
-<!-- FOOTER -->
-
 <footer>
 
-© 2026 wlvpn · стабильное подключение
+© 2026 wlvpn
 
 </footer>
 
+</body>
+
+</html>`;
+
+}
+
+
+// ================================================
+// ADMIN PANEL
+// ================================================
+
+function getAdminPage() {
+
+  return `<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+>
+
+<title>wlvpn admin</title>
+
+<style>
+
+* {
+  box-sizing:
+    border-box;
+}
+
+body {
+
+  margin:
+    0;
+
+  padding:
+    20px;
+
+  background:
+    #090909;
+
+  color:
+    white;
+
+  font-family:
+    Arial,
+    sans-serif;
+
+}
+
+.container {
+
+  max-width:
+    850px;
+
+  margin:
+    auto;
+
+}
+
+h1 {
+
+  margin-bottom:
+    30px;
+
+}
+
+.create {
+
+  display:
+    flex;
+
+  gap:
+    10px;
+
+  margin-bottom:
+    30px;
+
+}
+
+input {
+
+  flex:
+    1;
+
+  padding:
+    14px;
+
+  border:
+    1px
+    solid
+    #333;
+
+  border-radius:
+    12px;
+
+  background:
+    #151515;
+
+  color:
+    white;
+
+}
+
+button {
+
+  border:
+    none;
+
+  padding:
+    13px
+    18px;
+
+  border-radius:
+    12px;
+
+  background:
+    white;
+
+  color:
+    black;
+
+  cursor:
+    pointer;
+
+  font-weight:
+    bold;
+
+}
+
+.list {
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  gap:
+    15px;
+
+}
+
+.item {
+
+  background:
+    #151515;
+
+  border:
+    1px
+    solid
+    #292929;
+
+  padding:
+    20px;
+
+  border-radius:
+    16px;
+
+}
+
+.name {
+
+  font-size:
+    20px;
+
+  font-weight:
+    bold;
+
+}
+
+.status {
+
+  margin-top:
+    10px;
+
+  color:
+    #999;
+
+}
+
+.link {
+
+  margin-top:
+    12px;
+
+  color:
+    #aaa;
+
+  word-break:
+    break-all;
+
+}
+
+.actions {
+
+  display:
+    flex;
+
+  flex-wrap:
+    wrap;
+
+  gap:
+    10px;
+
+  margin-top:
+    16px;
+
+}
+
+.disabled {
+
+  opacity:
+    .45;
+
+}
+
+.back {
+
+  color:
+    #aaa;
+
+  text-decoration:
+    none;
+
+  display:
+    inline-block;
+
+  margin-bottom:
+    20px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<a
+class="back"
+href="/"
+>
+
+← На сайт
+
+</a>
+
+<h1>
+
+🏳 wlvpn admin
+
+</h1>
+
+
+<div class="create">
+
+<input
+id="name"
+placeholder="Название подписки"
+>
+
+<button
+onclick="createSub()"
+>
+
+Создать
+
+</button>
+
+</div>
+
+
+<div
+id="list"
+class="list"
+>
+
+Загрузка...
+
+</div>
 
 </div>
 
@@ -1939,287 +1022,552 @@ class="server-name"
 <script>
 
 
-// ========================================
-// WEBSITE PING
-// ========================================
+// ====================================
+// API
+// ====================================
 
-async function checkPing() {
-
-
-const pingElement =
-document.getElementById(
-"ping"
-);
-
-
-const pingCard =
-document.getElementById(
-"pingCard"
-);
-
-
-const start =
-performance.now();
-
-
-try {
-
-
-await fetch(
-
-"/ping?t=" +
-Date.now(),
-
-{
-
-method:
-"GET",
-
-cache:
-"no-store"
-
-}
-
-);
-
-
-const end =
-performance.now();
-
-
-const ping =
-Math.round(
-end - start
-);
-
-
-pingElement.textContent =
-ping +
-" ms";
-
-
-pingCard.textContent =
-ping +
-" ms";
-
-
-}
-
-
-catch {
-
-
-pingElement.textContent =
-"Ошибка";
-
-
-pingCard.textContent =
-"Недоступен";
-
-
-}
-
-
-}
-
-
-// ========================================
-// LOAD SERVERS
-// ========================================
-
-async function loadServers() {
-
-
-const list =
-document.getElementById(
-"serverList"
-);
-
-
-const count =
-document.getElementById(
-"serverCount"
-);
-
-
-try {
-
-
-const response =
-await fetch(
-"/api/servers",
-{
-cache:
-"no-store"
-}
-);
-
-
-const data =
-await response.json();
-
-
-count.textContent =
-data.count ||
-0;
-
-
-list.innerHTML =
-"";
-
-
-if (
-
-!data.servers ||
-
-!data.servers.length
-
+async function api(
+  path,
+  options = {}
 ) {
 
-
-list.innerHTML =
-
-'<div class="server">' +
-
-'<div class="server-name">' +
-
-'Серверы временно недоступны' +
-
-'</div>' +
-
-'</div>';
+  const response =
+    await fetch(
+      path,
+      options
+    );
 
 
-return;
+  return response.json();
 
 }
 
 
-data.servers.forEach(
-(
-server,
-index
-) => {
+// ====================================
+// LOAD
+// ====================================
+
+async function load() {
+
+  const data =
+    await api(
+      "/api/subscriptions"
+    );
 
 
-const item =
-document.createElement(
-"div"
-);
+  const list =
+    document.getElementById(
+      "list"
+    );
 
 
-item.className =
-"server";
+  list.innerHTML =
+    "";
 
 
-const name =
-document.createElement(
-"div"
-);
+  if (
+    !data.length
+  ) {
+
+    list.innerHTML =
+      "<p>Подписок пока нет</p>";
+
+    return;
+
+  }
 
 
-name.className =
-"server-name";
+  data.forEach(
+    sub => {
+
+      const div =
+        document.createElement(
+          "div"
+        );
 
 
-name.textContent =
-server;
+      div.className =
+        "item " +
+        (
+          sub.enabled
+            ? ""
+            : "disabled"
+        );
 
 
-const ping =
-document.createElement(
-"div"
-);
+      const link =
+        location.origin +
+        "/sub/" +
+        sub.token;
 
 
-ping.className =
-"server-ping";
+      div.innerHTML =
+
+        '<div class="name">' +
+
+        escapeHtml(
+          sub.name
+        ) +
+
+        '</div>' +
+
+        '<div class="status">' +
+
+        (
+          sub.enabled
+            ? "🟢 Активна"
+            : "🔴 Отключена"
+        ) +
+
+        '</div>' +
+
+        '<div class="link">' +
+
+        link +
+
+        '</div>' +
+
+        '<div class="actions">' +
+
+        '<button onclick="copyLink(\\'' +
+
+        sub.token +
+
+        '\\')">Копировать</button>' +
+
+        '<button onclick="renameSub(\\'' +
+
+        sub.id +
+
+        '\\')">Переименовать</button>' +
+
+        '<button onclick="toggleSub(\\'' +
+
+        sub.id +
+
+        '\\')">' +
+
+        (
+          sub.enabled
+            ? "Отключить"
+            : "Включить"
+        ) +
+
+        '</button>' +
+
+        '<button onclick="deleteSub(\\'' +
+
+        sub.id +
+
+        '\\')">Удалить</button>' +
+
+        '</div>';
 
 
-ping.textContent =
-"● VPN";
+      list.appendChild(
+        div
+      );
 
-
-item.appendChild(
-name
-);
-
-
-item.appendChild(
-ping
-);
-
-
-list.appendChild(
-item
-);
-
+    }
+  );
 
 }
-);
 
+
+// ====================================
+// CREATE
+// ====================================
+
+async function createSub() {
+
+  const input =
+    document.getElementById(
+      "name"
+    );
+
+
+  const name =
+    input.value.trim();
+
+
+  if (!name) {
+
+    alert(
+      "Введите название"
+    );
+
+    return;
+
+  }
+
+
+  await api(
+    "/api/subscriptions",
+    {
+
+      method:
+        "POST",
+
+      headers: {
+
+        "Content-Type":
+          "application/json"
+
+      },
+
+      body:
+        JSON.stringify(
+          {
+            name
+          }
+        )
+
+    }
+  );
+
+
+  input.value =
+    "";
+
+
+  load();
 
 }
 
 
-catch {
+// ====================================
+// COPY
+// ====================================
+
+async function copyLink(
+  token
+) {
+
+  const link =
+    location.origin +
+    "/sub/" +
+    token;
 
 
-count.textContent =
-"?";
+  try {
 
+    await navigator
+      .clipboard
+      .writeText(
+        link
+      );
 
-list.innerHTML =
+    alert(
+      "Ссылка скопирована"
+    );
 
-'<div class="server">' +
+  }
 
-'<div class="server-name">' +
+  catch {
 
-'Не удалось загрузить серверы' +
+    prompt(
+      "Скопируйте ссылку:",
+      link
+    );
 
-'</div>' +
-
-'</div>';
-
+  }
 
 }
 
 
+// ====================================
+// RENAME
+// ====================================
+
+async function renameSub(
+  id
+) {
+
+  const name =
+    prompt(
+      "Новое название"
+    );
+
+
+  if (!name) {
+
+    return;
+
+  }
+
+
+  await api(
+    "/api/subscriptions/" +
+    id,
+    {
+
+      method:
+        "PUT",
+
+      headers: {
+
+        "Content-Type":
+          "application/json"
+
+      },
+
+      body:
+        JSON.stringify(
+          {
+            name
+          }
+        )
+
+    }
+  );
+
+
+  load();
+
 }
 
 
-// ========================================
+// ====================================
+// TOGGLE
+// ====================================
+
+async function toggleSub(
+  id
+) {
+
+  await api(
+    "/api/subscriptions/" +
+    id +
+    "/toggle",
+    {
+      method:
+        "POST"
+    }
+  );
+
+
+  load();
+
+}
+
+
+// ====================================
+// DELETE
+// ====================================
+
+async function deleteSub(
+  id
+) {
+
+  if (
+    !confirm(
+      "Удалить подписку?"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  await api(
+    "/api/subscriptions/" +
+    id,
+    {
+      method:
+        "DELETE"
+    }
+  );
+
+
+  load();
+
+}
+
+
+// ====================================
+// ESCAPE
+// ====================================
+
+function escapeHtml(
+  text
+) {
+
+  const div =
+    document.createElement(
+      "div"
+    );
+
+
+  div.textContent =
+    text;
+
+
+  return div.innerHTML;
+
+}
+
+
+// ====================================
 // START
-// ========================================
+// ====================================
 
-checkPing();
-
-
-loadServers();
-
-
-// ========================================
-// UPDATE PING
-// ========================================
-
-setInterval(
-checkPing,
-5000
-);
-
-
-// ========================================
-// UPDATE SERVER LIST
-// ========================================
-
-setInterval(
-loadServers,
-30000
-);
+load();
 
 
 </script>
 
+</body>
+
+</html>`;
+
+}
+
+
+// ================================================
+// SUBSCRIPTION INFO PAGE
+// ================================================
+
+function getSubscriptionPage(
+  sub
+) {
+
+  const status =
+    sub.enabled
+      ? "🟢 Активна"
+      : "🔴 Отключена";
+
+
+  return `<!DOCTYPE html>
+
+<html lang="ru">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0"
+>
+
+<title>${escapeHtml(sub.name)}</title>
+
+<style>
+
+body {
+
+  margin:
+    0;
+
+  min-height:
+    100vh;
+
+  display:
+    flex;
+
+  align-items:
+    center;
+
+  justify-content:
+    center;
+
+  background:
+    #090909;
+
+  color:
+    white;
+
+  font-family:
+    Arial,
+    sans-serif;
+
+}
+
+.card {
+
+  width:
+    90%;
+
+  max-width:
+    500px;
+
+  padding:
+    35px;
+
+  border-radius:
+    20px;
+
+  background:
+    #151515;
+
+  border:
+    1px
+    solid
+    #292929;
+
+  text-align:
+    center;
+
+}
+
+h1 {
+
+  margin:
+    0 0 20px;
+
+}
+
+p {
+
+  color:
+    #999;
+
+}
+
+.status {
+
+  margin-top:
+    20px;
+
+  font-size:
+    18px;
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<h1>
+
+🏳 wlvpn
+
+</h1>
+
+<h2>
+
+${escapeHtml(sub.name)}
+
+</h2>
+
+<p>
+
+VPN подписка wlvpn
+
+</p>
+
+<div class="status">
+
+${status}
+
+</div>
+
+</div>
 
 </body>
 
@@ -2234,397 +1582,665 @@ loadServers,
 
 export default {
 
+  async fetch(
+    request,
+    env,
+    ctx
+  ) {
 
-// ==============================================
-// FETCH
-// ==============================================
+    const url =
+      new URL(
+        request.url
+      );
 
-async fetch(
-request,
-env,
-ctx
-) {
 
+    const userAgent =
+      request.headers.get(
+        "User-Agent"
+      ) || "";
 
-const url =
-new URL(
-request.url
-);
 
+    // ============================================
+    // ADMIN
+    // ============================================
 
-const userAgent =
-request.headers.get(
-"User-Agent"
-) || "";
+    if (
+      url.pathname ===
+      "/admin"
+    ) {
 
+      return new Response(
+        getAdminPage(),
+        {
 
-// ==============================================
-// PING ENDPOINT
-// ==============================================
+          headers: {
 
-if (
-url.pathname ===
-"/ping"
-) {
+            "Content-Type":
+              "text/html; charset=utf-8"
 
+          }
 
-return new Response(
-"pong",
-{
-headers: {
+        }
+      );
 
-"Content-Type":
-"text/plain",
+    }
 
-"Cache-Control":
-"no-store"
 
-}
-}
-);
+    // ============================================
+    // API GET
+    // ============================================
 
+    if (
+      url.pathname ===
+      "/api/subscriptions" &&
+      request.method ===
+      "GET"
+    ) {
 
-}
+      const subscriptions =
+        await getSubscriptions(
+          env
+        );
 
 
-// ==============================================
-// SERVER API
-// Names only
-// NEVER configs
-// ==============================================
+      return Response.json(
+        subscriptions
+      );
 
-if (
-url.pathname ===
-"/api/servers"
-) {
+    }
 
 
-const source =
-await getSourceSubscription();
+    // ============================================
+    // API CREATE
+    // ============================================
 
+    if (
+      url.pathname ===
+      "/api/subscriptions" &&
+      request.method ===
+      "POST"
+    ) {
 
-const names =
-getServerNames(
-source.rawBody
-);
+      const data =
+        await request.json();
 
 
-const count =
-getServerCount(
-source.rawBody
-);
+      const subscriptions =
+        await getSubscriptions(
+          env
+        );
 
 
-// ============================================
-// REMOVE DUPLICATES
-// ============================================
+      const sub = {
 
-const uniqueNames =
-[
-...new Set(
-names
-)
-].slice(
-0,
-50
-);
+        id:
+          generateId(),
 
+        token:
+          generateToken(),
 
-return Response.json(
-{
+        name:
+          (
+            data.name ||
+            "wlvpn"
+          )
+            .trim()
+            .slice(
+              0,
+              100
+            ),
 
-count:
+        enabled:
+          true,
 
-count ||
-uniqueNames.length,
+        createdAt:
+          Date.now()
 
-servers:
-uniqueNames
+      };
 
-},
-{
 
-headers: {
+      subscriptions.push(
+        sub
+      );
 
-"Cache-Control":
-"no-store"
 
-}
+      await saveSubscriptions(
+        env,
+        subscriptions
+      );
 
-}
-);
 
+      return Response.json(
+        {
+          success: true,
+          sub
+        }
+      );
 
-}
+    }
 
 
-// ==============================================
-// DEBUG
-// ==============================================
+    // ============================================
+    // SUBSCRIPTION ID
+    // ============================================
 
-if (
+    const idMatch =
+      url.pathname.match(
+        /^\\/api\\/subscriptions\\/([^/]+)$/
+      );
 
-url.pathname ===
-"/debug"
 
-||
+    // ============================================
+    // RENAME
+    // ============================================
 
-url.searchParams.get(
-"debug"
-) ===
-"1"
+    if (
+      idMatch &&
+      request.method ===
+      "PUT"
+    ) {
 
-) {
+      const id =
+        idMatch[1];
 
 
-const source =
-await getSourceSubscription();
+      const data =
+        await request.json();
 
 
-return Response.json(
-{
+      const subscriptions =
+        await getSubscriptions(
+          env
+        );
 
-worker:
-"WLVPN",
 
-userAgent,
+      const sub =
+        subscriptions.find(
+          item =>
+            item.id === id
+        );
 
-sourceStatus:
-source.sourceStatus,
 
-serverCount:
-getServerCount(
-source.rawBody
-),
+      if (!sub) {
 
-headers:
-source.rawHeaders,
+        return Response.json(
+          {
+            success: false,
+            error: "Not found"
+          },
+          {
+            status: 404
+          }
+        );
 
-bodyPreview:
-source.rawBody.slice(
-0,
-2000
-)
+      }
 
-},
-{
 
-headers: {
+      if (
+        data.name &&
+        data.name.trim()
+      ) {
 
-"Cache-Control":
-"no-store"
+        sub.name =
+          data.name
+            .trim()
+            .slice(
+              0,
+              100
+            );
 
-}
+      }
 
-}
-);
 
+      await saveSubscriptions(
+        env,
+        subscriptions
+      );
 
-}
 
+      return Response.json(
+        {
+          success: true
+        }
+      );
 
-// ==============================================
-// VPN CLIENT
-// ==============================================
+    }
 
-if (
-isVpnClient(
-userAgent
-)
-) {
 
+    // ============================================
+    // DELETE
+    // ============================================
 
-const source =
-await getSourceSubscription();
+    if (
+      idMatch &&
+      request.method ===
+      "DELETE"
+    ) {
 
+      const id =
+        idMatch[1];
 
-// ============================================
-// SOURCE ERROR
-// ============================================
 
-if (
+      let subscriptions =
+        await getSubscriptions(
+          env
+        );
 
-source.sourceStatus < 200
 
-||
+      const oldLength =
+        subscriptions.length;
 
-source.sourceStatus >= 400
 
-) {
+      subscriptions =
+        subscriptions.filter(
+          item =>
+            item.id !== id
+        );
 
 
-return new Response(
-source.rawBody ||
-"Subscription source error",
-{
+      if (
+        subscriptions.length ===
+        oldLength
+      ) {
 
-status:
-502,
+        return Response.json(
+          {
+            success: false,
+            error: "Not found"
+          },
+          {
+            status: 404
+          }
+        );
 
-headers: {
+      }
 
-"Content-Type":
-"text/plain; charset=utf-8",
 
-"Cache-Control":
-"no-store"
+      await saveSubscriptions(
+        env,
+        subscriptions
+      );
 
-}
 
-}
-);
+      return Response.json(
+        {
+          success: true
+        }
+      );
 
-}
+    }
 
 
-// ============================================
-// OUTPUT HEADERS
-// ============================================
+    // ============================================
+    // TOGGLE
+    // ============================================
 
-const outHeaders =
-{
+    const toggleMatch =
+      url.pathname.match(
+        /^\\/api\\/subscriptions\\/([^/]+)\\/toggle$/
+      );
 
-"Content-Type":
-getHeader(
-source.rawHeaders,
-"content-type"
-) ||
-"application/json; charset=utf-8",
 
+    if (
+      toggleMatch &&
+      request.method ===
+      "POST"
+    ) {
 
-"Access-Control-Allow-Origin":
-"*",
+      const id =
+        toggleMatch[1];
 
 
-"Cache-Control":
-"no-cache",
+      const subscriptions =
+        await getSubscriptions(
+          env
+        );
 
 
-"Profile-Title":
-"wlvpn",
+      const sub =
+        subscriptions.find(
+          item =>
+            item.id === id
+        );
 
 
-"Profile-Update-Interval":
-"6",
+      if (!sub) {
 
+        return Response.json(
+          {
+            success: false,
+            error: "Not found"
+          },
+          {
+            status: 404
+          }
+        );
 
-"announce":
-"🏳 wlvpn | Стабильный VPN Сервис 🚀"
+      }
 
-};
 
+      sub.enabled =
+        !sub.enabled;
 
-// ============================================
-// PASSTHROUGH HEADERS
-// ============================================
 
-const PASSTHROUGH =
-[
+      await saveSubscriptions(
+        env,
+        subscriptions
+      );
 
-"profile-web-page-url",
 
-"support-url",
+      return Response.json(
+        {
+          success: true,
+          enabled:
+            sub.enabled
+        }
+      );
 
-"providerid",
+    }
 
-"subscription-userinfo",
 
-"hide-settings",
+    // ============================================
+    // SUBSCRIPTION
+    // ============================================
 
-"new-url"
+    const subMatch =
+      url.pathname.match(
+        /^\\/sub\\/([^/]+)$/
+      );
 
-];
 
+    if (subMatch) {
 
-// ============================================
-// COPY HEADERS
-// ============================================
+      const token =
+        subMatch[1];
 
-for (
-const name
-of PASSTHROUGH
-) {
 
+      const subscriptions =
+        await getSubscriptions(
+          env
+        );
 
-const value =
-getHeader(
-source.rawHeaders,
-name
-);
 
+      const sub =
+        subscriptions.find(
+          item =>
+            item.token === token
+        );
 
-if (value) {
 
+      if (!sub) {
 
-const canonicalName =
-name
-.split("-")
-.map(
-part =>
-part.charAt(0)
-.toUpperCase() +
-part.slice(1)
-)
-.join("-");
+        return new Response(
+          "Subscription not found",
+          {
+            status: 404
+          }
+        );
 
+      }
 
-outHeaders[
-canonicalName
-] =
-value;
 
+      // ==========================================
+      // BROWSER
+      // ==========================================
 
-}
+      if (
+        !isVpnClient(
+          userAgent
+        )
+      ) {
 
+        return new Response(
+          getSubscriptionPage(
+            sub
+          ),
+          {
 
-}
+            headers: {
 
+              "Content-Type":
+                "text/html; charset=utf-8"
 
-// ============================================
-// RETURN SUBSCRIPTION
-// ============================================
+            }
 
-return new Response(
-source.rawBody,
-{
+          }
+        );
 
-status:
-source.sourceStatus ||
-200,
+      }
 
-headers:
-outHeaders
 
-}
-);
+      // ==========================================
+      // DISABLED
+      // ==========================================
 
+      if (
+        !sub.enabled
+      ) {
 
-}
+        return new Response(
+          disabledSubscription(),
+          {
 
+            headers: {
 
-// ==============================================
-// BROWSER
-// ==============================================
+              "Content-Type":
+                "application/json; charset=utf-8",
 
-return new Response(
-getWebsite(),
-{
+              "Profile-Title":
+                "Подписка отключена 🚫",
 
-headers: {
+              "Profile-Update-Interval":
+                "6"
 
-"Content-Type":
-"text/html; charset=utf-8",
+            }
 
-"Cache-Control":
-"no-store"
+          }
+        );
 
-}
+      }
 
-}
-);
 
+      // ==========================================
+      // GET SOURCE
+      // ==========================================
 
-}
+      const source =
+        await getSourceSubscription();
 
+
+      if (
+        source.sourceStatus < 200 ||
+        source.sourceStatus >= 400
+      ) {
+
+        return new Response(
+          source.rawBody ||
+          "Source error",
+          {
+
+            status:
+              502,
+
+            headers: {
+
+              "Content-Type":
+                "text/plain; charset=utf-8"
+
+            }
+
+          }
+        );
+
+      }
+
+
+      // ==========================================
+      // OUTPUT HEADERS
+      // ==========================================
+
+      const outHeaders = {
+
+        "Content-Type":
+          getHeader(
+            source.rawHeaders,
+            "content-type"
+          ) ||
+          "application/json; charset=utf-8",
+
+        "Access-Control-Allow-Origin":
+          "*",
+
+        "Cache-Control":
+          "no-cache",
+
+        "Profile-Title":
+          sub.name,
+
+        "Profile-Update-Interval":
+          "6",
+
+        "Subscription-Userinfo":
+          updateSubscriptionUserinfo(
+            getHeader(
+              source.rawHeaders,
+              "subscription-userinfo"
+            )
+          ),
+
+        "announce":
+          "🏳 wlvpn | Стабильный VPN Сервис 🚀"
+
+      };
+
+
+      // ==========================================
+      // PASSTHROUGH
+      // ==========================================
+
+      const passthrough = [
+
+        "profile-web-page-url",
+
+        "support-url",
+
+        "providerid",
+
+        "hide-settings",
+
+        "new-url"
+
+      ];
+
+
+      for (
+        const name
+        of passthrough
+      ) {
+
+        const value =
+          getHeader(
+            source.rawHeaders,
+            name
+          );
+
+
+        if (value) {
+
+          const canonical =
+            name
+              .split("-")
+              .map(
+                part =>
+                  part.charAt(0)
+                    .toUpperCase() +
+                  part.slice(1)
+              )
+              .join("-");
+
+
+          outHeaders[
+            canonical
+          ] =
+            value;
+
+        }
+
+      }
+
+
+      // ==========================================
+      // RETURN VPN SUBSCRIPTION
+      // ==========================================
+
+      return new Response(
+        source.rawBody,
+        {
+
+          status:
+            source.sourceStatus,
+
+          headers:
+            outHeaders
+
+        }
+      );
+
+    }
+
+
+    // ============================================
+    // DEBUG
+    // ============================================
+
+    if (
+      url.pathname ===
+      "/debug"
+    ) {
+
+      const subscriptions =
+        await getSubscriptions(
+          env
+        );
+
+
+      return Response.json(
+        {
+
+          worker:
+            "wlvpn",
+
+          kvAvailable:
+            !!env.KV,
+
+          subscriptions:
+            subscriptions.length
+
+        }
+      );
+
+    }
+
+
+    // ============================================
+    // MAIN WEBSITE
+    // / НЕ ЯВЛЯЕТСЯ ПОДПИСКОЙ
+    // ============================================
+
+    return new Response(
+      getWebsite(),
+      {
+
+        headers: {
+
+          "Content-Type":
+            "text/html; charset=utf-8"
+
+        }
+
+      }
+    );
+
+  }
 
 };
