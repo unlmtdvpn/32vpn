@@ -20,33 +20,84 @@ const FAKE_UA =
 // ПОЛУЧИТЬ HEADER
 // ================================================
 
-function getHeader(
-  headers,
-  name
-) {
+function getHeader(headers, name) {
 
-  const target =
-    name.toLowerCase();
+  const target = name.toLowerCase();
 
+  for (const [key, value] of Object.entries(headers)) {
 
-  for (
-    const [key, value]
-    of Object.entries(headers)
-  ) {
-
-    if (
-      key.toLowerCase() ===
-      target
-    ) {
-
+    if (key.toLowerCase() === target) {
       return value;
-
     }
 
   }
 
-
   return null;
+}
+
+
+// ================================================
+// FETCH С ЗАЩИТОЙ ОТ РЕДИРЕКТ-ЦИКЛА
+// ================================================
+
+async function fetchWithRedirectGuard(
+  url,
+  extraHeaders,
+  maxRedirects = 5
+) {
+
+  const visited = new Set();
+
+  let currentUrl = url;
+
+  let response = null;
+
+  for (let i = 0; i <= maxRedirects; i++) {
+
+    if (visited.has(currentUrl)) {
+      throw new Error(
+        "Redirect loop detected: " + currentUrl
+      );
+    }
+
+    visited.add(currentUrl);
+
+    response = await fetch(currentUrl, {
+
+      method: "GET",
+
+      headers: extraHeaders,
+
+      redirect: "manual"
+
+    });
+
+    // Не редирект — выходим
+    if (response.status < 300 || response.status >= 400) {
+      break;
+    }
+
+    const location = response.headers.get("location");
+
+    if (!location) {
+      break;
+    }
+
+    // Резолвим относительные location
+    const next = new URL(location, currentUrl).toString();
+
+    // Если ведёт туда же — это цикл, прекращаем
+    if (next === currentUrl || visited.has(next)) {
+      throw new Error(
+        "Redirect loop detected: " + currentUrl + " -> " + next
+      );
+    }
+
+    currentUrl = next;
+
+  }
+
+  return { response, finalUrl: currentUrl };
 
 }
 
@@ -64,74 +115,47 @@ async function getSourceSubscription() {
 
   try {
 
-    const response =
-      await fetch(
-        TRAFFIC_SOURCE_URL,
-        {
-          method:
-            "GET",
+    const { response } = await fetchWithRedirectGuard(
+      TRAFFIC_SOURCE_URL,
+      {
+        "User-Agent": FAKE_UA,
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8"
+      }
+    );
 
-          headers: {
+    const rawHeaders = Object.fromEntries(
+      response.headers.entries()
+    );
 
-            "User-Agent":
-              FAKE_UA,
-
-            "Accept":
-              "application/json, text/plain, */*",
-
-            "Accept-Language":
-              "ru-RU,ru;q=0.9,en;q=0.8"
-
-          },
-
-          redirect:
-            "follow"
-        }
-      );
-
-
-    const rawHeaders =
-      Object.fromEntries(
-        response.headers.entries()
-      );
-
-
-    const rawBody =
-      await response.text();
-
+    const rawBody = await response.text();
 
     // ==========================================
     // НЕПУСТОЙ ОТВЕТ
     // ==========================================
 
-    if (
-      rawBody &&
-      rawBody.trim()
-    ) {
+    if (rawBody && rawBody.trim()) {
 
       return {
 
-        sourceStatus:
-          response.status,
+        sourceStatus: response.status,
 
         rawHeaders,
 
         rawBody,
 
-        errorMessage:
-          ""
+        errorMessage: ""
 
       };
 
     }
-
 
     // Если тело пустое —
     // идём на вторую попытку
 
   } catch (_) {
 
-    // Сетевая ошибка —
+    // Сетевая ошибка или цикл —
     // идём на вторую попытку
 
   }
@@ -143,74 +167,48 @@ async function getSourceSubscription() {
 
   try {
 
-    const response =
-      await fetch(
-        TRAFFIC_SOURCE_URL,
-        {
-          method:
-            "GET",
+    const { response } = await fetchWithRedirectGuard(
+      TRAFFIC_SOURCE_URL,
+      {
+        "User-Agent": FAKE_UA
+      }
+    );
 
-          headers: {
+    const rawHeaders = Object.fromEntries(
+      response.headers.entries()
+    );
 
-            "User-Agent":
-              FAKE_UA
-
-          },
-
-          redirect:
-            "follow"
-        }
-      );
-
-
-    const rawHeaders =
-      Object.fromEntries(
-        response.headers.entries()
-      );
-
-
-    const rawBody =
-      await response.text();
-
+    const rawBody = await response.text();
 
     // ==========================================
     // ПРОВЕРКА ПУСТОГО ОТВЕТА
     // ==========================================
 
-    if (
-      !rawBody ||
-      !rawBody.trim()
-    ) {
+    if (!rawBody || !rawBody.trim()) {
 
       return {
 
-        sourceStatus:
-          response.status,
+        sourceStatus: response.status,
 
         rawHeaders,
 
-        rawBody:
-          "",
+        rawBody: "",
 
-        errorMessage:
-          "Источник вернул пустой ответ"
+        errorMessage: "Источник вернул пустой ответ"
 
       };
 
     }
 
-
     return {
 
-      sourceStatus:
-        response.status,
+      sourceStatus: response.status,
 
       rawHeaders,
 
       rawBody,
 
-      errorMessage:
-        ""
+      errorMessage: ""
 
     };
 
@@ -218,18 +216,13 @@ async function getSourceSubscription() {
 
     return {
 
-      sourceStatus:
-        0,
+      sourceStatus: 0,
 
-      rawHeaders:
-        {},
+      rawHeaders: {},
 
-      rawBody:
-        "",
+      rawBody: "",
 
-      errorMessage:
-        error.message ||
-        String(error)
+      errorMessage: error.message || String(error)
 
     };
 
@@ -242,138 +235,65 @@ async function getSourceSubscription() {
 // TRAFFIC
 // ================================================
 
-function updateSubscriptionUserinfo(
-  sourceUserinfo
-) {
+function updateSubscriptionUserinfo(sourceUserinfo) {
 
-  let upload =
-    "0";
+  let upload = "0";
 
-  let download =
-    "0";
+  let download = "0";
 
-  let total =
-    "0";
+  let total = "0";
 
-  let expire =
-    "";
+  let expire = "";
 
+  if (sourceUserinfo) {
 
-  if (
-    sourceUserinfo
-  ) {
+    const params = sourceUserinfo.split(";");
 
-    const params =
-      sourceUserinfo.split(
-        ";"
-      );
+    for (const param of params) {
 
+      const index = param.indexOf("=");
 
-    for (
-      const param
-      of params
-    ) {
-
-      const index =
-        param.indexOf(
-          "="
-        );
-
-
-      if (
-        index === -1
-      ) {
-
+      if (index === -1) {
         continue;
-
       }
 
+      const key = param
+        .slice(0, index)
+        .trim()
+        .toLowerCase();
 
-      const key =
-        param
-          .slice(
-            0,
-            index
-          )
-          .trim()
-          .toLowerCase();
+      const value = param
+        .slice(index + 1)
+        .trim();
 
-
-      const value =
-        param
-          .slice(
-            index + 1
-          )
-          .trim();
-
-
-      if (
-        key ===
-        "upload"
-      ) {
-
-        upload =
-          value || "0";
-
+      if (key === "upload") {
+        upload = value || "0";
       }
 
-
-      if (
-        key ===
-        "download"
-      ) {
-
-        download =
-          value || "0";
-
+      if (key === "download") {
+        download = value || "0";
       }
 
-
-      if (
-        key ===
-        "total"
-      ) {
-
-        total =
-          value || "0";
-
+      if (key === "total") {
+        total = value || "0";
       }
 
-
-      if (
-        key ===
-        "expire"
-      ) {
-
-        expire =
-          value || "";
-
+      if (key === "expire") {
+        expire = value || "";
       }
 
     }
 
   }
 
-
   let result =
-    "upload=" +
-    upload +
-    "; download=" +
-    download +
-    "; total=" +
-    total;
+    "upload=" + upload +
+    "; download=" + download +
+    "; total=" + total;
 
-
-  if (
-    expire
-  ) {
-
-    result +=
-      "; expire=" +
-      expire;
-
+  if (expire) {
+    result += "; expire=" + expire;
   }
-
 
   return result;
 
@@ -384,22 +304,17 @@ function updateSubscriptionUserinfo(
 // СОЗДАТЬ ОШИБКУ
 // ================================================
 
-function createErrorResponse(
-  message
-) {
+function createErrorResponse(message) {
 
-  return JSON.stringify(
-    {
+  return JSON.stringify({
 
-      servers:
-        [],
+    servers: [],
 
-      message:
-        message ||
-        "Источник подписки временно недоступен"
+    message:
+      message ||
+      "Источник подписки временно недоступен"
 
-    }
-  );
+  });
 
 }
 
@@ -410,53 +325,35 @@ function createErrorResponse(
 
 export default {
 
+  async fetch(request) {
 
-  async fetch(
-    request
-  ) {
-
-
-    const url =
-      new URL(
-        request.url
-      );
-
+    const url = new URL(request.url);
 
     // ============================================
     // ПОЛУЧАЕМ ИСТОЧНИК
     // ============================================
 
-    const source =
-      await getSourceSubscription();
-
+    const source = await getSourceSubscription();
 
     // ============================================
     // DEBUG
     // ============================================
 
-    if (
-      url.pathname ===
-      "/debug"
-    ) {
+    if (url.pathname === "/debug") {
 
       return new Response(
         JSON.stringify(
           {
 
-            sourceUrl:
-              TRAFFIC_SOURCE_URL,
+            sourceUrl: TRAFFIC_SOURCE_URL,
 
-            sourceStatus:
-              source.sourceStatus,
+            sourceStatus: source.sourceStatus,
 
-            error:
-              source.errorMessage,
+            error: source.errorMessage,
 
-            headers:
-              source.rawHeaders,
+            headers: source.rawHeaders,
 
-            body:
-              source.rawBody
+            body: source.rawBody
 
           },
           null,
@@ -464,16 +361,13 @@ export default {
         ),
         {
 
-          status:
-            200,
+          status: 200,
 
           headers: {
 
-            "Content-Type":
-              "application/json; charset=utf-8",
+            "Content-Type": "application/json; charset=utf-8",
 
-            "Cache-Control":
-              "no-store"
+            "Cache-Control": "no-store"
 
           }
 
@@ -482,67 +376,44 @@ export default {
 
     }
 
-
     // ============================================
     // ОБЩИЕ HEADERS
     // ============================================
 
-    const sourceUserinfo =
-      getHeader(
-        source.rawHeaders,
-        "subscription-userinfo"
-      );
-
+    const sourceUserinfo = getHeader(
+      source.rawHeaders,
+      "subscription-userinfo"
+    );
 
     const outHeaders = {
 
       "Content-Type":
 
-        getHeader(
-          source.rawHeaders,
-          "content-type"
-        ) ||
+        getHeader(source.rawHeaders, "content-type") ||
 
         "application/json; charset=utf-8",
 
+      "Access-Control-Allow-Origin": "*",
 
-      "Access-Control-Allow-Origin":
-        "*",
+      "Cache-Control": "no-store",
 
+      "Profile-Title": "wlvpn",
 
-      "Cache-Control":
-        "no-store",
-
-
-      "Profile-Title":
-        "wlvpn",
-
-
-      "Profile-Update-Interval":
-        "6",
-
+      "Profile-Update-Interval": "6",
 
       "Subscription-Userinfo":
 
-        updateSubscriptionUserinfo(
-          sourceUserinfo
-        ),
+        updateSubscriptionUserinfo(sourceUserinfo),
 
-
-      "announce":
-        "wlvpn"
+      "announce": "wlvpn"
 
     };
-
 
     // ============================================
     // ЕСЛИ ИСТОЧНИК НЕ ВЕРНУЛ ДАННЫЕ
     // ============================================
 
-    if (
-      !source.rawBody ||
-      !source.rawBody.trim()
-    ) {
+    if (!source.rawBody || !source.rawBody.trim()) {
 
       return new Response(
         createErrorResponse(
@@ -551,17 +422,14 @@ export default {
         ),
         {
 
-          status:
-            200,
+          status: 200,
 
-          headers:
-            outHeaders
+          headers: outHeaders
 
         }
       );
 
     }
-
 
     // ============================================
     // ПРОПУСКАЕМ ВАЖНЫЕ HEADERS
@@ -581,53 +449,26 @@ export default {
 
     ];
 
+    for (const name of passthrough) {
 
-    for (
-      const name
-      of passthrough
-    ) {
+      const value = getHeader(source.rawHeaders, name);
 
-      const value =
-        getHeader(
-          source.rawHeaders,
-          name
-        );
+      if (value) {
 
+        const canonical = name
+          .split("-")
+          .map(
+            part =>
+              part.charAt(0).toUpperCase() +
+              part.slice(1)
+          )
+          .join("-");
 
-      if (
-        value
-      ) {
-
-        const canonical =
-          name
-            .split(
-              "-"
-            )
-            .map(
-              part =>
-
-                part
-                  .charAt(0)
-                  .toUpperCase() +
-
-                part.slice(
-                  1
-                )
-            )
-            .join(
-              "-"
-            );
-
-
-        outHeaders[
-          canonical
-        ] =
-          value;
+        outHeaders[canonical] = value;
 
       }
 
     }
-
 
     // ============================================
     // ОТДАЁМ КОНФИГ
@@ -637,11 +478,9 @@ export default {
       source.rawBody,
       {
 
-        status:
-          200,
+        status: 200,
 
-        headers:
-          outHeaders
+        headers: outHeaders
 
       }
     );
