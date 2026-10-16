@@ -56,16 +56,12 @@ export default {
     }
 
     // ============================================
-    // ДАТА ОКОНЧАНИЯ — 30 ОКТЯБРЯ
+    // ДАТА ОКОНЧАНИЯ — 1 ЯНВАРЯ 2028 ГОДА
     // ============================================
 
     function getExpire() {
-      const now = new Date();
-      const y = now.getUTCFullYear();
-      let d = Date.UTC(y, 9, 30, 0, 0, 0); // месяц 9 = октябрь
-      if (d < now.getTime()) {
-        d = Date.UTC(y + 1, 9, 30, 0, 0, 0);
-      }
+      // 1 января 2028 года, 00:00:00 UTC
+      const d = Date.UTC(2028, 0, 1, 0, 0, 0);
       return Math.floor(d / 1000);
     }
 
@@ -93,7 +89,7 @@ export default {
     const info = parseUserinfo(headers["subscription-userinfo"]);
 
     // ============================================
-    // БРАУЗЕР — ВЕБ-ИНТЕРФЕЙС
+    // БРАУЗЕР — УЛУЧШЕННЫЙ ВЕБ-ИНТЕРФЕЙС
     // ============================================
 
     if (isBrowser) {
@@ -109,227 +105,209 @@ export default {
       const used = info.upload + info.download;
       const total = info.total || 0;
       const percent = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-      const expireDate = new Date(EXPIRE * 1000)
-        .toISOString()
-        .slice(0, 10)
-        .split("-")
-        .reverse()
-        .join(".");
+      
+      const expireDate = "01.01.2028";
 
       const html = `<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>wlvpn</title>
+<title>wlvpn · Управление подпиской</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0b0f19;
-    color: #e8ecf3;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(circle at top, #111827 0%, #030712 100%);
+    color: #f3f4f6;
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 20px;
     -webkit-font-smoothing: antialiased;
   }
   .card {
     width: 100%;
-    max-width: 480px;
-    background: linear-gradient(160deg, #151b2b 0%, #0f1420 100%);
-    border: 1px solid #232b3d;
-    border-radius: 24px;
-    padding: 32px 28px;
-    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+    max-width: 440px;
+    background: rgba(17, 24, 39, 0.75);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 28px;
+    padding: 32px 26px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
   }
-  .logo {
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .logo-area {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 28px;
   }
   .logo-icon {
-    width: 44px; height: 44px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #4f7cff, #8b5cf6);
+    width: 42px; height: 42px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
     display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
+    font-size: 20px;
+    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
   }
   .logo-text {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
-    letter-spacing: -.5px;
+    letter-spacing: -0.4px;
   }
   .status {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: rgba(74, 222, 128, .12);
-    color: #4ade80;
-    padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
+    background: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+    padding: 6px 12px;
+    border-radius: 50px;
+    font-size: 11px;
     font-weight: 600;
-    margin-bottom: 24px;
+    border: 1px solid rgba(16, 185, 129, 0.2);
   }
   .dot {
-    width: 7px; height: 7px;
+    width: 6px; height: 6px;
     border-radius: 50%;
-    background: #4ade80;
-    box-shadow: 0 0 8px #4ade80;
+    background: #34d399;
+    box-shadow: 0 0 10px #34d399;
   }
-  .section-label {
-    font-size: 12px;
-    color: #7a869e;
+  .section-title {
+    font-size: 11px;
+    color: #9ca3af;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 12px;
+    letter-spacing: 1.2px;
+    margin-bottom: 10px;
     font-weight: 600;
   }
-  .traffic {
-    background: #0e1320;
-    border: 1px solid #1e2637;
-    border-radius: 16px;
+  .traffic-card {
+    background: rgba(3, 7, 18, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
     padding: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
   }
-  .traffic-main {
+  .traffic-header {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
   }
   .traffic-used {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 700;
   }
   .traffic-total {
     font-size: 13px;
-    color: #7a869e;
+    color: #9ca3af;
   }
-  .bar {
+  .progress-bar {
     height: 8px;
-    background: #1a2133;
+    background: rgba(255, 255, 255, 0.05);
     border-radius: 100px;
     overflow: hidden;
     margin-bottom: 14px;
   }
-  .bar-fill {
+  .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #4f7cff, #8b5cf6);
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
     border-radius: 100px;
-    transition: width .4s ease;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   }
-  .traffic-row {
+  .traffic-details {
     display: flex;
     justify-content: space-between;
-    font-size: 13px;
-    color: #8b95ab;
+    font-size: 12px;
+    color: #9ca3af;
   }
-  .traffic-row b { color: #c9d2e3; font-weight: 600; }
-  .expire {
+  .traffic-details b { color: #e5e7eb; font-weight: 500; }
+  .info-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #0e1320;
-    border: 1px solid #1e2637;
-    border-radius: 16px;
+    background: rgba(3, 7, 18, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 20px;
     padding: 16px 20px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     font-size: 14px;
   }
-  .expire-label { color: #7a869e; }
-  .expire-value { color: #e8ecf3; font-weight: 600; }
-  .notice {
-    background: rgba(79, 124, 255, .08);
-    border: 1px solid rgba(79, 124, 255, .25);
-    border-radius: 16px;
-    padding: 20px;
-    margin-bottom: 20px;
+  .info-label { color: #9ca3af; }
+  .info-val { font-weight: 600; color: #f9fafb; }
+  .hint-box {
+    background: rgba(59, 130, 246, 0.06);
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    border-radius: 20px;
+    padding: 18px;
+    margin-bottom: 24px;
   }
-  .notice-title {
-    font-weight: 700;
-    font-size: 15px;
-    margin-bottom: 8px;
-    color: #a5b9ff;
-  }
-  .notice-text {
-    font-size: 14px;
-    line-height: 1.55;
-    color: #b6c0d3;
-  }
-  .notice-text b { color: #e8ecf3; }
-  .apps {
-    display: flex;
-    gap: 8px;
-    margin-top: 14px;
-  }
-  .app {
-    flex: 1;
-    text-align: center;
-    padding: 10px;
-    background: #0e1320;
-    border: 1px solid #232b3d;
-    border-radius: 10px;
-    font-size: 13px;
+  .hint-title {
     font-weight: 600;
-    color: #a5b9ff;
+    font-size: 14px;
+    margin-bottom: 6px;
+    color: #93c5fd;
+  }
+  .hint-desc {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #9ca3af;
   }
   .footer {
     text-align: center;
     font-size: 12px;
-    color: #55617a;
+    color: #4b5563;
   }
 </style>
 </head>
 <body>
   <div class="card">
 
-    <div class="logo">
-      <div class="logo-icon">🛡</div>
-      <div class="logo-text">wlvpn</div>
+    <div class="header">
+      <div class="logo-area">
+        <div class="logo-icon">🛡</div>
+        <div class="logo-text">wlvpn</div>
+      </div>
+      <div class="status">
+        <span class="dot"></span> Активно
+      </div>
     </div>
 
-    <div class="status">
-      <span class="dot"></span> Подписка активна
-    </div>
-
-    <div class="section-label">Трафик</div>
-    <div class="traffic">
-      <div class="traffic-main">
+    <div class="section-title">Использование трафика</div>
+    <div class="traffic-card">
+      <div class="traffic-header">
         <div class="traffic-used">${fmt(used)}</div>
         <div class="traffic-total">из ${fmt(total)}</div>
       </div>
-      <div class="bar">
-        <div class="bar-fill" style="width: ${percent.toFixed(1)}%"></div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${percent.toFixed(1)}%"></div>
       </div>
-      <div class="traffic-row">
-        <span>↑ Загружено: <b>${fmt(info.upload)}</b></span>
-        <span>↓ Скачано: <b>${fmt(info.download)}</b></span>
+      <div class="traffic-details">
+        <span>↑ Отдача: <b>${fmt(info.upload)}</b></span>
+        <span>↓ Загрузка: <b>${fmt(info.download)}</b></span>
       </div>
     </div>
 
-    <div class="expire">
-      <span class="expire-label">Окончание подписки</span>
-      <span class="expire-value">${expireDate}</span>
+    <div class="info-row">
+      <span class="info-label">Срок действия</span>
+      <span class="info-val">${expireDate}</span>
     </div>
 
-    <div class="notice">
-      <div class="notice-title">Как подключиться</div>
-      <div class="notice-text">
-        Вставьте эту ссылку в <b>Happ</b> или <b>Incy</b> как подписку.
-        В браузере конфигурация не отображается.
-      </div>
-      <div class="apps">
-        <div class="app">Happ</div>
-        <div class="app">Incy</div>
+    <div class="hint-box">
+      <div class="hint-title">Использование подписки</div>
+      <div class="hint-desc">
+        Скопируйте эту ссылку и добавьте её в ваш любимый VPN-клиент. В браузере отображается только текущая статистика.
       </div>
     </div>
 
     <div class="footer">
-      © wlvpn · стабильный VPN сервис
+      wlvpn · защищенное соединение
     </div>
 
   </div>
@@ -395,7 +373,7 @@ export default {
     }
 
     // ============================================
-    // ПОДМЕНЯЕМ EXPIRE НА 30 ОКТЯБРЯ
+    // ПОДМЕНЯЕМ EXPIRE НА 01.01.2028
     // ============================================
 
     const newUserinfo =
