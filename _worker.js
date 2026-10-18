@@ -60,7 +60,6 @@ export default {
     // ============================================
 
     function getExpire() {
-      // 1 января 2028 года, 00:00:00 UTC
       const d = Date.UTC(2028, 0, 1, 0, 0, 0);
       return Math.floor(d / 1000);
     }
@@ -89,7 +88,7 @@ export default {
     const info = parseUserinfo(headers["subscription-userinfo"]);
 
     // ============================================
-    // БРАУЗЕР — УЛУЧШЕННЫЙ ВЕБ-ИНТЕРФЕЙС
+    // БРАУЗЕР — ВЕБ-ИНТЕРФЕЙС
     // ============================================
 
     if (isBrowser) {
@@ -113,7 +112,7 @@ export default {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>wlvpn · Управление подпиской</title>
+<title>Белый список #1 · Управление подпиской</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -157,7 +156,7 @@ export default {
     box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
   }
   .logo-text {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.4px;
   }
@@ -272,7 +271,7 @@ export default {
     <div class="header">
       <div class="logo-area">
         <div class="logo-icon">🛡</div>
-        <div class="logo-text">wlvpn</div>
+        <div class="logo-text">Белый список #1</div>
       </div>
       <div class="status">
         <span class="dot"></span> Активно
@@ -307,7 +306,7 @@ export default {
     </div>
 
     <div class="footer">
-      wlvpn · защищенное соединение
+      Белый список #1 · защищенное соединение
     </div>
 
   </div>
@@ -348,9 +347,9 @@ export default {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-cache",
-      "Profile-Title": "wlvpn",
+      "Profile-Title": "Белый список #1",
       "Profile-Update-Interval": "6",
-      "announce": "🏳 wlvpn - стабильный VPN сервис."
+      "announce": "🏳 Белый список #1 - стабильный сервис."
     };
 
     const PASSTHROUGH = [
