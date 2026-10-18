@@ -1,4 +1,4 @@
-Export default {
+export default {
   async fetch(request) {
     const SOURCE = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
     const UA = "INCY/3.6.5/android";
