@@ -340,7 +340,7 @@ export default {
     }
 
     // ============================================
-    // КАСТОМИЗАЦИЯ СЕРВЕРОВ (ВСТАВКА В НАЧАЛО + ПЕРЕИМЕНОВАНИЕ)
+    // КАСТОМИЗАЦИЯ СЕРВЕРОВ
     // ============================================
 
     if (body && body.trim()) {
@@ -372,14 +372,14 @@ export default {
         remoteLines[lastIdx] = line + "#" + encodeURIComponent("🇩🇪 Белый список #1");
       }
 
-      // 2. Формируем кастомные ноды для вставки В НАЧАЛО
-      const customLines = [
-        "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇪🇺 Telegram"),
-        "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇸🇪 Белый список #2")
-      ];
+      // 2. Нода Telegram для вставки В НАЧАЛО
+      const telegramNode = "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇪🇺 Telegram");
 
-      // Объединяем: сначала наши (Telegram и Белый список #2), потом старые из источника
-      let lines = [...customLines, ...remoteLines];
+      // 3. Нода Белый список #2 для вставки В КОНЕЦ
+      const bs2Node = "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇸🇪 Белый список #2");
+
+      // Сборка итогового массива: Telegram вначале + старые ноды из источника + Белый список #2 в конце
+      let lines = [telegramNode, ...remoteLines, bs2Node];
 
       rawText = lines.join("\n");
 
