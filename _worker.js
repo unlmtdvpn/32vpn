@@ -358,8 +358,8 @@ export default {
         // Обычный текст
       }
 
-      // Разбиваем на строки и убираем дубли/пустые
-      let remoteLines = Array.from(new Set(rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l)));
+      // Разбиваем на строки
+      let remoteLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l);
       
       // 1. Переименовываем самую последнюю ноду из источника в "Белый список #1"
       if (remoteLines.length > 0) {
@@ -372,10 +372,10 @@ export default {
         remoteLines[lastIdx] = line + "#" + encodeURIComponent("🇩🇪 Белый список #1");
       }
 
-      // 2. Нода Telegram для вставки В НАЧАЛО
+      // 2. Ровно одна нода Telegram в самый верх
       const telegramNode = "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇪🇺 Telegram");
 
-      // Сборка итогового массива без дублей
+      // Собираем итоговый список
       let lines = [telegramNode, ...remoteLines];
 
       rawText = lines.join("\n");
