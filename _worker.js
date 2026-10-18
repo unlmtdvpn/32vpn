@@ -340,14 +340,14 @@ export default {
     }
 
     // ============================================
-    // ПЕРЕИМЕНОВАНИЕ ПОСЛЕДНЕГО СЕРВЕРА В ТЕКСТЕ
+    // КАСТОМИЗАЦИЯ СЕРВЕРОВ (ВСТАВКА В НАЧАЛО + ПЕРЕИМЕНОВАНИЕ)
     // ============================================
 
     if (body && body.trim()) {
       let rawText = body;
       let isBase64 = false;
 
-      // Проверяем, не зашифровано ли всё в Base64
+      // Проверяем, закодировано ли тело в Base64
       try {
         const decoded = atob(body.trim());
         if (decoded.includes("://")) {
@@ -355,46 +355,35 @@ export default {
           isBase64 = true;
         }
       } catch (e) {
-        // Обычный текст, не base64
+        // Обычный текст
       }
 
       // Разбиваем на строки
-      let lines = rawText.split(/\r?\n/);
+      let remoteLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l);
       
-      // Ищем последнюю непустую строку со ссылкой
-      let lastIndex = -1;
-      for (let i = lines.length - 1; i >= 0; i--) {
-        if (lines[i].trim() && lines[i].includes("://")) {
-          lastIndex = i;
-          break;
-        }
-      }
-
-      if (lastIndex !== -1) {
-        let line = lines[lastIndex].trim();
-        // Отрезаем старый хвост после '#' если он есть
+      // 1. Переименовываем самую последнюю ноду из источника в "Белый список #1"
+      if (remoteLines.length > 0) {
+        let lastIdx = remoteLines.length - 1;
+        let line = remoteLines[lastIdx];
         const hashIdx = line.indexOf("#");
         if (hashIdx !== -1) {
           line = line.substring(0, hashIdx);
         }
-        // Добавляем новое имя
-        lines[lastIndex] = line + "#%F0%9F%87%A9%F0%9F%87%AA%20%D0%91%D0%B5%D0%BB%D1%8B%D0%B9%20%D1%81%DBF%81%D1%8B%D0%BB%D0%BE%D0%BA%20%231".replace(/%DBF%81/g, "%BB").replace(/%D1%8B%D0%BB%D0%BE%D0%BA/g, "%BA%D0%B8%D0%BE%D0%BA"); // чистый URL-encode для "🇩🇪 Белый список #1"
+        remoteLines[lastIdx] = line + "#" + encodeURIComponent("🇩🇪 Белый список #1");
       }
 
-      // Соберём строку обратно с правильным кодированием имени
-      const cleanNameEncoded = "🇩🇪 Белый список #1"; // Клиенты сами умеют читать UTF-8 в URI решётках
-      if (lastIndex !== -1) {
-        let line = lines[lastIndex].trim();
-        const hashIdx = line.indexOf("#");
-        if (hashIdx !== -1) {
-          line = line.substring(0, hashIdx);
-        }
-        lines[lastIndex] = line + "#" + encodeURIComponent(cleanNameEncoded);
-      }
+      // 2. Формируем кастомные ноды для вставки В НАЧАЛО
+      const customLines = [
+        "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇪🇺 Telegram"),
+        "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇸🇪 Белый список #2")
+      ];
+
+      // Объединяем: сначала наши (Telegram и Белый список #2), потом старые из источника
+      let lines = [...customLines, ...remoteLines];
 
       rawText = lines.join("\n");
 
-      // Если исходник был в Base64, кодируем обратно
+      // Если исходник был в Base64, упаковываем обратно
       if (isBase64) {
         try {
           body = btoa(unescape(encodeURIComponent(rawText)));
