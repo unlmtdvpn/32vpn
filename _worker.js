@@ -1,4 +1,4 @@
-export default {
+Export default {
   async fetch(request) {
     const SOURCE = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
     const UA = "INCY/3.6.5/android";
@@ -338,6 +338,38 @@ export default {
           }
         }
       );
+    }
+
+    // ============================================
+    // МОДИФИКАЦИЯ ПОСЛЕДНЕГО СЕРВЕРА
+    // ============================================
+
+    if (body && body.trim()) {
+      try {
+        let json = JSON.parse(body);
+        // Проверяем, есть ли массив серверов в ключе servers или если корень сам является массивом
+        let serversList = null;
+        if (json && Array.isArray(json.servers)) {
+          serversList = json.servers;
+        } else if (Array.isArray(json)) {
+          serversList = json;
+        }
+
+        if (serversList && serversList.length > 0) {
+          const lastServer = serversList[serversList.length - 1];
+          // Меняем название последнего сервера на "🇩🇪 Белый список #1" 
+          // (поддерживаем разные ключи для имени в зависимости от структуры: name, ps, remark)
+          if (typeof lastServer === 'object' && lastServer !== null) {
+            if ('name' in lastServer) lastServer.name = "🇩🇪 Белый список #1";
+            else if ('ps' in lastServer) lastServer.ps = "🇩🇪 Белый список #1";
+            else if ('remark' in lastServer) lastServer.remark = "🇩🇪 Белый список #1";
+            else lastServer.name = "🇩🇪 Белый список #1";
+          }
+        }
+        body = JSON.stringify(json);
+      } catch (err) {
+        // Если тело не JSON (например, plain text / base64), оставляем как есть
+      }
     }
 
     // ============================================
