@@ -60,7 +60,6 @@ export default {
     // ============================================
 
     function getExpire() {
-      // 1 января 2028 года, 00:00:00 UTC
       const d = Date.UTC(2028, 0, 1, 0, 0, 0);
       return Math.floor(d / 1000);
     }
@@ -341,34 +340,69 @@ export default {
     }
 
     // ============================================
-    // МОДИФИКАЦИЯ ПОСЛЕДНЕГО СЕРВЕРА
+    // ПЕРЕИМЕНОВАНИЕ ПОСЛЕДНЕГО СЕРВЕРА В ТЕКСТЕ
     // ============================================
 
     if (body && body.trim()) {
-      try {
-        let json = JSON.parse(body);
-        // Проверяем, есть ли массив серверов в ключе servers или если корень сам является массивом
-        let serversList = null;
-        if (json && Array.isArray(json.servers)) {
-          serversList = json.servers;
-        } else if (Array.isArray(json)) {
-          serversList = json;
-        }
+      let rawText = body;
+      let isBase64 = false;
 
-        if (serversList && serversList.length > 0) {
-          const lastServer = serversList[serversList.length - 1];
-          // Меняем название последнего сервера на "🇩🇪 Белый список #1" 
-          // (поддерживаем разные ключи для имени в зависимости от структуры: name, ps, remark)
-          if (typeof lastServer === 'object' && lastServer !== null) {
-            if ('name' in lastServer) lastServer.name = "🇩🇪 Белый список #1";
-            else if ('ps' in lastServer) lastServer.ps = "🇩🇪 Белый список #1";
-            else if ('remark' in lastServer) lastServer.remark = "🇩🇪 Белый список #1";
-            else lastServer.name = "🇩🇪 Белый список #1";
-          }
+      // Проверяем, не зашифровано ли всё в Base64
+      try {
+        const decoded = atob(body.trim());
+        if (decoded.includes("://")) {
+          rawText = decoded;
+          isBase64 = true;
         }
-        body = JSON.stringify(json);
-      } catch (err) {
-        // Если тело не JSON (например, plain text / base64), оставляем как есть
+      } catch (e) {
+        // Обычный текст, не base64
+      }
+
+      // Разбиваем на строки
+      let lines = rawText.split(/\r?\n/);
+      
+      // Ищем последнюю непустую строку со ссылкой
+      let lastIndex = -1;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].trim() && lines[i].includes("://")) {
+          lastIndex = i;
+          break;
+        }
+      }
+
+      if (lastIndex !== -1) {
+        let line = lines[lastIndex].trim();
+        // Отрезаем старый хвост после '#' если он есть
+        const hashIdx = line.indexOf("#");
+        if (hashIdx !== -1) {
+          line = line.substring(0, hashIdx);
+        }
+        // Добавляем новое имя
+        lines[lastIndex] = line + "#%F0%9F%87%A9%F0%9F%87%AA%20%D0%91%D0%B5%D0%BB%D1%8B%D0%B9%20%D1%81%DBF%81%D1%8B%D0%BB%D0%BE%D0%BA%20%231".replace(/%DBF%81/g, "%BB").replace(/%D1%8B%D0%BB%D0%BE%D0%BA/g, "%BA%D0%B8%D0%BE%D0%BA"); // чистый URL-encode для "🇩🇪 Белый список #1"
+      }
+
+      // Соберём строку обратно с правильным кодированием имени
+      const cleanNameEncoded = "🇩🇪 Белый список #1"; // Клиенты сами умеют читать UTF-8 в URI решётках
+      if (lastIndex !== -1) {
+        let line = lines[lastIndex].trim();
+        const hashIdx = line.indexOf("#");
+        if (hashIdx !== -1) {
+          line = line.substring(0, hashIdx);
+        }
+        lines[lastIndex] = line + "#" + encodeURIComponent(cleanNameEncoded);
+      }
+
+      rawText = lines.join("\n");
+
+      // Если исходник был в Base64, кодируем обратно
+      if (isBase64) {
+        try {
+          body = btoa(unescape(encodeURIComponent(rawText)));
+        } catch (err) {
+          body = rawText;
+        }
+      } else {
+        body = rawText;
       }
     }
 
@@ -377,7 +411,7 @@ export default {
     // ============================================
 
     const outHeaders = {
-      "Content-Type": "application/json; charset=utf-8",
+      "Content-Type": "text/plain; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-cache",
       "Profile-Title": "wlvpn",
