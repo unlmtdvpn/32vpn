@@ -13,12 +13,10 @@ export default {
       /happ/i.test(incomingUA);
 
     // ============================================
-    // ЗАПРОС К ИСТОЧНИКУ
+    // 1. ЗАПРОС К ИСТОЧНИКУ ТОЛЬКО ДЛЯ ТРАФИКА И ДАТЫ
     // ============================================
 
-    let status = 0;
     let headers = {};
-    let body = "";
 
     try {
       const first = await fetch(SOURCE, {
@@ -27,10 +25,9 @@ export default {
         cf: { cacheTtl: 0 }
       });
 
-      status = first.status;
       headers = Object.fromEntries(first.headers.entries());
 
-      if (status >= 300 && status < 400) {
+      if (first.status >= 300 && first.status < 400) {
         const setCookie = first.headers.get("set-cookie") || "";
         const cookie = setCookie.split(";")[0];
 
@@ -44,16 +41,27 @@ export default {
           cf: { cacheTtl: 0 }
         });
 
-        status = second.status;
         headers = Object.fromEntries(second.headers.entries());
-        body = await second.text();
-      } else {
-        body = await first.text();
       }
-
     } catch (e) {
-      body = "FETCH ERROR: " + e.message;
+      // Игнорируем ошибки заголовков
     }
+
+    // ============================================
+    // 2. ТВОИ СЕРВЕРЫ (КОДИРУЕМ В BASE64)
+    // ============================================
+
+    const rawServers = [
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@de-new.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%A9%F0%9F%87%AA+%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@se-new.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B8%F0%9F%87%AA+%D0%A8%D0%B2%D0%B5%D1%86%D0%B8%D1%8F",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@pl.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B5%F0%9F%87%B1+%D0%9F%D0%BE%D0%BB%D1%8C%D1%88%D0%B0",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@ru.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B7%F0%9F%87%BA+%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@tr-new.datanode-internal.net:443?type=grpc&security=reality&fp=edge&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#%F0%9F%87%B9%F0%9F%87%B7+%D0%A2%D1%83%D1%80%D1%86%D0%B8%D1%8F",
+      "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#%F0%9F%87%AA%F0%9F%87%BA+Telegram+Proxy+%7C+Wi-Fi%2FLTE",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@hole-nn.datanode-internal.net:443?type=grpc&security=reality&fp=qq&sni=river-2-611.rtbcdn.ru&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#%F0%9F%87%A9%F0%9F%87%AA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%231"
+    ];
+
+    let body = btoa(unescape(encodeURIComponent(rawServers.join("\n"))));
 
     // ============================================
     // ДАТА ОКОНЧАНИЯ — 1 ЯНВАРЯ 2028 ГОДА
@@ -88,7 +96,7 @@ export default {
     const info = parseUserinfo(headers["subscription-userinfo"]);
 
     // ============================================
-    // БРАУЗЕР — УЛУЧШЕННЫЙ ВЕБ-ИНТЕРФЕЙС
+    // БРАУЗЕР — ВЕБ-ИНТЕРФЕЙС
     // ============================================
 
     if (isBrowser) {
@@ -267,7 +275,6 @@ export default {
 </head>
 <body>
   <div class="card">
-
     <div class="header">
       <div class="logo-area">
         <div class="logo-icon">🛡</div>
@@ -277,7 +284,6 @@ export default {
         <span class="dot"></span> Активно
       </div>
     </div>
-
     <div class="section-title">Использование трафика</div>
     <div class="traffic-card">
       <div class="traffic-header">
@@ -292,23 +298,19 @@ export default {
         <span>↓ Загрузка: <b>${fmt(info.download)}</b></span>
       </div>
     </div>
-
     <div class="info-row">
       <span class="info-label">Срок действия</span>
       <span class="info-val">${expireDate}</span>
     </div>
-
     <div class="hint-box">
       <div class="hint-title">Использование подписки</div>
       <div class="hint-desc">
         Скопируйте эту ссылку и добавьте её в ваш любимый VPN-клиент. В браузере отображается только текущая статистика.
       </div>
     </div>
-
     <div class="footer">
       wlvpn · защищенное соединение
     </div>
-
   </div>
 </body>
 </html>`;
@@ -340,64 +342,11 @@ export default {
     }
 
     // ============================================
-    // КАСТОМИЗАЦИЯ СЕРВЕРОВ
-    // ============================================
-
-    if (body && body.trim()) {
-      let rawText = body;
-      let isBase64 = false;
-
-      // Проверяем, закодировано ли тело в Base64
-      try {
-        const decoded = atob(body.trim());
-        if (decoded.includes("://")) {
-          rawText = decoded;
-          isBase64 = true;
-        }
-      } catch (e) {
-        // Обычный текст
-      }
-
-      // Разбиваем на строки
-      let remoteLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l);
-      
-      // 1. Переименовываем самую последнюю ноду из источника в "Белый список #1"
-      if (remoteLines.length > 0) {
-        let lastIdx = remoteLines.length - 1;
-        let line = remoteLines[lastIdx];
-        const hashIdx = line.indexOf("#");
-        if (hashIdx !== -1) {
-          line = line.substring(0, hashIdx);
-        }
-        remoteLines[lastIdx] = line + "#" + encodeURIComponent("🇩🇪 Белый список #1");
-      }
-
-      // 2. Ровно одна нода Telegram в самый верх
-      const telegramNode = "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#" + encodeURIComponent("🇪🇺 Telegram");
-
-      // Собираем итоговый список
-      let lines = [telegramNode, ...remoteLines];
-
-      rawText = lines.join("\n");
-
-      // Если исходник был в Base64, упаковываем обратно
-      if (isBase64) {
-        try {
-          body = btoa(unescape(encodeURIComponent(rawText)));
-        } catch (err) {
-          body = rawText;
-        }
-      } else {
-        body = rawText;
-      }
-    }
-
-    // ============================================
-    // ЗАГОЛОВКИ ОТВЕТУ КЛИЕНТУ
+    // ЗАГОЛОВКИ ОТВЕТА КЛИЕНТУ
     // ============================================
 
     const outHeaders = {
-      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
       "Cache-Control": "no-cache",
       "Profile-Title": "wlvpn",
@@ -433,13 +382,6 @@ export default {
       `total=${info.total}; expire=${EXPIRE}`;
 
     outHeaders["Subscription-Userinfo"] = newUserinfo;
-
-    if (!body || !body.trim()) {
-      body = JSON.stringify({
-        servers: [],
-        message: "Источник недоступен"
-      });
-    }
 
     return new Response(body, { headers: outHeaders });
   }
