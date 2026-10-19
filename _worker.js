@@ -13,7 +13,7 @@ export default {
       /happ/i.test(incomingUA);
 
     // ============================================
-    // 1. ЗАПРОС К ИСТОЧНИКУ ТОЛЬКО ДЛЯ ТРАФИКА И ДАТЫ
+    // 1. ЗАПРОС К ИСТОЧНИКУ ТОЛЬКО ДЛЯ ТРАФИКА
     // ============================================
 
     let headers = {};
@@ -44,11 +44,11 @@ export default {
         headers = Object.fromEntries(second.headers.entries());
       }
     } catch (e) {
-      // Игнорируем ошибки заголовков
+      // Игнорируем ошибки — трафик останется нулевым
     }
 
     // ============================================
-    // 2. ТВОИ СЕРВЕРЫ (БЕЗ ЛИШНЕГО ТЕЛЕГРАМА)
+    // 2. СЕРВЕРЫ — ЧИСТАЯ ВЫДАЧА VLESS
     // ============================================
 
     const rawServers = [
@@ -112,7 +112,7 @@ export default {
       const used = info.upload + info.download;
       const total = info.total || 0;
       const percent = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-      
+
       const expireDate = "01.01.2028";
 
       const html = `<!doctype html>
@@ -353,25 +353,6 @@ export default {
       "Profile-Update-Interval": "6",
       "announce": "🏳 wlvpn - стабильный VPN сервис."
     };
-
-    const PASSTHROUGH = [
-      "profile-web-page-url",
-      "support-url",
-      "providerid",
-      "hide-settings",
-      "new-url"
-    ];
-
-    for (const name of PASSTHROUGH) {
-      const v = headers[name];
-      if (v) {
-        const canon = name
-          .split("-")
-          .map(s => s[0].toUpperCase() + s.slice(1))
-          .join("-");
-        outHeaders[canon] = v;
-      }
-    }
 
     // ============================================
     // ПОДМЕНЯЕМ EXPIRE НА 01.01.2028
