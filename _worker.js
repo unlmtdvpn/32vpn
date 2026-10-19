@@ -3,11 +3,6 @@ export default {
     const SOURCE = "https://sub.datanode-internal.net/McjAzVPB2VRYcM6z";
     const UA = "INCY/3.6.5/android";
 
-    const url = new URL(request.url);
-    const wantXray =
-      url.searchParams.get("format") === "xray" ||
-      url.searchParams.get("xray") === "1";
-
     const incomingUA = request.headers.get("User-Agent") || "";
 
     const isBrowser =
@@ -53,251 +48,22 @@ export default {
     }
 
     // ============================================
-    // 2. ПЛОСКИЙ JSON-МАССИВ СЕРВЕРОВ
+    // 2. СЕРВЕРЫ — ЧИСТАЯ ВЫДАЧА VLESS + HYSTERIA2
     // ============================================
 
-    const servers = [
-      {
-        remarks: "🇩🇪 Германия",
-        protocol: "vless",
-        address: "de-new.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        flow: "xtls-rprx-vision",
-        network: "tcp",
-        security: "reality",
-        sni: "openwrt.lan",
-        pbk: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        sid: "abbcd128",
-        fp: "qq"
-      },
-      {
-        remarks: "🇸🇪 Швеция",
-        protocol: "vless",
-        address: "se-new.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        flow: "xtls-rprx-vision",
-        network: "tcp",
-        security: "reality",
-        sni: "openwrt.lan",
-        pbk: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        sid: "abbcd128",
-        fp: "qq"
-      },
-      {
-        remarks: "🇵🇱 Польша",
-        protocol: "vless",
-        address: "pl.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        flow: "xtls-rprx-vision",
-        network: "tcp",
-        security: "reality",
-        sni: "openwrt.lan",
-        pbk: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        sid: "abbcd128",
-        fp: "qq"
-      },
-      {
-        remarks: "🇷🇺 Россия",
-        protocol: "vless",
-        address: "ru.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        flow: "xtls-rprx-vision",
-        network: "tcp",
-        security: "reality",
-        sni: "openwrt.lan",
-        pbk: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        sid: "abbcd128",
-        fp: "qq"
-      },
-      {
-        remarks: "🇪🇺 Telegram Proxy",
-        protocol: "vless",
-        address: "qq.utiltools.site",
-        port: 443,
-        id: "4054fdc2-ee80-4419-8a8e-d937df4719e2",
-        flow: "xtls-rprx-vision",
-        network: "tcp",
-        security: "reality",
-        sni: "qq.utiltools.site",
-        pbk: "drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI",
-        fp: "qq"
-      },
-      {
-        remarks: "🇩🇪 Белый список #1 | TCP",
-        protocol: "vless",
-        address: "hole-nn.datanode-internal.net",
-        port: 443,
-        id: "31dac09f-78ee-49ca-9566-d20aea578fdc",
-        network: "grpc",
-        security: "reality",
-        sni: "river-2-611.rtbcdn.ru",
-        pbk: "r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic",
-        sid: "abbcd128",
-        fp: "qq",
-        serviceName: "ads.x5.ru",
-        mode: "gun"
-      },
-      {
-        remarks: "🇪🇺 Белый список #2 | UDP",
-        protocol: "hysteria2",
-        address: "ru03.arpanet-cdn.com",
-        port: 17701,
-        id: "56ff50da-a238-4646-95ab-dd159634bd87",
-        sni: "ru03.arpanet-cdn.com",
-        obfs: "salamander",
-        "obfs-password": "588c76723192f87cfe6d6786816177cd2bd9773acdc545928d7d1d5e8338d4ce"
-      },
-      {
-        remarks: "🇪🇺 Белый список #3 | UDP",
-        protocol: "hysteria2",
-        address: "37.9.4.112",
-        port: 17701,
-        id: "56ff50da-a238-4646-95ab-dd159634bd87",
-        sni: "ru03.arpanet-cdn.com",
-        obfs: "salamander",
-        "obfs-password": "588c76723192f87cfe6d6786816177cd2bd9773acdc545928d7d1d5e8338d4ce"
-      },
-      {
-        remarks: "🇪🇺 Белый список #4 | TCP",
-        protocol: "vless",
-        address: "78.159.246.179",
-        port: 2053,
-        id: "95a608b6-bff1-4e10-bb61-0a39f221bb7d",
-        network: "xhttp",
-        security: "tls",
-        sni: "randomquaint.net",
-        fp: "random",
-        path: "/api/v1/upload",
-        host: "randomquaint.net",
-        mode: "auto"
-      }
+    const rawServers = [
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@de-new.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%A9%F0%9F%87%AA+%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@se-new.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B8%F0%9F%87%AA+%D0%A8%D0%B2%D0%B5%D1%86%D0%B8%D1%8F",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@pl.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B5%F0%9F%87%B1+%D0%9F%D0%BE%D0%BB%D1%8C%D1%88%D0%B0",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@ru.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B7%F0%9F%87%BA+%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F",
+      "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#%F0%9F%87%AA%F0%9F%87%BA+Telegram+Proxy",
+      "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@hole-nn.datanode-internal.net:443?type=grpc&security=reality&fp=qq&sni=river-2-611.rtbcdn.ru&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#%F0%9F%87%A9%F0%9F%87%AA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%231+%7C+TCP",
+      "hysteria2://56ff50da-a238-4646-95ab-dd159634bd87@ru03.arpanet-cdn.com:17701?obfs=salamander&obfs-password=588c76723192f87cfe6d6786816177cd2bd9773acdc545928d7d1d5e8338d4ce&sni=ru03.arpanet-cdn.com#%F0%9F%87%AA%F0%9F%87%BA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%232+%7C+UDP",
+      "hysteria2://56ff50da-a238-4646-95ab-dd159634bd87@37.9.4.112:17701?obfs=salamander&obfs-password=588c76723192f87cfe6d6786816177cd2bd9773acdc545928d7d1d5e8338d4ce&sni=ru03.arpanet-cdn.com#%F0%9F%87%AA%F0%9F%87%BA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%233+%7C+UDP",
+      "vless://95a608b6-bff1-4e10-bb61-0a39f221bb7d@78.159.246.179:2053?type=xhttp&security=tls&fp=random&sni=randomquaint.net&path=%2Fapi%2Fv1%2Fupload&host=randomquaint.net&mode=auto#%F0%9F%87%AA%F0%9F%87%BA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%234+%7C+TCP"
     ];
 
-    // ============================================
-    // XRAY-КОНФИГ С БАЛАНСИРОМ (из LTE (2).json)
-    // ============================================
-
-    const xrayConfig = {
-      remarks: "🇷🇺 LTE",
-      dns: { servers: ["1.1.1.1", "1.0.0.1"], queryStrategy: "UseIP" },
-      routing: {
-        rules: [
-          { type: "field", protocol: ["bittorrent"], outboundTag: "direct" },
-          { type: "field", network: "tcp,udp", balancerTag: "balancer" }
-        ],
-        balancers: [
-          {
-            tag: "balancer",
-            selector: [
-              "proxy-1", "proxy-2", "proxy-3", "proxy-4",
-              "proxy-5", "proxy-6", "proxy-7", "proxy-8"
-            ],
-            strategy: { type: "leastPing" }
-          }
-        ],
-        domainMatcher: "hybrid",
-        domainStrategy: "IPIfNonMatch"
-      },
-      inbounds: [
-        {
-          tag: "socks", port: 10808, listen: "127.0.0.1", protocol: "socks",
-          settings: { udp: true, auth: "noauth" },
-          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
-        },
-        {
-          tag: "http", port: 10809, listen: "127.0.0.1", protocol: "http",
-          settings: { allowTransparent: false },
-          sniffing: { enabled: true, routeOnly: false, destOverride: ["http", "tls", "quic"] }
-        }
-      ],
-      outbounds: [
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "wstg.datasynctrue.online", port: 443, users: [{ id: "ff0b6ba8-bed0-4c4d-bbc9-23af47582615", encryption: "none", flow: "", level: 0 }] }] },
-          streamSettings: {
-            network: "ws", security: "tls",
-            wsSettings: { path: "/api/connect", headers: { Host: "wstg.datasynctrue.online" } },
-            tlsSettings: { serverName: "wstg.datasynctrue.online", fingerprint: "qq", allowInsecure: false }
-          },
-          tag: "proxy-1"
-        },
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "ivx-ivy-al0.whitenetwork.cloud", port: 7445, users: [{ id: "66217279-de40-4b62-b2bb-9c33b8fb7a01", encryption: "none", flow: "xtls-rprx-vision", level: 0 }] }] },
-          streamSettings: {
-            network: "tcp", security: "reality",
-            tcpSettings: { header: { type: "none" } },
-            realitySettings: { serverName: "passport.yandex.ru", fingerprint: "random", publicKey: "S_s3FVodJIep88KnIgT0cZLUMB2tAJHTJEn0o-J03G8", shortId: "283f4b51fbe39ad9" }
-          },
-          tag: "proxy-2"
-        },
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "13.143.137.206", port: 8443, users: [{ id: "9ebf4fda-7395-4800-b42f-b2dda649880a", encryption: "none", flow: "xtls-rprx-vision", level: 0 }] }] },
-          streamSettings: {
-            network: "tcp", security: "reality",
-            tcpSettings: { header: { type: "none" } },
-            realitySettings: { serverName: "ya.ru", fingerprint: "firefox", publicKey: "1MLoHw7RVkGefh7XUyuGg4ndxwv4vDU9en-f9JxpXRQ", shortId: "d2061bb1" }
-          },
-          tag: "proxy-3"
-        },
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "xnodtwx.artemida.live", port: 443, users: [{ id: "4c346148-ece9-487a-bffb-ba5a399b2d71", encryption: "none", flow: "", level: 0 }] }] },
-          streamSettings: {
-            network: "grpc", security: "reality",
-            grpcSettings: { serviceName: "", multiMode: true },
-            realitySettings: { serverName: "xnodtwx.artemida.live", fingerprint: "firefox", publicKey: "JqmkP6Fys7jN2Fu1iDJuWKVNPhlgHfy_pj1DHFVKVhw", shortId: "a1b2c3d4e5f6a7b8" }
-          },
-          tag: "proxy-4"
-        },
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "ch.srv.vbuste.ru", port: 444, users: [{ id: "318c935d-c195-41d3-99ad-9bbcfdab3386", encryption: "none", flow: "", level: 0 }] }] },
-          streamSettings: {
-            network: "grpc", security: "reality",
-            grpcSettings: { serviceName: "", multiMode: true },
-            realitySettings: { serverName: "ch.srv.vbuste.ru", fingerprint: "firefox", publicKey: "0-or5ogGhYbBgsVSrSC2Fhxyp2BN97Y9pqIdg61Qd08", shortId: "4be4110078ebed4a" }
-          },
-          tag: "proxy-5"
-        },
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "37.18.14.145", port: 7445, users: [{ id: "66217279-de40-4b62-b2bb-9c33b8fb7a01", encryption: "none", flow: "xtls-rprx-vision", level: 0 }] }] },
-          streamSettings: {
-            network: "raw", security: "reality",
-            realitySettings: { serverName: "passport.yandex.ru", fingerprint: "random", publicKey: "S_s3FVodJIep88KnIgT0cZLUMB2tAJHTJEn0o-J03G8", shortId: "283f4b51fbe39ad9" }
-          },
-          tag: "proxy-6"
-        },
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "ragnarok-vpn.ru", port: 8443, users: [{ id: "b7df9363-087b-48f7-a4ca-6e988ebf7f35", encryption: "none", flow: "xtls-rprx-vision", level: 0 }] }] },
-          streamSettings: {
-            network: "tcp", security: "reality",
-            tcpSettings: { header: { type: "none" } },
-            realitySettings: { serverName: "amd.com", fingerprint: "edge", publicKey: "aV7fW5RmH-i6HzOiqnFlMwV_ZgfuutMpeWWfEaJBsTM", shortId: "5bfa1416" }
-          },
-          tag: "proxy-7"
-        },
-        {
-          protocol: "vless",
-          settings: { vnext: [{ address: "90.156.218.163", port: 443, users: [{ id: "adc11f30-e4cb-4985-bf5e-f9ded69c019f", encryption: "none", flow: "xtls-rprx-vision", level: 0 }] }] },
-          streamSettings: {
-            network: "tcp", security: "reality",
-            tcpSettings: { header: { type: "none" } },
-            realitySettings: { serverName: "eh.vk.ru", fingerprint: "qq", publicKey: "fNfokzklCF4l_c8k8PciOCjm5ecNoF_sNLjEtaO-xzI", shortId: "db04ce8bdb8900f1" }
-          },
-          tag: "proxy-8"
-        },
-        { tag: "direct", protocol: "freedom" },
-        { tag: "block", protocol: "blackhole" }
-      ]
-    };
+    let body = btoa(unescape(encodeURIComponent(rawServers.join("\n"))));
 
     // ============================================
     // ДАТА ОКОНЧАНИЯ — 1 ЯНВАРЯ 2028 ГОДА
@@ -335,7 +101,7 @@ export default {
     // БРАУЗЕР — ВЕБ-ИНТЕРФЕЙС
     // ============================================
 
-    if (isBrowser && !wantXray) {
+    if (isBrowser) {
 
       const fmt = (b) => {
         if (!b) return "0 B";
@@ -593,21 +359,7 @@ export default {
     }
 
     // ============================================
-    // ?format=xray — XRAY-КОНФИГ С БАЛАНСИРОМ
-    // ============================================
-
-    if (wantXray) {
-      return new Response(JSON.stringify(xrayConfig, null, 2), {
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Access-Control-Allow-Origin": "*",
-          "Cache-Control": "no-cache"
-        }
-      });
-    }
-
-    // ============================================
-    // ЗАПРЕТ ДЛЯ ЧУЖИХ
+    // НЕ БРАУЗЕР И НЕ КЛИЕНТ — ЗАПРЕТ
     // ============================================
 
     if (!isAllowed) {
@@ -625,7 +377,7 @@ export default {
     }
 
     // ============================================
-    // ОСНОВНОЙ ОТВЕТ — ПЛОСКИЙ JSON-МАССИВ
+    // ЗАГОЛОВКИ ОТВЕТА КЛИЕНТУ
     // ============================================
 
     const outHeaders = {
@@ -637,12 +389,16 @@ export default {
       "announce": "🏳 wlvpn - стабильный VPN сервис."
     };
 
+    // ============================================
+    // ПОДМЕНЯЕМ EXPIRE НА 01.01.2028
+    // ============================================
+
     const newUserinfo =
       `upload=${info.upload}; download=${info.download}; ` +
       `total=${info.total}; expire=${EXPIRE}`;
 
     outHeaders["Subscription-Userinfo"] = newUserinfo;
 
-    return new Response(JSON.stringify(servers, null, 2), { headers: outHeaders });
+    return new Response(body, { headers: outHeaders });
   }
 };
