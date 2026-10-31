@@ -201,7 +201,7 @@ async function apiTrial(request, env, url) {
   const rl = rlRaw ? parseInt(rlRaw) : 0;
 
   if (rl >= CONFIG.trialRateLimit) {
-    return jsonResponse({ error: "Слишком много запросов за сегодня. Попробуйте завтра." }, 429);
+    return jsonResponse({ error: "Второй раз взять не получится.)" }, 429);
   }
   await env.KV.put(rlKey, String(rl + 1), { expirationTtl: 86400 });
 
