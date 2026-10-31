@@ -19,7 +19,7 @@ const SERVERS = [
 const CONFIG = {
   trialDays: 7,
   trialTrafficGB: 50,
-  trialRateLimit: 3,
+  trialRateLimit: 1,
   sessionTTL: 24 * 60 * 60 * 1000,
   infiniteExpire: 4102444800
 };
