@@ -11,9 +11,6 @@ const SERVERS = [
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@ru.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B7%F0%9F%87%BA+%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F",
   "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#%F0%9F%87%AA%F0%9F%87%BA+Telegram+Proxy",
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@hole-nn.datanode-internal.net:443?type=grpc&security=reality&fp=qq&sni=river-2-611.rtbcdn.ru&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#%F0%9F%87%A9%F0%9F%87%AA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%231+%7C+TCP",
-  "hysteria2://56ff50da-a238-4646-95ab-dd159634bd87@ru03.arpanet-cdn.com:17701?obfs=salamander&obfs-password=588c76723192f87cfe6d6786816177cd2bd9773acdc545928d7d1d5e8338d4ce&sni=ru03.arpanet-cdn.com#%F0%9F%87%AA%F0%9F%87%BA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%232+%7C+UDP",
-  "hysteria2://56ff50da-a238-4646-95ab-dd159634bd87@37.9.4.112:17701?obfs=salamander&obfs-password=588c76723192f87cfe6d6786816177cd2bd9773acdc545928d7d1d5e8338d4ce&sni=ru03.arpanet-cdn.com#%F0%9F%87%AA%F0%9F%87%BA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%233+%7C+UDP",
-  "vless://95a608b6-bff1-4e10-bb61-0a39f221bb7d@78.159.246.179:2053?type=xhttp&security=tls&fp=random&sni=randomquaint.net&path=%2Fapi%2Fv1%2Fupload&host=randomquaint.net&mode=auto#%F0%9F%87%AA%F0%9F%87%BA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%234+%7C+TCP"
 ];
 
 const CONFIG = {
