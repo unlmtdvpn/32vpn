@@ -2,12 +2,15 @@ name = "wlvpn"
 main = "_worker.js"
 compatibility_date = "2024-12-18"
 
-# KV для хранения подписок
 [[kv_namespaces]]
 binding = "KV"
 id = "b795add16af1425f980fe319d2907b67"
 
-# Логи
+# Смени перед деплоем! Или используй `wrangler secret put`
+[vars]
+ADMIN_PASSWORD = "wlvpn-admin-2025"
+TRAFFIC_API_KEY = "traffic-report-secret-2025"
+
 [observability.logs]
 enabled = true
 head_sampling_rate = 1
