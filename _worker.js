@@ -1,27 +1,21 @@
 // ============================================================
-// WLVPN — Cloudflare Worker (полная версия)
+// WLVPN — Free VPN Service (Cloudflare Worker)
 // KV binding: KV
 // ============================================================
 
-// ⚠️ ПАРОЛЬ АДМИНКИ — прямо в коде
 const ADMIN_PASSWORD = "wlvpn2025admin";
-const TRAFFIC_API_KEY = "traffic-secret-2025";
 
 const SERVERS = [
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@de-new.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%A9%F0%9F%87%AA+%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F",
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@se-new.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B8%F0%9F%87%AA+%D0%A8%D0%B2%D0%B5%D1%86%D0%B8%D1%8F",
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@pl.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B5%F0%9F%87%B1+%D0%9F%D0%BE%D0%BB%D1%8C%D1%88%D0%B0",
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@ru.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%B7%F0%9F%87%BA+%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F",
-  "vless://4054fdc2-ee80-4419-8a8e-d937df4719e2@qq.utiltools.site:443?flow=xtls-rprx-vision&type=tcp&headerType=none&security=reality&fp=qq&sni=qq.utiltools.site&pbk=drY21DHNOr6ezJLA2B10mzTExeJ9-gVBfTBNLwVBtWI#%F0%9F%87%AA%F0%9F%87%BA+Telegram+Proxy",
-  "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@hole-nn.datanode-internal.net:443?type=grpc&security=reality&fp=qq&sni=river-2-611.rtbcdn.ru&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#%F0%9F%87%A9%F0%9F%87%AA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%231+%7C+TCP",
+  "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@hole-nn.datanode-internal.net:443?type=grpc&security=reality&fp=qq&sni=river-2-611.rtbcdn.ru&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#%F0%9F%87%A9%F0%9F%87%AA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%231",
 ];
 
 const CONFIG = {
-  trialDays: 7,
-  trialTrafficGB: 50,
-  trialRateLimit: 1,
+  freeRateLimit: 1,
   sessionTTL: 24 * 60 * 60 * 1000,
-  infiniteExpire: 4102444800
 };
 
 // ============================================================
@@ -45,8 +39,7 @@ async function handle(request, env) {
   const ua = request.headers.get("User-Agent") || "";
 
   if (path === "/admin" || path.startsWith("/admin/")) return handleAdmin(request, env, url);
-  if (path === "/api/trial" && method === "POST") return apiTrial(request, env, url);
-  if (path === "/api/report-traffic" && method === "POST") return apiReportTraffic(request, env);
+  if (path === "/api/free" && method === "POST") return apiFree(request, env, url);
   if (path.startsWith("/sub/")) return handleSubAccess(request, env, url, ua);
 
   if (path === "/" || path === "") {
@@ -108,14 +101,6 @@ function escapeHtml(s) {
   }[c]));
 }
 
-function formatBytes(b) {
-  if (!b) return "0 B";
-  const u = ["B", "KB", "MB", "GB", "TB"];
-  let i = 0;
-  while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
-  return b.toFixed(2) + " " + u[i];
-}
-
 function formatDate(ts) {
   if (!ts) return "∞";
   return new Date(ts).toLocaleString("ru-RU", {
@@ -140,12 +125,10 @@ function serveSubscription(subData) {
 
   let userinfo;
   if (!subData) {
-    userinfo = `upload=0; download=0; total=0; expire=${CONFIG.infiniteExpire}`;
+    userinfo = `upload=0; download=0; total=0; expire=0`;
   } else {
-    const used = subData.trafficUsed || 0;
-    const total = subData.trafficTotal || 0;
-    const expireSec = subData.expiresAt ? Math.floor(subData.expiresAt / 1000) : CONFIG.infiniteExpire;
-    userinfo = `upload=0; download=${used}; total=${total}; expire=${expireSec}`;
+    const expireSec = subData.expiresAt ? Math.floor(subData.expiresAt / 1000) : 0;
+    userinfo = `upload=0; download=0; total=0; expire=${expireSec}`;
   }
 
   return new Response(body, {
@@ -154,7 +137,7 @@ function serveSubscription(subData) {
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
       "Subscription-Userinfo": userinfo,
-      "announce": "🏳 wlvpn — стабильный VPN сервис.",
+      "announce": "🏳 wlvpn — бесплатный VPN сервис.",
       "Cache-Control": "no-cache",
       "Access-Control-Allow-Origin": "*"
     }
@@ -175,7 +158,6 @@ async function handleSubAccess(request, env, url, ua) {
 
   if (!sub.active) return textErr("# Subscription revoked", 403);
   if (sub.expiresAt && sub.expiresAt < Date.now()) return textErr("# Subscription expired", 403);
-  if (sub.trafficTotal > 0 && sub.trafficUsed >= sub.trafficTotal) return textErr("# Traffic limit reached", 403);
 
   return serveSubscription(sub);
 }
@@ -188,9 +170,9 @@ function textErr(msg, status) {
 }
 
 // ============================================================
-// TRIAL API
+// FREE API — выдаёт бессрочную подписку без лимита трафика
 // ============================================================
-async function apiTrial(request, env, url) {
+async function apiFree(request, env, url) {
   if (!env.KV) return jsonResponse({ error: "KV not bound" }, 500);
 
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
@@ -200,8 +182,8 @@ async function apiTrial(request, env, url) {
   const rlRaw = await env.KV.get(rlKey);
   const rl = rlRaw ? parseInt(rlRaw) : 0;
 
-  if (rl >= CONFIG.trialRateLimit) {
-    return jsonResponse({ error: "Второй раз взять не получится.)" }, 429);
+  if (rl >= CONFIG.freeRateLimit) {
+    return jsonResponse({ error: "Вы уже получали доступ сегодня. Попробуйте завтра." }, 429);
   }
   await env.KV.put(rlKey, String(rl + 1), { expirationTtl: 86400 });
 
@@ -209,52 +191,18 @@ async function apiTrial(request, env, url) {
   const now = Date.now();
   const sub = {
     createdAt: now,
-    expiresAt: now + CONFIG.trialDays * 86400000,
-    trafficTotal: CONFIG.trialTrafficGB * 1024 ** 3,
-    trafficUsed: 0,
-    note: "trial",
+    expiresAt: 0,
+    note: "free",
     active: true,
-    type: "trial"
+    type: "free"
   };
 
   await env.KV.put(`sub:${token}`, JSON.stringify(sub));
 
   return jsonResponse({
     token,
-    url: `${url.origin}/sub/${token}`,
-    expiresAt: sub.expiresAt,
-    days: CONFIG.trialDays,
-    trafficGB: CONFIG.trialTrafficGB
+    url: `${url.origin}/sub/${token}`
   });
-}
-
-// ============================================================
-// TRAFFIC REPORTING
-// ============================================================
-async function apiReportTraffic(request, env) {
-  const apiKey = request.headers.get("X-API-Key") || "";
-  if (!timingSafeEqual(apiKey, TRAFFIC_API_KEY)) {
-    return jsonResponse({ error: "Unauthorized" }, 401);
-  }
-
-  let body;
-  try { body = await request.json(); } catch { return jsonResponse({ error: "Bad JSON" }, 400); }
-
-  const reports = body.reports || [body];
-  let updated = 0;
-
-  for (const r of reports) {
-    if (!r.token) continue;
-    const raw = await env.KV.get(`sub:${r.token}`);
-    if (!raw) continue;
-
-    const sub = JSON.parse(raw);
-    sub.trafficUsed = (sub.trafficUsed || 0) + (r.upload || 0) + (r.download || 0);
-    await env.KV.put(`sub:${r.token}`, JSON.stringify(sub));
-    updated++;
-  }
-
-  return jsonResponse({ updated });
 }
 
 // ============================================================
@@ -368,7 +316,6 @@ async function adminList(env) {
       ...data,
       status: !data.active ? "revoked"
         : (data.expiresAt && data.expiresAt < Date.now()) ? "expired"
-        : (data.trafficTotal > 0 && data.trafficUsed >= data.trafficTotal) ? "limit"
         : "active"
     });
   }
@@ -379,14 +326,12 @@ async function adminList(env) {
 
 async function adminStats(env) {
   const list = await env.KV.list({ prefix: "sub:" });
-  let active = 0, expired = 0, revoked = 0, totalUsed = 0, totalAllocated = 0;
+  let active = 0, expired = 0, revoked = 0;
 
   for (const k of list.keys) {
     const raw = await env.KV.get(k.name);
     if (!raw) continue;
     const d = JSON.parse(raw);
-    totalUsed += d.trafficUsed || 0;
-    totalAllocated += d.trafficTotal || 0;
     if (!d.active) revoked++;
     else if (d.expiresAt && d.expiresAt < Date.now()) expired++;
     else active++;
@@ -394,8 +339,7 @@ async function adminStats(env) {
 
   return jsonResponse({
     total: list.keys.length,
-    active, expired, revoked,
-    totalUsed, totalAllocated
+    active, expired, revoked
   });
 }
 
@@ -403,10 +347,9 @@ async function adminCreate(request, env, url) {
   let body;
   try { body = await request.json(); } catch { return jsonResponse({ error: "Bad JSON" }, 400); }
 
-  const days = parseInt(body.days) || 30;
-  const gb = parseInt(body.gb) || 0;
+  const days = parseInt(body.days) || 0;
   const note = String(body.note || "").slice(0, 100);
-  const infinite = !!body.infinite;
+  const infinite = !!body.infinite || days <= 0;
 
   const token = randomToken(20);
   const now = Date.now();
@@ -414,8 +357,6 @@ async function adminCreate(request, env, url) {
   const sub = {
     createdAt: now,
     expiresAt: infinite ? 0 : now + days * 86400000,
-    trafficTotal: gb > 0 ? gb * 1024 ** 3 : 0,
-    trafficUsed: 0,
     note: note || (infinite ? "infinite" : "custom"),
     active: true,
     type: infinite ? "infinite" : "custom"
@@ -456,7 +397,7 @@ async function adminAction(request, env, token, action) {
   if (action === "activate") {
     sub.active = true;
     if (sub.expiresAt && sub.expiresAt < Date.now()) {
-      sub.expiresAt = Date.now() + 30 * 86400000;
+      sub.expiresAt = 0;
     }
     await env.KV.put(`sub:${token}`, JSON.stringify(sub));
     return jsonResponse({ ok: true, expiresAt: sub.expiresAt });
@@ -471,7 +412,7 @@ async function adminAction(request, env, token, action) {
 }
 
 // ============================================================
-// CSS — общий для лендинга, sub, admin
+// CSS
 // ============================================================
 const CSS = `
 :root{
@@ -493,11 +434,12 @@ a{color:var(--cyan)}
 
 /* CURSOR */
 .cursor,.cursor-dot{
-  position:fixed;top:0;left:0;pointer-events:none;z-index:9999;
-  border-radius:50%;transform:translate(-50%,-50%);mix-blend-mode:screen;
+  position:fixed;top:0;left:0;pointer-events:none !important;z-index:9999;
+  border-radius:50%;transform:translate(-50%,-50%);will-change:transform;
 }
 .cursor{
   width:36px;height:36px;border:1px solid rgba(0,224,255,.8);
+  background:transparent;
   transition:width .25s,height .25s,background .25s,border-color .25s;
 }
 .cursor-dot{width:5px;height:5px;background:var(--mint)}
@@ -505,7 +447,7 @@ a{color:var(--cyan)}
 @media (hover:none){.cursor,.cursor-dot{display:none}}
 
 /* CANVAS */
-#stars{position:fixed;inset:0;z-index:0;opacity:.85}
+#stars{position:fixed;inset:0;z-index:0;opacity:.85;pointer-events:none}
 
 /* AURORA */
 .aurora{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;filter:blur(90px);opacity:.5}
@@ -565,6 +507,7 @@ nav.top.scrolled{background:rgba(5,9,20,.78);backdrop-filter:blur(18px);border-b
   color:#031018;text-decoration:none;
   background:linear-gradient(120deg,var(--mint),var(--cyan));
   transition:box-shadow .4s,transform .3s;
+  border:none;cursor:pointer;font-family:inherit;
 }
 .nav-cta:hover{box-shadow:0 8px 30px -6px rgba(0,255,163,.8);transform:translateY(-2px)}
 @media(max-width:880px){.nav-links{display:none}}
@@ -573,8 +516,9 @@ nav.top.scrolled{background:rgba(5,9,20,.78);backdrop-filter:blur(18px);border-b
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
   padding:12px 24px;border-radius:100px;font-size:.92rem;font-weight:600;
-  cursor:pointer;border:none;text-decoration:none;
+  cursor:pointer;border:none;text-decoration:none;font-family:inherit;
   transition:transform .2s,box-shadow .3s;
+  pointer-events:auto;position:relative;z-index:1;
 }
 .btn-primary{
   background:linear-gradient(120deg,var(--mint),var(--cyan));color:#031018;
@@ -742,40 +686,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .step h3{font-size:1.15rem;margin-bottom:10px;font-weight:600}
 .step p{color:var(--muted);font-size:.92rem;line-height:1.65}
 
-/* PRICING */
-.pricing{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:22px;align-items:stretch}
-.plan{
-  position:relative;padding:38px 30px 34px;border-radius:22px;
-  background:var(--glass);border:1px solid var(--stroke);
-  backdrop-filter:blur(16px);display:flex;flex-direction:column;
-  transition:transform .3s,border-color .4s,box-shadow .4s;
-}
-.plan:hover{transform:translateY(-6px);border-color:rgba(0,224,255,.4)}
-.plan.popular{
-  border-color:rgba(0,255,163,.45);
-  background:linear-gradient(160deg,rgba(0,255,163,.08),rgba(0,224,255,.04));
-  box-shadow:0 20px 60px -20px rgba(0,255,163,.35);
-}
-.plan-badge{
-  position:absolute;top:-11px;left:50%;transform:translateX(-50%);
-  padding:5px 14px;border-radius:100px;
-  font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
-  color:#031018;background:linear-gradient(120deg,var(--mint),var(--cyan));
-}
-.plan-name{font-size:.8rem;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:6px}
-.plan-price{font-weight:800;font-size:2.4rem;letter-spacing:-.02em;margin-bottom:4px}
-.plan-price small{font-size:.9rem;color:var(--muted);font-weight:400;letter-spacing:0}
-.plan-per{color:var(--muted);font-size:.85rem;margin-bottom:26px}
-.plan ul{list-style:none;margin:0 0 30px;display:grid;gap:12px;flex:1}
-.plan li{display:flex;align-items:flex-start;gap:10px;font-size:.88rem;color:var(--muted);line-height:1.5}
-.plan li::before{content:'✓';color:var(--mint);font-weight:700;flex-shrink:0}
-.plan .btn{width:100%;justify-content:center}
-.guarantee{
-  text-align:center;margin-top:38px;color:var(--muted);font-size:.88rem;
-  display:flex;align-items:center;justify-content:center;gap:10px;
-}
-.guarantee svg{width:16px;height:16px;color:var(--mint)}
-
 /* SECURITY BLOCK */
 .security-block{
   position:relative;padding:80px 60px;border-radius:32px;
@@ -825,6 +735,7 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .faq-q{
   padding:22px 26px;cursor:pointer;display:flex;justify-content:space-between;
   align-items:center;gap:20px;font-weight:500;font-size:.98rem;transition:color .3s;
+  pointer-events:auto;
 }
 .faq-q:hover{color:var(--cyan)}
 .faq-icon{
@@ -878,7 +789,7 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 .modal p{color:var(--muted);font-size:.9rem;margin-bottom:22px;line-height:1.6}
 .modal-close{
   position:absolute;top:16px;right:18px;background:none;border:none;
-  color:var(--muted);font-size:1.6rem;cursor:pointer;line-height:1;
+  color:var(--muted);font-size:1.6rem;cursor:pointer;line-height:1;z-index:1;
 }
 .qr-box{
   display:flex;justify-content:center;margin-bottom:22px;padding:16px;
@@ -893,6 +804,7 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
   padding:0 16px;border-radius:10px;border:1px solid var(--stroke);
   background:rgba(0,224,255,.1);color:var(--cyan);cursor:pointer;
   font-weight:600;font-size:.85rem;transition:background .2s;
+  font-family:inherit;pointer-events:auto;
 }
 .copy-btn:hover{background:rgba(0,224,255,.2)}
 .info-row{
@@ -916,12 +828,6 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 .status-active{background:rgba(0,255,163,.12);color:var(--mint);border:1px solid rgba(0,255,163,.25)}
 .status-expired{background:rgba(255,209,102,.12);color:var(--yellow);border:1px solid rgba(255,209,102,.25)}
 .status-revoked{background:rgba(255,77,109,.12);color:var(--red);border:1px solid rgba(255,77,109,.25)}
-.status-limit{background:rgba(255,209,102,.12);color:var(--yellow);border:1px solid rgba(255,209,102,.25)}
-.bar{height:8px;background:rgba(255,255,255,.05);border-radius:100px;overflow:hidden;margin:12px 0}
-.bar-fill{
-  height:100%;background:linear-gradient(90deg,var(--cyan),var(--mint));
-  border-radius:100px;transition:width .4s;
-}
 
 /* LOGIN */
 .login-wrap{padding:140px 0 60px;max-width:400px;margin:0 auto}
@@ -940,7 +846,7 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 }
 
 /* DASHBOARD */
-.dash{padding:100px 0 60px}
+.dash.wrap{padding-top:100px;padding-bottom:60px}
 .dash-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;flex-wrap:wrap;gap:16px}
 .dash-head h1{font-size:1.7rem}
 .dash-head .actions{display:flex;gap:10px}
@@ -955,7 +861,7 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 .create-form{
   background:var(--surface);border:1px solid var(--stroke);border-radius:16px;
   padding:22px;margin-bottom:28px;display:grid;
-  grid-template-columns:2fr 1fr 1fr auto auto;gap:12px;align-items:center;
+  grid-template-columns:2fr 1fr auto auto;gap:12px;align-items:center;
 }
 .create-form input{
   padding:10px 14px;border-radius:10px;border:1px solid var(--stroke);
@@ -966,7 +872,10 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
   display:flex;align-items:center;gap:6px;color:var(--muted);
   font-size:.85rem;white-space:nowrap;
 }
-.table-wrap{background:var(--surface);border:1px solid var(--stroke);border-radius:16px;overflow:hidden}
+.table-wrap{
+  background:var(--surface);border:1px solid var(--stroke);
+  border-radius:16px;overflow-x:auto;overflow-y:hidden;
+}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
 thead{background:rgba(120,180,255,.04)}
 th{
@@ -982,7 +891,6 @@ tr:hover td{background:rgba(120,180,255,.03)}
 .pill-active{background:rgba(0,255,163,.12);color:var(--mint)}
 .pill-expired{background:rgba(255,209,102,.12);color:var(--yellow)}
 .pill-revoked{background:rgba(255,77,109,.12);color:var(--red)}
-.pill-limit{background:rgba(255,209,102,.12);color:var(--yellow)}
 .actions-cell{display:flex;gap:6px;flex-wrap:wrap}
 .empty{padding:50px 20px;text-align:center;color:var(--muted)}
 .toast{
@@ -1003,8 +911,7 @@ tr:hover td{background:rgba(120,180,255,.03)}
   section{padding:80px 0}
   .hero-actions .btn{width:100%;text-align:center}
   .create-form{grid-template-columns:1fr}
-  .dash{padding:80px 0 40px}
-  table{font-size:.82rem}
+  table{font-size:.82rem;min-width:600px}
   th,td{padding:10px 8px}
   .cta-box{padding:60px 24px}
   .security-block{padding:44px 26px}
@@ -1020,7 +927,7 @@ function renderLanding(url) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WLVPN — Интернет без границ на VLESS</title>
+<title>WLVPN — Бесплатный VPN на VLESS</title>
 <style>${CSS}</style>
 </head>
 <body>
@@ -1040,38 +947,38 @@ function renderLanding(url) {
     <ul class="nav-links">
       <li><a href="#servers">Серверы</a></li>
       <li><a href="#features">Возможности</a></li>
-      <li><a href="#pricing">Тарифы</a></li>
       <li><a href="#faq">FAQ</a></li>
     </ul>
-    <button class="nav-cta" onclick="startTrial(event)">Подключиться</button>
+    <button type="button" class="nav-cta" onclick="getFree(event)">Получить бесплатно</button>
   </div>
 </nav>
 
 <header class="hero">
   <div class="wrap">
-    <div class="badge"><span class="pulse"></span> VLESS · Скорость до 10 Гбит/с</div>
+    <div class="badge"><span class="pulse"></span> VLESS · Бесплатно навсегда</div>
     <h1 class="title">
       <span class="line"><span>Твой интернет.</span></span>
       <span class="line"><span class="grad">Твои правила.</span></span>
       <span class="line"><span>На VLESS.</span></span>
     </h1>
     <p class="hero-sub">
-      Протокол VLESS, серверы в Германии, Швеции, Польше и России.
+      Бесплатный VPN без лимитов трафика и скрытых платежей.
+      Серверы в Германии, Швеции, Польше и России.
       YouTube, Discord, Telegram — и весь интернет без белых списков,
       блокировок и ограничений мобильных операторов.
     </p>
     <div class="hero-actions">
-      <button class="btn btn-primary" onclick="startTrial(event)">Попробовать 7 дней бесплатно</button>
+      <button type="button" class="btn btn-primary" onclick="getFree(event)">Получить бесплатный доступ</button>
       <a href="#servers" class="btn btn-ghost">Смотреть серверы</a>
     </div>
     <div class="trust">
       <div class="trust-item">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        Обход белых списков
+        Без лимитов трафика
       </div>
       <div class="trust-item">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        Интернет даже на улице
+        Без регистрации и карты
       </div>
       <div class="trust-item">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -1145,7 +1052,7 @@ function renderLanding(url) {
     <div class="sec-head reveal">
       <span class="sec-tag">Возможности</span>
       <h2 class="sec">Всё, чтобы интернет был свободным</h2>
-      <p>Без компромиссов между скоростью, приватностью и доступом к контенту.</p>
+      <p>Бесплатно. Без компромиссов между скоростью, приватностью и доступом к контенту.</p>
     </div>
 
     <div class="grid">
@@ -1175,14 +1082,14 @@ function renderLanding(url) {
         <p>Стриминг в 4K, игры без лагов, скачивание без ожидания. Каналы серверов рассчитаны на пиковые нагрузки.</p>
       </div>
       <div class="card tilt reveal">
+        <div class="card-icon">♾️</div>
+        <h3>Без лимитов трафика</h3>
+        <p>Скачивайте, смотрите и играйте сколько угодно. Мы не считаем трафик, не режем скорость и не блокируем за перерасход.</p>
+      </div>
+      <div class="card tilt reveal">
         <div class="card-icon">🔒</div>
         <h3>Защита от утечек</h3>
         <p>На уровне VLESS блокируются утечки <b>DNS</b>, <b>IPv6</b> и <b>WebRTC</b>. Ваш реальный IP не просочится даже при сбое.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">📱</div>
-        <h3>До 10 устройств</h3>
-        <p>Один аккаунт — телефон, ноутбук, планшет и роутер. Windows, macOS, iOS, Android, Linux.</p>
       </div>
       <div class="card tilt reveal">
         <div class="card-icon">🎛️</div>
@@ -1208,74 +1115,14 @@ function renderLanding(url) {
       </div>
       <div class="step reveal">
         <div class="step-num">2</div>
-        <h3>Выбери сервер</h3>
-        <p>Германия, Польша, Швеция или Россия. Или доверься автовыбору по пингу.</p>
+        <h3>Получи бесплатный доступ</h3>
+        <p>Нажми «Получить бесплатно» — мы выдадим ссылку-подписку на все серверы.</p>
       </div>
       <div class="step reveal">
         <div class="step-num">3</div>
         <h3>Подключайся</h3>
-        <p>Один клик — и VLESS уже работает. YouTube, Discord, Telegram открываются как обычно.</p>
+        <p>Добавь ссылку в клиент и нажми «Подключиться». VLESS уже работает.</p>
       </div>
-    </div>
-  </div>
-</section>
-
-<!-- PRICING -->
-<section id="pricing">
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="sec-tag">Тарифы</span>
-      <h2 class="sec">Один набор функций.<br>Разная цена за срок.</h2>
-      <p>Все тарифы включают VLESS, все 4 сервера, обход блокировок и защиту от утечек.</p>
-    </div>
-
-    <div class="pricing">
-      <div class="plan reveal">
-        <div class="plan-name">1 месяц</div>
-        <div class="plan-price">299 ₽</div>
-        <div class="plan-per">в месяц</div>
-        <ul>
-          <li>Протокол VLESS на всех серверах</li>
-          <li>Германия, Польша, Швеция, Россия</li>
-          <li>До 10 устройств</li>
-          <li>Обход блокировок и белых списков</li>
-          <li>Защита от утечек DNS/IPv6/WebRTC</li>
-        </ul>
-        <button class="btn btn-ghost" onclick="startTrial(event)">Выбрать</button>
-      </div>
-
-      <div class="plan popular reveal">
-        <div class="plan-badge">Выгодно</div>
-        <div class="plan-name">1 год</div>
-        <div class="plan-price">149 ₽</div>
-        <div class="plan-per">в месяц · 1 790 ₽ в год</div>
-        <ul>
-          <li>Всё из тарифа «1 месяц»</li>
-          <li>Экономия 50%</li>
-          <li>Приоритетная поддержка</li>
-          <li>Ранний доступ к новым серверам</li>
-          <li>Гарантия возврата 30 дней</li>
-        </ul>
-        <button class="btn btn-primary" onclick="startTrial(event)">Выбрать</button>
-      </div>
-
-      <div class="plan reveal">
-        <div class="plan-name">2 года</div>
-        <div class="plan-price">99 ₽</div>
-        <div class="plan-per">в месяц · 2 390 ₽ за 2 года</div>
-        <ul>
-          <li>Всё из тарифа «1 год»</li>
-          <li>Максимальная скидка 67%</li>
-          <li>Цена фиксируется на 2 года</li>
-          <li>Гарантия возврата 30 дней</li>
-        </ul>
-        <button class="btn btn-ghost" onclick="startTrial(event)">Выбрать</button>
-      </div>
-    </div>
-
-    <div class="guarantee reveal">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-      Гарантия возврата средств в течение 30 дней
     </div>
   </div>
 </section>
@@ -1353,6 +1200,10 @@ function renderLanding(url) {
     </div>
     <div class="faq">
       <div class="faq-item reveal">
+        <div class="faq-q"><span>Сервис правда бесплатный?</span><span class="faq-icon">+</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Да. WLVPN полностью бесплатен — без скрытых платежей, без премиум-тарифов и без ограничений по трафику. Доступ выдаётся навсегда.</div></div>
+      </div>
+      <div class="faq-item reveal">
         <div class="faq-q"><span>Что такое VLESS и чем он лучше OpenVPN?</span><span class="faq-icon">+</span></div>
         <div class="faq-a"><div class="faq-a-inner">VLESS — современный лёгкий протокол. Он не использует тяжёлое шифрование на транспортном уровне, поэтому работает быстрее, потребляет меньше батареи и не оставляет характерных сигнатур, по которым DPI распознаёт VPN. При этом трафик маскируется под обычный HTTPS.</div></div>
       </div>
@@ -1365,12 +1216,12 @@ function renderLanding(url) {
         <div class="faq-a"><div class="faq-a-inner">Да. VLESS маскирует трафик так, что провайдер не может отличить ваш сеанс от обычного визита на разрешённый сайт. Это позволяет обходить как обычные блокировки, так и режим «белых списков».</div></div>
       </div>
       <div class="faq-item reveal">
-        <div class="faq-q"><span>Можно ли пользоваться на нескольких устройствах?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да, до 10 устройств одновременно на одном аккаунте. Приложения есть для Windows, macOS, iOS, Android и Linux.</div></div>
+        <div class="faq-q"><span>Есть ли лимит трафика?</span><span class="faq-icon">+</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Нет. Трафик не ограничен — качайте, смотрите и играйте сколько хотите. Мы не считаем гигабайты и не режем скорость за перерасход.</div></div>
       </div>
       <div class="faq-item reveal">
-        <div class="faq-q"><span>Что с возвратом средств?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">В течение 30 дней после оплаты вы можете запросить полный возврат без объяснения причин — через поддержку в личном кабинете.</div></div>
+        <div class="faq-q"><span>Можно ли пользоваться на нескольких устройствах?</span><span class="faq-icon">+</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Да, одну ссылку-подписку можно добавить на неограниченное число устройств. Приложения есть для Windows, macOS, iOS, Android и Linux.</div></div>
       </div>
       <div class="faq-item reveal">
         <div class="faq-q"><span>Работает ли на мобильном интернете и при ограничениях оператора?</span><span class="faq-icon">+</span></div>
@@ -1385,8 +1236,8 @@ function renderLanding(url) {
   <div class="wrap">
     <div class="cta-box reveal">
       <h2 class="sec">Интернет без границ —<br>на VLESS</h2>
-      <p>14 дней бесплатно. Без карты. Без обязательств.</p>
-      <button class="btn btn-primary" onclick="startTrial(event)">Попробовать бесплатно</button>
+      <p>Бесплатно. Навсегда. Без карты и регистрации.</p>
+      <button type="button" class="btn btn-primary" onclick="getFree(event)">Получить бесплатно</button>
     </div>
   </div>
 </section>
@@ -1405,16 +1256,17 @@ function renderLanding(url) {
 
 <div class="modal-bg" id="modal">
   <div class="modal">
-    <button class="modal-close" onclick="closeModal()">×</button>
-    <h2>Твоя подписка готова!</h2>
+    <button type="button" class="modal-close" onclick="closeModal()">×</button>
+    <h2>Твой доступ готов!</h2>
     <p>Скопируй ссылку ниже и добавь её в свой VPN-клиент (Happ, Incy, v2rayNG, Streisand, sing-box и др.)</p>
     <div class="qr-box" id="qr-box"></div>
     <div class="sub-url">
       <input type="text" id="sub-url" readonly>
-      <button class="copy-btn" onclick="copyUrl(event)">Копировать</button>
+      <button type="button" class="copy-btn" onclick="copyUrl(event)">Копировать</button>
     </div>
-    <div class="info-row"><span>Срок действия</span><b id="modal-expires">—</b></div>
-    <div class="info-row"><span>Трафик</span><b id="modal-traffic">—</b></div>
+    <div class="info-row"><span>Срок действия</span><b>Бессрочно</b></div>
+    <div class="info-row"><span>Трафик</span><b>Без ограничений</b></div>
+    <div class="info-row"><span>Устройств</span><b>Без ограничений</b></div>
   </div>
 </div>
 
@@ -1498,7 +1350,7 @@ addEventListener('mousemove', e => {
   cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
   requestAnimationFrame(loopCursor);
 })();
-document.querySelectorAll('a, button, .card, .server-card, .plan, .faq-q, .review').forEach(el => {
+document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review').forEach(el => {
   el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
   el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
 });
@@ -1520,6 +1372,12 @@ const io = new IntersectionObserver(entries => {
   });
 }, { threshold: .15, rootMargin: '0px 0px -60px 0px' });
 document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+setTimeout(() => {
+  document.querySelectorAll('.reveal:not(.in)').forEach(el => {
+    el.classList.add('in');
+    el.style.transitionDelay = '0ms';
+  });
+}, 3000);
 
 /* ============ TILT ============ */
 document.querySelectorAll('.tilt').forEach(card => {
@@ -1570,15 +1428,15 @@ document.querySelectorAll('.faq-item').forEach(item => {
   });
 });
 
-/* ============ TRIAL ============ */
-async function startTrial(e){
+/* ============ GET FREE ============ */
+async function getFree(e){
   e.preventDefault();
   const btn = e.currentTarget;
   const original = btn.textContent;
   btn.textContent = 'Создаём...';
   btn.disabled = true;
   try{
-    const res = await fetch('/api/trial', { method: 'POST' });
+    const res = await fetch('/api/free', { method: 'POST' });
     const data = await res.json();
     if(!res.ok) throw new Error(data.error || 'Ошибка');
     showModal(data);
@@ -1592,9 +1450,6 @@ async function startTrial(e){
 
 function showModal(data){
   document.getElementById('sub-url').value = data.url;
-  document.getElementById('modal-expires').textContent =
-    new Date(data.expiresAt).toLocaleDateString('ru-RU') + ' (' + data.days + ' дн.)';
-  document.getElementById('modal-traffic').textContent = data.trafficGB + ' ГБ';
   try{
     const qr = qrcode(0, 'M');
     qr.addData(data.url);
@@ -1629,7 +1484,7 @@ function renderSubInfoPage(sub, token) {
     return `<!doctype html>
 <html lang="ru"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WLVPN — Подписка не найдена</title>
+<title>WLVPN — Доступ не найден</title>
 <style>${CSS}</style>
 </head><body>
 <div class="cursor"></div>
@@ -1642,9 +1497,9 @@ function renderSubInfoPage(sub, token) {
 </div></nav>
 <div class="sub-page">
   <div class="sub-card" style="text-align:center">
-    <h1>Подписка не найдена</h1>
+    <h1>Доступ не найден</h1>
     <p style="color:var(--muted);margin-bottom:24px;line-height:1.7">Токен <code style="color:var(--cyan);font-family:monospace">${escapeHtml(token)}</code> не существует или был удалён.</p>
-    <a href="/" class="btn btn-primary">Получить новую</a>
+    <a href="/" class="btn btn-primary">Получить новый</a>
   </div>
 </div>
 <script>
@@ -1673,22 +1528,17 @@ draw();
 
   const isExpired = sub.expiresAt && sub.expiresAt < Date.now();
   const isRevoked = !sub.active;
-  const isLimit = sub.trafficTotal > 0 && sub.trafficUsed >= sub.trafficTotal;
 
   let status = "active", label = "Активна";
   if (isRevoked) { status = "revoked"; label = "Отозвана"; }
   else if (isExpired) { status = "expired"; label = "Истекла"; }
-  else if (isLimit) { status = "limit"; label = "Лимит трафика"; }
 
-  const used = sub.trafficUsed || 0;
-  const total = sub.trafficTotal || 0;
-  const percent = total > 0 ? Math.min(100, used / total * 100) : 0;
   const relUrl = `/sub/${token}`;
 
   return `<!doctype html>
 <html lang="ru"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WLVPN — Подписка</title>
+<title>WLVPN — Доступ</title>
 <style>${CSS}</style>
 </head><body>
 <div class="cursor"></div>
@@ -1701,19 +1551,12 @@ draw();
 </div></nav>
 <div class="sub-page">
   <div class="sub-card">
-    <h1>Подписка <span class="status-pill status-${status}">${label}</span></h1>
-
-    <div style="margin-bottom:18px">
-      <div style="display:flex;justify-content:space-between;font-size:.88rem;margin-bottom:6px">
-        <span style="color:var(--muted)">Трафик</span>
-        <b>${formatBytes(used)} / ${total > 0 ? formatBytes(total) : '∞'}</b>
-      </div>
-      <div class="bar"><div class="bar-fill" style="width:${percent.toFixed(1)}%"></div></div>
-    </div>
+    <h1>Доступ <span class="status-pill status-${status}">${label}</span></h1>
 
     <div class="info-row"><span>Срок действия</span><b>${formatDate(sub.expiresAt)}</b></div>
+    <div class="info-row"><span>Трафик</span><b>Без ограничений</b></div>
     <div class="info-row"><span>Создана</span><b>${formatDate(sub.createdAt)}</b></div>
-    <div class="info-row"><span>Тип</span><b>${escapeHtml(sub.type || 'custom')}</b></div>
+    <div class="info-row"><span>Тип</span><b>${escapeHtml(sub.type || 'free')}</b></div>
 
     <div style="margin-top:22px">
       <p style="color:var(--muted);font-size:.9rem;margin-bottom:10px">
@@ -1721,7 +1564,7 @@ draw();
       </p>
       <div class="sub-url">
         <input type="text" id="sub-url" readonly value="${escapeHtml(relUrl)}">
-        <button class="copy-btn" onclick="copyUrl(event)">Копировать</button>
+        <button type="button" class="copy-btn" onclick="copyUrl(event)">Копировать</button>
       </div>
     </div>
   </div>
@@ -1737,7 +1580,6 @@ function copyUrl(e){
   setTimeout(()=>btn.textContent=o, 1500);
 }
 
-/* STARS */
 const canvas = document.getElementById('stars');
 const ctx = canvas.getContext('2d');
 let stars = [], w, h, dpr;
@@ -1758,7 +1600,6 @@ function draw(){
 }
 draw();
 
-/* CURSOR */
 const cursor = document.querySelector('.cursor');
 const dot = document.querySelector('.cursor-dot');
 let cx = innerWidth/2, cy = innerHeight/2, tx = cx, ty = cy;
@@ -1800,7 +1641,7 @@ function renderAdminLogin(error) {
 <div class="login-wrap">
   <div class="login-card">
     <h1>Админ-панель</h1>
-    <p>WLVPN · управление подписками</p>
+    <p>WLVPN · управление доступами</p>
     ${error ? '<div class="error">Неверный пароль</div>' : ''}
     <form method="POST" action="/admin/login">
       <input type="password" name="password" placeholder="Пароль" required autofocus>
@@ -1862,16 +1703,16 @@ function renderAdminDashboard() {
 <nav class="top"><div class="nav-inner">
   <div class="logo"><div class="logo-mark"></div><span>WLVPN · Admin</span></div>
   <form method="POST" action="/admin/logout" style="margin:0">
-    <button class="nav-cta" style="border:none;cursor:pointer;font-family:inherit">Выйти</button>
+    <button type="submit" class="nav-cta">Выйти</button>
   </form>
 </div></nav>
 
 <div class="dash wrap">
   <div class="dash-head">
-    <h1>Подписки</h1>
+    <h1>Доступы</h1>
     <div class="actions">
       <a href="/" target="_blank" class="btn btn-ghost btn-small">Открыть сайт</a>
-      <button class="btn btn-ghost btn-small" onclick="loadAll()">Обновить</button>
+      <button type="button" class="btn btn-ghost btn-small" onclick="loadAll()">Обновить</button>
     </div>
   </div>
 
@@ -1879,18 +1720,17 @@ function renderAdminDashboard() {
 
   <div class="create-form">
     <input id="f-note" placeholder="Заметка (например: клиент @user)">
-    <input id="f-days" type="number" placeholder="Дней" value="30" min="1">
-    <input id="f-gb" type="number" placeholder="ГБ (0 = ∞)" value="0" min="0">
-    <label><input id="f-infinite" type="checkbox"> Бессрочная</label>
-    <button class="btn btn-primary" onclick="createSub()">Создать</button>
+    <input id="f-days" type="number" placeholder="Дней (0 = ∞)" value="0" min="0">
+    <label><input id="f-infinite" type="checkbox" checked> Бессрочная</label>
+    <button type="button" class="btn btn-primary" onclick="createSub()">Создать</button>
   </div>
 
   <div class="table-wrap">
     <table>
       <thead><tr>
-        <th>Токен</th><th>Статус</th><th>Срок</th><th>Трафик</th><th>Заметка</th><th>Действия</th>
+        <th>Токен</th><th>Статус</th><th>Срок</th><th>Заметка</th><th>Действия</th>
       </tr></thead>
-      <tbody id="tbody"><tr><td colspan="6" class="empty">Загрузка…</td></tr></tbody>
+      <tbody id="tbody"><tr><td colspan="5" class="empty">Загрузка…</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -1903,13 +1743,13 @@ async function loadAll(){
 async function loadStats(){
   try{
     const r = await fetch('/admin/api/stats');
+    if(r.status === 401){ location.href = '/admin'; return; }
     const d = await r.json();
     document.getElementById('stats').innerHTML = \`
-      <div class="stat"><div class="label">Всего</div><div class="value">\${d.total}</div></div>
-      <div class="stat"><div class="label">Активных</div><div class="value mint">\${d.active}</div></div>
-      <div class="stat"><div class="label">Истекло</div><div class="value yellow">\${d.expired}</div></div>
-      <div class="stat"><div class="label">Отозвано</div><div class="value red">\${d.revoked}</div></div>
-      <div class="stat"><div class="label">Потрачено</div><div class="value cyan">\${fmt(d.totalUsed)}</div></div>
+      <div class="stat"><div class="label">Всего</div><div class="value">\${d.total ?? 0}</div></div>
+      <div class="stat"><div class="label">Активных</div><div class="value mint">\${d.active ?? 0}</div></div>
+      <div class="stat"><div class="label">Истекло</div><div class="value yellow">\${d.expired ?? 0}</div></div>
+      <div class="stat"><div class="label">Отозвано</div><div class="value red">\${d.revoked ?? 0}</div></div>
     \`;
   }catch(e){ console.error(e); }
 }
@@ -1917,26 +1757,26 @@ async function loadStats(){
 async function loadList(){
   try{
     const r = await fetch('/admin/api/list');
+    if(r.status === 401){ location.href = '/admin'; return; }
     const d = await r.json();
+    const subs = d.subs || [];
     const tbody = document.getElementById('tbody');
-    if(!d.subs.length){
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">Подписок пока нет. Создай первую выше.</td></tr>';
+    if(!subs.length){
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Доступов пока нет. Создай первый выше.</td></tr>';
       return;
     }
-    tbody.innerHTML = d.subs.map(s => {
+    tbody.innerHTML = subs.map(s => {
       const expire = s.expiresAt ? new Date(s.expiresAt).toLocaleDateString('ru-RU') : '∞';
-      const traffic = s.trafficTotal > 0 ? \`\${fmt(s.trafficUsed)} / \${fmt(s.trafficTotal)}\` : '∞ / ∞';
       return \`<tr>
         <td><span class="token-cell">\${s.token}</span></td>
         <td><span class="pill pill-\${s.status}">\${statusLabel(s.status)}</span></td>
         <td>\${expire}</td>
-        <td style="font-size:.82rem;color:var(--muted)">\${traffic}</td>
         <td style="font-size:.85rem;color:var(--muted)">\${escape(s.note || '—')}</td>
         <td><div class="actions-cell">
-          <button class="btn btn-ghost btn-small" onclick="act('\${s.token}','extend',30)">+30д</button>
-          <button class="btn btn-ghost btn-small" onclick="copyLink('\${s.token}')">Ссылка</button>
-          \${s.active ? \`<button class="btn btn-ghost btn-small" onclick="act('\${s.token}','revoke')">Отозвать</button>\` : \`<button class="btn btn-ghost btn-small" onclick="act('\${s.token}','activate')">Вернуть</button>\`}
-          <button class="btn btn-danger btn-small" onclick="if(confirm('Удалить подписку \${s.token}?'))act('\${s.token}','delete')">Удалить</button>
+          <button type="button" class="btn btn-ghost btn-small" onclick="act('\${s.token}','extend',30)">+30д</button>
+          <button type="button" class="btn btn-ghost btn-small" onclick="copyLink('\${s.token}')">Ссылка</button>
+          \${s.active ? \`<button type="button" class="btn btn-ghost btn-small" onclick="act('\${s.token}','revoke')">Отозвать</button>\` : \`<button type="button" class="btn btn-ghost btn-small" onclick="act('\${s.token}','activate')">Вернуть</button>\`}
+          <button type="button" class="btn btn-danger btn-small" onclick="if(confirm('Удалить доступ \${s.token}?'))act('\${s.token}','delete')">Удалить</button>
         </div></td>
       </tr>\`;
     }).join('');
@@ -1946,8 +1786,7 @@ async function loadList(){
 async function createSub(){
   const body = {
     note: document.getElementById('f-note').value.trim(),
-    days: parseInt(document.getElementById('f-days').value) || 30,
-    gb: parseInt(document.getElementById('f-gb').value) || 0,
+    days: parseInt(document.getElementById('f-days').value) || 0,
     infinite: document.getElementById('f-infinite').checked
   };
   const r = await fetch('/admin/api/create', {
@@ -1955,7 +1794,7 @@ async function createSub(){
   });
   const d = await r.json();
   if(r.ok){
-    toast('Подписка создана: ' + d.token, 'success');
+    toast('Доступ создан: ' + d.token, 'success');
     document.getElementById('f-note').value = '';
     loadAll();
   } else toast(d.error || 'Ошибка', 'error');
@@ -1978,15 +1817,8 @@ function copyLink(token){
   toast('Скопировано: ' + url, 'success');
 }
 
-function fmt(b){
-  if(!b) return '0 B';
-  const u = ['B','KB','MB','GB','TB']; let i=0;
-  while(b >= 1024 && i < u.length-1){ b/=1024; i++; }
-  return b.toFixed(2)+' '+u[i];
-}
-
 function statusLabel(s){
-  return { active:'Активна', expired:'Истекла', revoked:'Отозвана', limit:'Лимит' }[s] || s;
+  return { active:'Активна', expired:'Истекла', revoked:'Отозвана' }[s] || s;
 }
 
 function escape(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
