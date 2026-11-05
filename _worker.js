@@ -1,9 +1,7 @@
 // ============================================================
 // WLVPN — Free VPN Service (Cloudflare Worker)
-// KV binding: KV
+// No admin, no tokens, no KV — just one open subscription link
 // ============================================================
-
-const ADMIN_PASSWORD = "wlvpn2025admin";
 
 const SERVERS = [
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@de-new.datanode-internal.net:443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=qq&sni=openwrt.lan&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128#%F0%9F%87%A9%F0%9F%87%AA+%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F",
@@ -16,59 +14,9 @@ const SERVERS = [
   "vless://31dac09f-78ee-49ca-9566-d20aea578fdc@hole-nn.datanode-internal.net:443?type=grpc&security=reality&fp=qq&sni=river-2-611.rtbcdn.ru&pbk=r6lN34m1nN-xQZ458j5NPD5xJ3_QBF2bGzY4KJEo4ic&sid=abbcd128&serviceName=ads.x5.ru&mode=gun#%F0%9F%87%A9%F0%9F%87%AA+%D0%91%D0%B5%D0%BB%D1%8B%D0%B9+%D1%81%D0%BF%D0%B8%D1%81%D0%BE%D0%BA+%231"
 ];
 
-const CONFIG = {
-  freeRateLimit: 1,
-  sessionTTL: 24 * 60 * 60 * 1000,
-};
-
-// ============================================================
-// ENTRY
-// ============================================================
-export default {
-  async fetch(request, env, ctx) {
-    try {
-      return await handle(request, env);
-    } catch (e) {
-      console.error(e.stack || e);
-      return new Response("Internal Error: " + (e.message || e), { status: 500 });
-    }
-  }
-};
-
-async function handle(request, env) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const method = request.method;
-  const ua = request.headers.get("User-Agent") || "";
-
-  if (path === "/admin" || path.startsWith("/admin/")) return handleAdmin(request, env, url);
-  if (path === "/api/free" && method === "POST") return apiFree(request, env, url);
-  if (path.startsWith("/sub/")) return handleSubAccess(request, env, url, ua);
-
-  if (path === "/" || path === "") {
-    if (isBrowser(ua)) return htmlResponse(renderLanding(url));
-    return serveSubscription(null);
-  }
-
-  return new Response("Not Found", { status: 404 });
-}
-
 // ============================================================
 // UTILS
 // ============================================================
-function randomToken(len = 20) {
-  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  let out = "";
-  for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
-  return out;
-}
-
-function b64(str) {
-  return btoa(unescape(encodeURIComponent(str)));
-}
-
 function isVpnClient(ua) {
   return /incy|happ|v2ray|clash|sing-box|nekobox|stash|streisand|karing|matsuri|shadowrocket|nekoray|v2rayng|ko*ng/i.test(ua);
 }
@@ -79,67 +27,31 @@ function isBrowser(ua) {
   return /mozilla|chrome|safari|firefox|edg|opera|msie|trident/i.test(ua);
 }
 
+function b64(str) {
+  return btoa(unescape(encodeURIComponent(str)));
+}
+
 function htmlResponse(content, status = 200) {
   return new Response(content, {
     status,
-    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
-  });
-}
-
-function jsonResponse(data, status = 200, extraHeaders = {}) {
-  return new Response(JSON.stringify(data), {
-    status,
     headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      "Access-Control-Allow-Origin": "*",
-      ...extraHeaders
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store"
     }
   });
-}
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, c => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-
-function formatDate(ts) {
-  if (!ts) return "∞";
-  return new Date(ts).toLocaleString("ru-RU", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit"
-  });
-}
-
-function timingSafeEqual(a, b) {
-  a = String(a || ""); b = String(b || "");
-  if (a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
 }
 
 // ============================================================
 // SUBSCRIPTION
 // ============================================================
-function serveSubscription(subData) {
+function serveSubscription() {
   const body = b64(SERVERS.join("\n"));
-
-  let userinfo;
-  if (!subData) {
-    userinfo = `upload=0; download=0; total=0; expire=0`;
-  } else {
-    const expireSec = subData.expiresAt ? Math.floor(subData.expiresAt / 1000) : 0;
-    userinfo = `upload=0; download=0; total=0; expire=${expireSec}`;
-  }
-
   return new Response(body, {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
-      "Subscription-Userinfo": userinfo,
+      "Subscription-Userinfo": "upload=0; download=0; total=0; expire=0",
       "announce": "🏳 wlvpn — бесплатный VPN сервис.",
       "Cache-Control": "no-cache",
       "Access-Control-Allow-Origin": "*"
@@ -147,272 +59,38 @@ function serveSubscription(subData) {
   });
 }
 
-async function handleSubAccess(request, env, url, ua) {
-  const token = url.pathname.slice(5).split("/")[0];
-  const raw = await env.KV.get(`sub:${token}`);
-
-  if (isBrowser(ua)) {
-    const sub = raw ? JSON.parse(raw) : null;
-    return htmlResponse(renderSubInfoPage(sub, token));
-  }
-
-  if (!raw) return textErr("# Invalid token", 403);
-  const sub = JSON.parse(raw);
-
-  if (!sub.active) return textErr("# Subscription revoked", 403);
-  if (sub.expiresAt && sub.expiresAt < Date.now()) return textErr("# Subscription expired", 403);
-
-  return serveSubscription(sub);
-}
-
-function textErr(msg, status) {
-  return new Response(msg, {
-    status,
-    headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }
-  });
-}
-
 // ============================================================
-// FREE API — выдаёт бессрочную подписку без лимита трафика
+// HANDLER
 // ============================================================
-async function apiFree(request, env, url) {
-  if (!env.KV) return jsonResponse({ error: "KV not bound" }, 500);
-
-  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
-  const day = new Date().toISOString().slice(0, 10);
-  const rlKey = `rl:${ip}:${day}`;
-
-  const rlRaw = await env.KV.get(rlKey);
-  const rl = rlRaw ? parseInt(rlRaw) : 0;
-
-  if (rl >= CONFIG.freeRateLimit) {
-    return jsonResponse({ error: "Вы уже получали доступ сегодня. Попробуйте завтра." }, 429);
-  }
-  await env.KV.put(rlKey, String(rl + 1), { expirationTtl: 86400 });
-
-  const token = randomToken(20);
-  const now = Date.now();
-  const sub = {
-    createdAt: now,
-    expiresAt: 0,
-    note: "free",
-    active: true,
-    type: "free"
-  };
-
-  await env.KV.put(`sub:${token}`, JSON.stringify(sub));
-
-  return jsonResponse({
-    token,
-    url: `${url.origin}/sub/${token}`
-  });
-}
-
-// ============================================================
-// SESSIONS
-// ============================================================
-async function getSession(request, env) {
-  const cookie = request.headers.get("Cookie") || "";
-  const m = cookie.match(/wlvpn_session=([A-Za-z0-9]+)/);
-  if (!m) return null;
-
-  const sid = m[1];
-  const raw = await env.KV.get(`session:${sid}`);
-  if (!raw) return null;
-
-  const session = JSON.parse(raw);
-  if (session.expiresAt < Date.now()) {
-    await env.KV.delete(`session:${sid}`);
-    return null;
-  }
-  return { id: sid, ...session };
-}
-
-// ============================================================
-// ADMIN
-// ============================================================
-async function handleAdmin(request, env, url) {
+async function handle(request) {
+  const url = new URL(request.url);
   const path = url.pathname;
-  const method = request.method;
+  const ua = request.headers.get("User-Agent") || "";
 
-  if (path === "/admin/login" && method === "POST") return adminLogin(request, env);
-  if (path === "/admin/logout" && method === "POST") return adminLogout(request, env);
-
-  const session = await getSession(request, env);
-
-  if (path === "/admin" && method === "GET") {
-    if (!session) return htmlResponse(renderAdminLogin(url.searchParams.get("error")));
-    return htmlResponse(renderAdminDashboard());
+  // Главная: браузеру — лендинг со ссылкой, VPN-клиенту — сразу подписка
+  if (path === "/" || path === "") {
+    if (isBrowser(ua)) return htmlResponse(renderLanding(url));
+    return serveSubscription();
   }
 
-  if (path.startsWith("/admin/api/")) {
-    if (!session) return jsonResponse({ error: "Unauthorized" }, 401);
-    return adminAPI(request, env, url, method);
+  // /sub — каноничный адрес подписки
+  if (path === "/sub" || path === "/sub/") {
+    if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
+    return serveSubscription();
   }
 
   return new Response("Not Found", { status: 404 });
 }
 
-async function adminLogin(request, env) {
-  const form = await request.formData();
-  const password = String(form.get("password") || "");
-
-  if (!timingSafeEqual(password, ADMIN_PASSWORD)) {
-    return Response.redirect(new URL("/admin?error=1", request.url).toString(), 302);
-  }
-
-  const sid = randomToken(32);
-  const expiresAt = Date.now() + CONFIG.sessionTTL;
-
-  await env.KV.put(`session:${sid}`, JSON.stringify({ createdAt: Date.now(), expiresAt }), {
-    expirationTtl: Math.floor(CONFIG.sessionTTL / 1000)
-  });
-
-  return new Response(null, {
-    status: 302,
-    headers: {
-      "Location": "/admin",
-      "Set-Cookie": `wlvpn_session=${sid}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${Math.floor(CONFIG.sessionTTL / 1000)}`
+export default {
+  async fetch(request) {
+    try {
+      return await handle(request);
+    } catch (e) {
+      return new Response("Internal Error: " + (e.message || e), { status: 500 });
     }
-  });
-}
-
-async function adminLogout(request, env) {
-  const session = await getSession(request, env);
-  if (session) await env.KV.delete(`session:${session.id}`);
-
-  return new Response(null, {
-    status: 302,
-    headers: {
-      "Location": "/admin",
-      "Set-Cookie": "wlvpn_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0"
-    }
-  });
-}
-
-async function adminAPI(request, env, url, method) {
-  const path = url.pathname;
-
-  if (path === "/admin/api/list" && method === "GET") return adminList(env);
-  if (path === "/admin/api/stats" && method === "GET") return adminStats(env);
-  if (path === "/admin/api/create" && method === "POST") return adminCreate(request, env, url);
-
-  const actionMatch = path.match(/^\/admin\/api\/([A-Za-z0-9]+)\/(extend|revoke|activate|delete)$/);
-  if (actionMatch) {
-    const [, token, action] = actionMatch;
-    return adminAction(request, env, token, action);
   }
-
-  return new Response("Not Found", { status: 404 });
-}
-
-async function adminList(env) {
-  const list = await env.KV.list({ prefix: "sub:" });
-  const subs = [];
-
-  for (const k of list.keys) {
-    const raw = await env.KV.get(k.name);
-    if (!raw) continue;
-    const data = JSON.parse(raw);
-    subs.push({
-      token: k.name.slice(4),
-      ...data,
-      status: !data.active ? "revoked"
-        : (data.expiresAt && data.expiresAt < Date.now()) ? "expired"
-        : "active"
-    });
-  }
-
-  subs.sort((a, b) => b.createdAt - a.createdAt);
-  return jsonResponse({ subs });
-}
-
-async function adminStats(env) {
-  const list = await env.KV.list({ prefix: "sub:" });
-  let active = 0, expired = 0, revoked = 0;
-
-  for (const k of list.keys) {
-    const raw = await env.KV.get(k.name);
-    if (!raw) continue;
-    const d = JSON.parse(raw);
-    if (!d.active) revoked++;
-    else if (d.expiresAt && d.expiresAt < Date.now()) expired++;
-    else active++;
-  }
-
-  return jsonResponse({
-    total: list.keys.length,
-    active, expired, revoked
-  });
-}
-
-async function adminCreate(request, env, url) {
-  let body;
-  try { body = await request.json(); } catch { return jsonResponse({ error: "Bad JSON" }, 400); }
-
-  const days = parseInt(body.days) || 0;
-  const note = String(body.note || "").slice(0, 100);
-  const infinite = !!body.infinite || days <= 0;
-
-  const token = randomToken(20);
-  const now = Date.now();
-
-  const sub = {
-    createdAt: now,
-    expiresAt: infinite ? 0 : now + days * 86400000,
-    note: note || (infinite ? "infinite" : "custom"),
-    active: true,
-    type: infinite ? "infinite" : "custom"
-  };
-
-  await env.KV.put(`sub:${token}`, JSON.stringify(sub));
-
-  return jsonResponse({
-    token,
-    url: `${url.origin}/sub/${token}`,
-    expiresAt: sub.expiresAt,
-    infinite
-  });
-}
-
-async function adminAction(request, env, token, action) {
-  const raw = await env.KV.get(`sub:${token}`);
-  if (!raw) return jsonResponse({ error: "Not found" }, 404);
-  const sub = JSON.parse(raw);
-
-  if (action === "extend") {
-    let body = {};
-    try { body = await request.json(); } catch {}
-    const days = parseInt(body.days) || 30;
-    const base = Math.max(Date.now(), sub.expiresAt || Date.now());
-    sub.expiresAt = base + days * 86400000;
-    if (sub.active === false) sub.active = true;
-    await env.KV.put(`sub:${token}`, JSON.stringify(sub));
-    return jsonResponse({ ok: true, expiresAt: sub.expiresAt });
-  }
-
-  if (action === "revoke") {
-    sub.active = false;
-    await env.KV.put(`sub:${token}`, JSON.stringify(sub));
-    return jsonResponse({ ok: true });
-  }
-
-  if (action === "activate") {
-    sub.active = true;
-    if (sub.expiresAt && sub.expiresAt < Date.now()) {
-      sub.expiresAt = 0;
-    }
-    await env.KV.put(`sub:${token}`, JSON.stringify(sub));
-    return jsonResponse({ ok: true, expiresAt: sub.expiresAt });
-  }
-
-  if (action === "delete") {
-    await env.KV.delete(`sub:${token}`);
-    return jsonResponse({ ok: true });
-  }
-
-  return jsonResponse({ error: "Unknown action" }, 400);
-}
+};
 
 // ============================================================
 // CSS
@@ -530,9 +208,6 @@ nav.top.scrolled{background:rgba(5,9,20,.78);backdrop-filter:blur(18px);border-b
 .btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 40px -10px rgba(0,224,255,.9)}
 .btn-ghost{background:var(--glass);color:var(--text);border:1px solid var(--stroke)}
 .btn-ghost:hover{border-color:rgba(0,224,255,.5)}
-.btn-danger{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.35)}
-.btn-danger:hover{background:rgba(255,77,109,.25)}
-.btn-small{padding:7px 14px;font-size:.8rem;border-radius:8px}
 
 /* HERO */
 header.hero{min-height:100vh;display:flex;align-items:center;padding:150px 0 100px;position:relative}
@@ -571,16 +246,59 @@ h1.title .line:nth-child(3) > span{animation-delay:.24s}
   50%{background-position:100% 50%}
 }
 .hero-sub{
-  max-width:600px;font-size:1.06rem;line-height:1.75;color:var(--muted);
-  margin-bottom:44px;opacity:0;
+  max-width:620px;font-size:1.06rem;line-height:1.75;color:var(--muted);
+  margin-bottom:8px;opacity:0;
   animation:fadeUp .9s .5s cubic-bezier(.16,1,.3,1) forwards;
 }
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-.hero-actions{
-  display:flex;gap:18px;flex-wrap:wrap;align-items:center;
-  opacity:0;animation:fadeUp .9s .65s cubic-bezier(.16,1,.3,1) forwards;
+
+/* LINK BOX */
+.link-box{
+  margin:36px 0 44px;padding:26px 28px;border-radius:22px;
+  background:linear-gradient(160deg,rgba(0,224,255,.09),rgba(0,255,163,.03));
+  border:1px solid rgba(0,224,255,.25);
+  backdrop-filter:blur(16px);
+  box-shadow:0 24px 60px -24px rgba(0,224,255,.4);
+  max-width:720px;
+  animation:fadeUp .9s .65s cubic-bezier(.16,1,.3,1) both;
 }
-.hero-actions .btn{padding:16px 36px;font-size:1rem}
+.link-box-header{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:16px;margin-bottom:20px;flex-wrap:wrap;
+}
+.link-box-title{font-weight:700;font-size:1.05rem;letter-spacing:-.01em}
+.link-box-badge{
+  padding:4px 12px;border-radius:100px;font-size:.7rem;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:#031018;
+  background:linear-gradient(120deg,var(--mint),var(--cyan));
+}
+.link-box-content{
+  display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;
+}
+@media (max-width:640px){.link-box-content{grid-template-columns:1fr}}
+.qr-mini{
+  padding:10px;background:#fff;border-radius:14px;
+  width:140px;height:140px;display:grid;place-items:center;
+  font-size:2rem;flex-shrink:0;
+}
+.qr-mini svg{display:block;max-width:100%;height:auto}
+.link-box-hint{color:var(--muted);font-size:.88rem;line-height:1.6;margin-top:12px}
+.link-box-hint b{color:var(--cyan);font-weight:600}
+
+.sub-url{display:flex;gap:8px}
+.sub-url input{
+  flex:1;min-width:0;padding:12px 14px;border-radius:10px;
+  border:1px solid var(--stroke);background:rgba(0,0,0,.45);
+  color:var(--text);font-family:monospace;font-size:.88rem;
+}
+.copy-btn{
+  padding:0 18px;border-radius:10px;border:1px solid rgba(0,224,255,.35);
+  background:rgba(0,224,255,.12);color:var(--cyan);cursor:pointer;
+  font-weight:600;font-size:.85rem;transition:background .2s,color .2s;
+  font-family:inherit;pointer-events:auto;white-space:nowrap;
+}
+.copy-btn:hover{background:rgba(0,224,255,.22)}
+
 .trust{
   display:flex;gap:34px;flex-wrap:wrap;margin-top:56px;
   opacity:0;animation:fadeUp .9s .85s cubic-bezier(.16,1,.3,1) forwards;
@@ -777,134 +495,6 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 }
 .socials a:hover{color:#fff;border-color:var(--cyan);background:rgba(0,224,255,.15);transform:translateY(-3px)}
 
-/* MODAL */
-.modal-bg{
-  position:fixed;inset:0;background:rgba(5,9,20,.85);backdrop-filter:blur(8px);
-  z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;
-}
-.modal-bg.show{display:flex}
-.modal{
-  max-width:480px;width:100%;background:var(--surface);border:1px solid var(--stroke);
-  border-radius:22px;padding:32px 28px;position:relative;animation:pop .3s ease-out;
-}
-@keyframes pop{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
-.modal h2{font-size:1.4rem;margin-bottom:8px}
-.modal p{color:var(--muted);font-size:.9rem;margin-bottom:22px;line-height:1.6}
-.modal-close{
-  position:absolute;top:16px;right:18px;background:none;border:none;
-  color:var(--muted);font-size:1.6rem;cursor:pointer;line-height:1;z-index:1;
-}
-.qr-box{
-  display:flex;justify-content:center;margin-bottom:22px;padding:16px;
-  background:#fff;border-radius:14px;width:fit-content;margin-left:auto;margin-right:auto;
-}
-.sub-url{display:flex;gap:8px;margin-bottom:16px}
-.sub-url input{
-  flex:1;padding:12px 14px;border-radius:10px;border:1px solid var(--stroke);
-  background:rgba(0,0,0,.4);color:var(--text);font-family:monospace;font-size:.85rem;
-}
-.copy-btn{
-  padding:0 16px;border-radius:10px;border:1px solid var(--stroke);
-  background:rgba(0,224,255,.1);color:var(--cyan);cursor:pointer;
-  font-weight:600;font-size:.85rem;transition:background .2s;
-  font-family:inherit;pointer-events:auto;
-}
-.copy-btn:hover{background:rgba(0,224,255,.2)}
-.info-row{
-  display:flex;justify-content:space-between;padding:10px 0;
-  border-top:1px solid var(--stroke);font-size:.88rem;
-}
-.info-row span:first-child{color:var(--muted)}
-.info-row b{color:var(--text)}
-
-/* SUB PAGE */
-.sub-page{padding:120px 0 60px;max-width:520px;margin:0 auto}
-.sub-card{
-  background:var(--surface);border:1px solid var(--stroke);border-radius:22px;
-  padding:32px 28px;box-shadow:0 20px 50px -20px rgba(0,0,0,.6);
-}
-.sub-card h1{font-size:1.5rem;margin-bottom:24px}
-.status-pill{
-  display:inline-flex;align-items:center;gap:6px;padding:5px 12px;
-  border-radius:100px;font-size:.75rem;font-weight:600;margin-left:8px;vertical-align:middle;
-}
-.status-active{background:rgba(0,255,163,.12);color:var(--mint);border:1px solid rgba(0,255,163,.25)}
-.status-expired{background:rgba(255,209,102,.12);color:var(--yellow);border:1px solid rgba(255,209,102,.25)}
-.status-revoked{background:rgba(255,77,109,.12);color:var(--red);border:1px solid rgba(255,77,109,.25)}
-
-/* LOGIN */
-.login-wrap{padding:140px 0 60px;max-width:400px;margin:0 auto}
-.login-card{background:var(--surface);border:1px solid var(--stroke);border-radius:22px;padding:36px 30px}
-.login-card h1{font-size:1.5rem;margin-bottom:8px;text-align:center}
-.login-card p{color:var(--muted);font-size:.9rem;text-align:center;margin-bottom:24px}
-.login-card input{
-  width:100%;padding:13px 16px;border-radius:10px;border:1px solid var(--stroke);
-  background:rgba(0,0,0,.35);color:var(--text);font-size:.95rem;margin-bottom:16px;
-}
-.login-card input:focus{outline:none;border-color:var(--cyan)}
-.login-card .btn{width:100%}
-.error{
-  background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);color:var(--red);
-  padding:10px 14px;border-radius:10px;font-size:.85rem;margin-bottom:16px;text-align:center;
-}
-
-/* DASHBOARD */
-.dash.wrap{padding-top:100px;padding-bottom:60px}
-.dash-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;flex-wrap:wrap;gap:16px}
-.dash-head h1{font-size:1.7rem}
-.dash-head .actions{display:flex;gap:10px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin-bottom:32px}
-.stat{background:var(--surface);border:1px solid var(--stroke);border-radius:16px;padding:20px 22px}
-.stat .label{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px}
-.stat .value{font-size:1.7rem;font-weight:700;letter-spacing:-.02em}
-.stat .value.cyan{color:var(--cyan)}
-.stat .value.mint{color:var(--mint)}
-.stat .value.red{color:var(--red)}
-.stat .value.yellow{color:var(--yellow)}
-.create-form{
-  background:var(--surface);border:1px solid var(--stroke);border-radius:16px;
-  padding:22px;margin-bottom:28px;display:grid;
-  grid-template-columns:2fr 1fr auto auto;gap:12px;align-items:center;
-}
-.create-form input{
-  padding:10px 14px;border-radius:10px;border:1px solid var(--stroke);
-  background:rgba(0,0,0,.35);color:var(--text);font-size:.9rem;
-}
-.create-form input:focus{outline:none;border-color:var(--cyan)}
-.create-form label{
-  display:flex;align-items:center;gap:6px;color:var(--muted);
-  font-size:.85rem;white-space:nowrap;
-}
-.table-wrap{
-  background:var(--surface);border:1px solid var(--stroke);
-  border-radius:16px;overflow-x:auto;overflow-y:hidden;
-}
-table{width:100%;border-collapse:collapse;font-size:.88rem}
-thead{background:rgba(120,180,255,.04)}
-th{
-  padding:14px 16px;text-align:left;color:var(--muted);font-weight:600;
-  font-size:.76rem;text-transform:uppercase;letter-spacing:.08em;
-  border-bottom:1px solid var(--stroke);
-}
-td{padding:14px 16px;border-bottom:1px solid rgba(120,180,255,.06);vertical-align:middle}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(120,180,255,.03)}
-.token-cell{font-family:monospace;font-size:.82rem;color:var(--cyan)}
-.pill{display:inline-block;padding:3px 10px;border-radius:100px;font-size:.75rem;font-weight:600}
-.pill-active{background:rgba(0,255,163,.12);color:var(--mint)}
-.pill-expired{background:rgba(255,209,102,.12);color:var(--yellow)}
-.pill-revoked{background:rgba(255,77,109,.12);color:var(--red)}
-.actions-cell{display:flex;gap:6px;flex-wrap:wrap}
-.empty{padding:50px 20px;text-align:center;color:var(--muted)}
-.toast{
-  position:fixed;bottom:24px;right:24px;padding:14px 22px;border-radius:12px;
-  background:var(--surface2);border:1px solid var(--stroke);font-size:.9rem;
-  box-shadow:0 10px 30px rgba(0,0,0,.4);animation:slideIn .3s ease-out;z-index:2000;
-}
-.toast.success{border-color:rgba(0,255,163,.4);color:var(--mint)}
-.toast.error{border-color:rgba(255,77,109,.4);color:var(--red)}
-@keyframes slideIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
-
 /* SCROLLBAR */
 ::-webkit-scrollbar{width:9px}
 ::-webkit-scrollbar-track{background:#050914}
@@ -912,12 +502,9 @@ tr:hover td{background:rgba(120,180,255,.03)}
 
 @media(max-width:720px){
   section{padding:80px 0}
-  .hero-actions .btn{width:100%;text-align:center}
-  .create-form{grid-template-columns:1fr}
-  table{font-size:.82rem;min-width:600px}
-  th,td{padding:10px 8px}
   .cta-box{padding:60px 24px}
   .security-block{padding:44px 26px}
+  .link-box{padding:22px 20px}
 }
 `;
 
@@ -925,6 +512,7 @@ tr:hover td{background:rgba(120,180,255,.03)}
 // LANDING PAGE
 // ============================================================
 function renderLanding(url) {
+  const subUrl = url.origin + "/sub";
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -950,9 +538,10 @@ function renderLanding(url) {
     <ul class="nav-links">
       <li><a href="#servers">Серверы</a></li>
       <li><a href="#features">Возможности</a></li>
+      <li><a href="#steps">Как подключиться</a></li>
       <li><a href="#faq">FAQ</a></li>
     </ul>
-    <button type="button" class="nav-cta" onclick="getFree(event)">Получить бесплатно</button>
+    <button type="button" class="nav-cta" onclick="copySub(event)">Скопировать ссылку</button>
   </div>
 </nav>
 
@@ -965,15 +554,30 @@ function renderLanding(url) {
       <span class="line"><span>На VLESS.</span></span>
     </h1>
     <p class="hero-sub">
-      Бесплатный VPN без лимитов трафика и скрытых платежей.
-      Серверы в Германии, Швеции, Польше и России.
-      YouTube, Discord, Telegram — и весь интернет без белых списков,
-      блокировок и ограничений мобильных операторов.
+      Бесплатный VPN без лимитов, регистрации и карт.
+      Скопируй ссылку ниже и добавь её в свой VPN-клиент — серверы подтянутся автоматически.
     </p>
-    <div class="hero-actions">
-      <button type="button" class="btn btn-primary" onclick="getFree(event)">Получить бесплатный доступ</button>
-      <a href="#servers" class="btn btn-ghost">Смотреть серверы</a>
+
+    <div class="link-box">
+      <div class="link-box-header">
+        <span class="link-box-title">Твоя ссылка-подписка</span>
+        <span class="link-box-badge">Бесплатно · Бессрочно</span>
+      </div>
+      <div class="link-box-content">
+        <div class="qr-mini" id="qr-box">🔗</div>
+        <div>
+          <div class="sub-url">
+            <input type="text" id="sub-url" readonly value="${subUrl}">
+            <button type="button" class="copy-btn" onclick="copySub(event)">Копировать</button>
+          </div>
+          <p class="link-box-hint">
+            Добавь ссылку в любой VLESS-клиент: <b>Happ</b>, <b>Incy</b>, <b>v2rayNG</b>, <b>Streisand</b>, <b>sing-box</b>, <b>Karing</b> и др.
+            Или отсканируй QR-код камерой телефона.
+          </p>
+        </div>
+      </div>
     </div>
+
     <div class="trust">
       <div class="trust-item">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -996,7 +600,7 @@ function renderLanding(url) {
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="sec-tag">Серверы</span>
-      <h2 class="sec">Четыре локации. Один протокол.<br>Максимальная скорость.</h2>
+      <h2 class="sec">Восемь локаций. Один протокол.<br>Максимальная скорость.</h2>
       <p>Все серверы WLVPN работают на VLESS — лёгком протоколе, который маскирует трафик под обычный HTTPS и не оставляет следов для DPI.</p>
     </div>
 
@@ -1017,21 +621,31 @@ function renderLanding(url) {
       </div>
 
       <div class="server-card tilt reveal">
-        <div class="server-flag">🇵🇱</div>
-        <div class="server-name">Польша</div>
-        <div class="server-stats">
-          <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
-          <div class="server-stat"><span>Скорость</span><b>до 3 Гбит/с</b></div>
-          <div class="server-stat"><span>Протокол</span><b class="proto">VLESS</b></div>
-        </div>
-      </div>
-
-      <div class="server-card tilt reveal">
         <div class="server-flag">🇸🇪</div>
         <div class="server-name">Швеция</div>
         <div class="server-stats">
           <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
           <div class="server-stat"><span>Скорость</span><b>до 5 Гбит/с</b></div>
+          <div class="server-stat"><span>Протокол</span><b class="proto">VLESS</b></div>
+        </div>
+      </div>
+
+      <div class="server-card tilt reveal">
+        <div class="server-flag">🇳🇱</div>
+        <div class="server-name">Нидерланды</div>
+        <div class="server-stats">
+          <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
+          <div class="server-stat"><span>Скорость</span><b>до 5 Гбит/с</b></div>
+          <div class="server-stat"><span>Протокол</span><b class="proto">VLESS</b></div>
+        </div>
+      </div>
+
+      <div class="server-card tilt reveal">
+        <div class="server-flag">🇵🇱</div>
+        <div class="server-name">Польша</div>
+        <div class="server-stats">
+          <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
+          <div class="server-stat"><span>Скорость</span><b>до 3 Гбит/с</b></div>
           <div class="server-stat"><span>Протокол</span><b class="proto">VLESS</b></div>
         </div>
       </div>
@@ -1043,6 +657,36 @@ function renderLanding(url) {
           <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
           <div class="server-stat"><span>Скорость</span><b>до 3 Гбит/с</b></div>
           <div class="server-stat"><span>Протокол</span><b class="proto">VLESS</b></div>
+        </div>
+      </div>
+
+      <div class="server-card tilt reveal">
+        <div class="server-flag">🇫🇮</div>
+        <div class="server-name">Финляндия</div>
+        <div class="server-stats">
+          <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
+          <div class="server-stat"><span>Скорость</span><b>до 3 Гбит/с</b></div>
+          <div class="server-stat"><span>Протокол</span><b class="proto">VLESS</b></div>
+        </div>
+      </div>
+
+      <div class="server-card tilt reveal">
+        <div class="server-flag">🇹🇷</div>
+        <div class="server-name">Турция</div>
+        <div class="server-stats">
+          <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
+          <div class="server-stat"><span>Скорость</span><b>до 3 Гбит/с</b></div>
+          <div class="server-stat"><span>Протокол</span><b class="proto">VLESS · gRPC</b></div>
+        </div>
+      </div>
+
+      <div class="server-card tilt reveal">
+        <div class="server-flag">🇩🇪</div>
+        <div class="server-name">Белый список</div>
+        <div class="server-stats">
+          <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
+          <div class="server-stat"><span>Особенность</span><b>обход белых списков</b></div>
+          <div class="server-stat"><span>Протокол</span><b class="proto">VLESS · gRPC</b></div>
         </div>
       </div>
     </div>
@@ -1097,14 +741,14 @@ function renderLanding(url) {
       <div class="card tilt reveal">
         <div class="card-icon">🎛️</div>
         <h3>Настройка в один клик</h3>
-        <p>Скачал приложение, выбрал сервер, нажал «Подключиться». VLESS включается автоматически, конфиг — по QR-коду.</p>
+        <p>Скопировал ссылку, вставил в клиент, нажал «Подключиться». VLESS включается автоматически, конфиг — по QR-коду.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- STEPS -->
-<section>
+<section id="steps">
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="sec-tag">Как это работает</span>
@@ -1114,17 +758,17 @@ function renderLanding(url) {
       <div class="step reveal">
         <div class="step-num">1</div>
         <h3>Скачай приложение</h3>
-        <p>Windows, macOS, iOS, Android или Linux. Установка занимает меньше минуты.</p>
+        <p>Happ, Incy, v2rayNG, Streisand, sing-box, Karing — на Windows, macOS, iOS, Android или Linux.</p>
       </div>
       <div class="step reveal">
         <div class="step-num">2</div>
-        <h3>Получи бесплатный доступ</h3>
-        <p>Нажми «Получить бесплатно» — мы выдадим ссылку-подписку на все серверы.</p>
+        <h3>Скопируй ссылку</h3>
+        <p>Возьми ссылку-подписку в блоке выше — она универсальная и бессрочная. Или отсканируй QR-код.</p>
       </div>
       <div class="step reveal">
         <div class="step-num">3</div>
-        <h3>Подключайся</h3>
-        <p>Добавь ссылку в клиент и нажми «Подключиться». VLESS уже работает.</p>
+        <h3>Вставь в клиент</h3>
+        <p>Добавь ссылку в VPN-клиент — серверы подтянутся автоматически. Нажми «Подключиться», и VLESS уже работает.</p>
       </div>
     </div>
   </div>
@@ -1204,15 +848,19 @@ function renderLanding(url) {
     <div class="faq">
       <div class="faq-item reveal">
         <div class="faq-q"><span>Сервис правда бесплатный?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. WLVPN полностью бесплатен — без скрытых платежей, без премиум-тарифов и без ограничений по трафику. Доступ выдаётся навсегда.</div></div>
+        <div class="faq-a"><div class="faq-a-inner">Да. WLVPN полностью бесплатен — без скрытых платежей, без премиум-тарифов, без регистрации и без ограничений по трафику. Ссылка-подписка бессрочная.</div></div>
       </div>
       <div class="faq-item reveal">
         <div class="faq-q"><span>Что такое VLESS и чем он лучше OpenVPN?</span><span class="faq-icon">+</span></div>
         <div class="faq-a"><div class="faq-a-inner">VLESS — современный лёгкий протокол. Он не использует тяжёлое шифрование на транспортном уровне, поэтому работает быстрее, потребляет меньше батареи и не оставляет характерных сигнатур, по которым DPI распознаёт VPN. При этом трафик маскируется под обычный HTTPS.</div></div>
       </div>
       <div class="faq-item reveal">
+        <div class="faq-q"><span>Как подключиться?</span><span class="faq-icon">+</span></div>
+        <div class="faq-a"><div class="faq-a-inner">Скопируй ссылку-подписку с главной страницы и вставь её в свой VPN-клиент (Happ, Incy, v2rayNG, Streisand, sing-box, Karing и др.). Клиент сам подтянет все серверы. Выбери любой и нажми «Подключиться».</div></div>
+      </div>
+      <div class="faq-item reveal">
         <div class="faq-q"><span>Насколько падает скорость?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Минимально. Германия — до 10 Гбит/с, Швеция — до 5, Польша и Россия — до 3. Пинг на всех серверах держится в диапазоне 30–60 мс, а на многих локациях ниже.</div></div>
+        <div class="faq-a"><div class="faq-a-inner">Минимально. Германия — до 10 Гбит/с, Швеция и Нидерланды — до 5, Польша, Россия, Финляндия и Турция — до 3. Пинг на всех серверах держится в диапазоне 30–60 мс.</div></div>
       </div>
       <div class="faq-item reveal">
         <div class="faq-q"><span>Работает ли обход блокировок для YouTube, Discord и Telegram?</span><span class="faq-icon">+</span></div>
@@ -1240,7 +888,7 @@ function renderLanding(url) {
     <div class="cta-box reveal">
       <h2 class="sec">Интернет без границ —<br>на VLESS</h2>
       <p>Бесплатно. Навсегда. Без карты и регистрации.</p>
-      <button type="button" class="btn btn-primary" onclick="getFree(event)">Получить бесплатно</button>
+      <button type="button" class="btn btn-primary" onclick="copySub(event)">Скопировать ссылку</button>
     </div>
   </div>
 </section>
@@ -1257,24 +905,46 @@ function renderLanding(url) {
   </div>
 </footer>
 
-<div class="modal-bg" id="modal">
-  <div class="modal">
-    <button type="button" class="modal-close" onclick="closeModal()">×</button>
-    <h2>Твой доступ готов!</h2>
-    <p>Скопируй ссылку ниже и добавь её в свой VPN-клиент (Happ, Incy, v2rayNG, Streisand, sing-box и др.)</p>
-    <div class="qr-box" id="qr-box"></div>
-    <div class="sub-url">
-      <input type="text" id="sub-url" readonly>
-      <button type="button" class="copy-btn" onclick="copyUrl(event)">Копировать</button>
-    </div>
-    <div class="info-row"><span>Срок действия</span><b>Бессрочно</b></div>
-    <div class="info-row"><span>Трафик</span><b>Без ограничений</b></div>
-    <div class="info-row"><span>Устройств</span><b>Без ограничений</b></div>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
+/* ============ COPY ============ */
+function copySub(e) {
+  const input = document.getElementById('sub-url');
+  if (!input) return;
+  const url = input.value;
+  input.select();
+  input.setSelectionRange(0, url.length);
+  let ok = false;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(url);
+      ok = true;
+    }
+  } catch(_) {}
+  if (!ok) {
+    try { document.execCommand('copy'); ok = true; } catch(_) {}
+  }
+  const btn = e.currentTarget;
+  const orig = btn.textContent;
+  btn.textContent = ok ? '✓ Скопировано' : 'Не удалось';
+  setTimeout(() => { btn.textContent = orig; }, 1800);
+}
+
+/* ============ QR ============ */
+(function initQR() {
+  const box = document.getElementById('qr-box');
+  const input = document.getElementById('sub-url');
+  if (!box || !input || typeof qrcode === 'undefined') return;
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(input.value);
+    qr.make();
+    box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1 });
+  } catch (err) {
+    console.warn('QR failed:', err);
+  }
+})();
+
 /* ============ STARS ============ */
 const canvas = document.getElementById('stars');
 const ctx = canvas.getContext('2d');
@@ -1353,7 +1023,7 @@ addEventListener('mousemove', e => {
   cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
   requestAnimationFrame(loopCursor);
 })();
-document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review').forEach(el => {
+document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review, .link-box').forEach(el => {
   el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
   el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
 });
@@ -1430,451 +1100,7 @@ document.querySelectorAll('.faq-item').forEach(item => {
     }
   });
 });
-
-/* ============ GET FREE ============ */
-async function getFree(e){
-  e.preventDefault();
-  const btn = e.currentTarget;
-  const original = btn.textContent;
-  btn.textContent = 'Создаём...';
-  btn.disabled = true;
-  try{
-    const res = await fetch('/api/free', { method: 'POST' });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.error || 'Ошибка');
-    showModal(data);
-  }catch(err){
-    alert(err.message);
-  }finally{
-    btn.textContent = original;
-    btn.disabled = false;
-  }
-}
-
-function showModal(data){
-  document.getElementById('sub-url').value = data.url;
-  try{
-    const qr = qrcode(0, 'M');
-    qr.addData(data.url);
-    qr.make();
-    document.getElementById('qr-box').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 2 });
-  }catch(err){ console.warn('QR failed', err); }
-  document.getElementById('modal').classList.add('show');
-}
-function closeModal(){ document.getElementById('modal').classList.remove('show'); }
-function copyUrl(e){
-  const input = document.getElementById('sub-url');
-  input.select();
-  navigator.clipboard.writeText(input.value);
-  const btn = e.currentTarget;
-  const orig = btn.textContent;
-  btn.textContent = '✓';
-  setTimeout(() => btn.textContent = orig, 1500);
-}
-document.getElementById('modal').addEventListener('click', e => {
-  if(e.target.id === 'modal') closeModal();
-});
 </script>
 </body>
 </html>`;
-}
-
-// ============================================================
-// SUB INFO PAGE
-// ============================================================
-function renderSubInfoPage(sub, token) {
-  if (!sub) {
-    return `<!doctype html>
-<html lang="ru"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WLVPN — Доступ не найден</title>
-<style>${CSS}</style>
-</head><body>
-<div class="cursor"></div>
-<div class="cursor-dot"></div>
-<canvas id="stars"></canvas>
-<div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
-<nav class="top"><div class="nav-inner">
-  <div class="logo"><div class="logo-mark"></div><span>WLVPN</span></div>
-  <a href="/" class="nav-cta">На главную</a>
-</div></nav>
-<div class="sub-page">
-  <div class="sub-card" style="text-align:center">
-    <h1>Доступ не найден</h1>
-    <p style="color:var(--muted);margin-bottom:24px;line-height:1.7">Токен <code style="color:var(--cyan);font-family:monospace">${escapeHtml(token)}</code> не существует или был удалён.</p>
-    <a href="/" class="btn btn-primary">Получить новый</a>
-  </div>
-</div>
-<script>
-const canvas = document.getElementById('stars');
-const ctx = canvas.getContext('2d');
-let stars = [], w, h, dpr;
-function resize(){
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  w = canvas.width = innerWidth * dpr; h = canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
-  stars = Array.from({length:100}, () => ({ x: Math.random()*w, y: Math.random()*h, r:(Math.random()*1.5+.4)*dpr, a: Math.random()*.5+.25 }));
-}
-resize(); addEventListener('resize', resize);
-function draw(){
-  ctx.clearRect(0,0,w,h);
-  for(const s of stars){
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(190,235,255,' + s.a + ')'; ctx.fill();
-  }
-  requestAnimationFrame(draw);
-}
-draw();
-</script>
-</body></html>`;
-  }
-
-  const isExpired = sub.expiresAt && sub.expiresAt < Date.now();
-  const isRevoked = !sub.active;
-
-  let status = "active", label = "Активна";
-  if (isRevoked) { status = "revoked"; label = "Отозвана"; }
-  else if (isExpired) { status = "expired"; label = "Истекла"; }
-
-  const relUrl = `/sub/${token}`;
-
-  return `<!doctype html>
-<html lang="ru"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WLVPN — Доступ</title>
-<style>${CSS}</style>
-</head><body>
-<div class="cursor"></div>
-<div class="cursor-dot"></div>
-<canvas id="stars"></canvas>
-<div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
-<nav class="top"><div class="nav-inner">
-  <div class="logo"><div class="logo-mark"></div><span>WLVPN</span></div>
-  <a href="/" class="nav-cta">На главную</a>
-</div></nav>
-<div class="sub-page">
-  <div class="sub-card">
-    <h1>Доступ <span class="status-pill status-${status}">${label}</span></h1>
-
-    <div class="info-row"><span>Срок действия</span><b>${formatDate(sub.expiresAt)}</b></div>
-    <div class="info-row"><span>Трафик</span><b>Без ограничений</b></div>
-    <div class="info-row"><span>Создана</span><b>${formatDate(sub.createdAt)}</b></div>
-    <div class="info-row"><span>Тип</span><b>${escapeHtml(sub.type || 'free')}</b></div>
-
-    <div style="margin-top:22px">
-      <p style="color:var(--muted);font-size:.9rem;margin-bottom:10px">
-        Ссылка для клиента (скопируйте и вставьте в VPN-клиент):
-      </p>
-      <div class="sub-url">
-        <input type="text" id="sub-url" readonly value="${escapeHtml(relUrl)}">
-        <button type="button" class="copy-btn" onclick="copyUrl(event)">Копировать</button>
-      </div>
-    </div>
-  </div>
-</div>
-<script>
-document.getElementById('sub-url').value = location.origin + ${JSON.stringify(relUrl)};
-function copyUrl(e){
-  const i = document.getElementById('sub-url');
-  i.select();
-  navigator.clipboard.writeText(i.value);
-  const btn = e.currentTarget;
-  const o = btn.textContent; btn.textContent = '✓';
-  setTimeout(()=>btn.textContent=o, 1500);
-}
-
-const canvas = document.getElementById('stars');
-const ctx = canvas.getContext('2d');
-let stars = [], w, h, dpr;
-function resize(){
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  w = canvas.width = innerWidth * dpr; h = canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
-  stars = Array.from({length:100}, () => ({ x: Math.random()*w, y: Math.random()*h, r:(Math.random()*1.5+.4)*dpr, a: Math.random()*.5+.25 }));
-}
-resize(); addEventListener('resize', resize);
-function draw(){
-  ctx.clearRect(0,0,w,h);
-  for(const s of stars){
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(190,235,255,' + s.a + ')'; ctx.fill();
-  }
-  requestAnimationFrame(draw);
-}
-draw();
-
-const cursor = document.querySelector('.cursor');
-const dot = document.querySelector('.cursor-dot');
-let cx = innerWidth/2, cy = innerHeight/2, tx = cx, ty = cy;
-addEventListener('mousemove', e => {
-  tx = e.clientX; ty = e.clientY;
-  dot.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px) translate(-50%,-50%)';
-});
-(function loop(){
-  cx += (tx - cx) * .16; cy += (ty - cy) * .16;
-  cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
-  requestAnimationFrame(loop);
-})();
-document.querySelectorAll('a, button').forEach(el => {
-  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
-  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
-});
-</script>
-</body></html>`;
-}
-
-// ============================================================
-// ADMIN LOGIN
-// ============================================================
-function renderAdminLogin(error) {
-  return `<!doctype html>
-<html lang="ru"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WLVPN — Админ</title>
-<style>${CSS}</style>
-</head><body>
-<div class="cursor"></div>
-<div class="cursor-dot"></div>
-<canvas id="stars"></canvas>
-<div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
-<nav class="top"><div class="nav-inner">
-  <div class="logo"><div class="logo-mark"></div><span>WLVPN · Admin</span></div>
-  <a href="/" class="nav-cta">На сайт</a>
-</div></nav>
-<div class="login-wrap">
-  <div class="login-card">
-    <h1>Админ-панель</h1>
-    <p>WLVPN · управление доступами</p>
-    ${error ? '<div class="error">Неверный пароль</div>' : ''}
-    <form method="POST" action="/admin/login">
-      <input type="password" name="password" placeholder="Пароль" required autofocus>
-      <button type="submit" class="btn btn-primary">Войти</button>
-    </form>
-  </div>
-</div>
-<script>
-const canvas = document.getElementById('stars');
-const ctx = canvas.getContext('2d');
-let stars = [], w, h, dpr;
-function resize(){
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  w = canvas.width = innerWidth * dpr; h = canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
-  stars = Array.from({length:100}, () => ({ x: Math.random()*w, y: Math.random()*h, r:(Math.random()*1.5+.4)*dpr, a: Math.random()*.5+.25 }));
-}
-resize(); addEventListener('resize', resize);
-function draw(){
-  ctx.clearRect(0,0,w,h);
-  for(const s of stars){
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(190,235,255,' + s.a + ')'; ctx.fill();
-  }
-  requestAnimationFrame(draw);
-}
-draw();
-const cursor = document.querySelector('.cursor');
-const dot = document.querySelector('.cursor-dot');
-let cx = innerWidth/2, cy = innerHeight/2, tx = cx, ty = cy;
-addEventListener('mousemove', e => {
-  tx = e.clientX; ty = e.clientY;
-  dot.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px) translate(-50%,-50%)';
-});
-(function loop(){
-  cx += (tx - cx) * .16; cy += (ty - cy) * .16;
-  cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
-  requestAnimationFrame(loop);
-})();
-</script>
-</body></html>`;
-}
-
-// ============================================================
-// ADMIN DASHBOARD
-// ============================================================
-function renderAdminDashboard() {
-  return `<!doctype html>
-<html lang="ru"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WLVPN — Панель управления</title>
-<style>${CSS}</style>
-</head><body>
-<div class="cursor"></div>
-<div class="cursor-dot"></div>
-<canvas id="stars"></canvas>
-<div class="aurora"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div></div>
-
-<nav class="top"><div class="nav-inner">
-  <div class="logo"><div class="logo-mark"></div><span>WLVPN · Admin</span></div>
-  <form method="POST" action="/admin/logout" style="margin:0">
-    <button type="submit" class="nav-cta">Выйти</button>
-  </form>
-</div></nav>
-
-<div class="dash wrap">
-  <div class="dash-head">
-    <h1>Доступы</h1>
-    <div class="actions">
-      <a href="/" target="_blank" class="btn btn-ghost btn-small">Открыть сайт</a>
-      <button type="button" class="btn btn-ghost btn-small" onclick="loadAll()">Обновить</button>
-    </div>
-  </div>
-
-  <div class="stats" id="stats"></div>
-
-  <div class="create-form">
-    <input id="f-note" placeholder="Заметка (например: клиент @user)">
-    <input id="f-days" type="number" placeholder="Дней (0 = ∞)" value="0" min="0">
-    <label><input id="f-infinite" type="checkbox" checked> Бессрочная</label>
-    <button type="button" class="btn btn-primary" onclick="createSub()">Создать</button>
-  </div>
-
-  <div class="table-wrap">
-    <table>
-      <thead><tr>
-        <th>Токен</th><th>Статус</th><th>Срок</th><th>Заметка</th><th>Действия</th>
-      </tr></thead>
-      <tbody id="tbody"><tr><td colspan="5" class="empty">Загрузка…</td></tr></tbody>
-    </table>
-  </div>
-</div>
-
-<script>
-async function loadAll(){
-  await Promise.all([loadStats(), loadList()]);
-}
-
-async function loadStats(){
-  try{
-    const r = await fetch('/admin/api/stats');
-    if(r.status === 401){ location.href = '/admin'; return; }
-    const d = await r.json();
-    document.getElementById('stats').innerHTML = \`
-      <div class="stat"><div class="label">Всего</div><div class="value">\${d.total ?? 0}</div></div>
-      <div class="stat"><div class="label">Активных</div><div class="value mint">\${d.active ?? 0}</div></div>
-      <div class="stat"><div class="label">Истекло</div><div class="value yellow">\${d.expired ?? 0}</div></div>
-      <div class="stat"><div class="label">Отозвано</div><div class="value red">\${d.revoked ?? 0}</div></div>
-    \`;
-  }catch(e){ console.error(e); }
-}
-
-async function loadList(){
-  try{
-    const r = await fetch('/admin/api/list');
-    if(r.status === 401){ location.href = '/admin'; return; }
-    const d = await r.json();
-    const subs = d.subs || [];
-    const tbody = document.getElementById('tbody');
-    if(!subs.length){
-      tbody.innerHTML = '<tr><td colspan="5" class="empty">Доступов пока нет. Создай первый выше.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = subs.map(s => {
-      const expire = s.expiresAt ? new Date(s.expiresAt).toLocaleDateString('ru-RU') : '∞';
-      return \`<tr>
-        <td><span class="token-cell">\${s.token}</span></td>
-        <td><span class="pill pill-\${s.status}">\${statusLabel(s.status)}</span></td>
-        <td>\${expire}</td>
-        <td style="font-size:.85rem;color:var(--muted)">\${escape(s.note || '—')}</td>
-        <td><div class="actions-cell">
-          <button type="button" class="btn btn-ghost btn-small" onclick="act('\${s.token}','extend',30)">+30д</button>
-          <button type="button" class="btn btn-ghost btn-small" onclick="copyLink('\${s.token}')">Ссылка</button>
-          \${s.active ? \`<button type="button" class="btn btn-ghost btn-small" onclick="act('\${s.token}','revoke')">Отозвать</button>\` : \`<button type="button" class="btn btn-ghost btn-small" onclick="act('\${s.token}','activate')">Вернуть</button>\`}
-          <button type="button" class="btn btn-danger btn-small" onclick="if(confirm('Удалить доступ \${s.token}?'))act('\${s.token}','delete')">Удалить</button>
-        </div></td>
-      </tr>\`;
-    }).join('');
-  }catch(e){ console.error(e); }
-}
-
-async function createSub(){
-  const body = {
-    note: document.getElementById('f-note').value.trim(),
-    days: parseInt(document.getElementById('f-days').value) || 0,
-    infinite: document.getElementById('f-infinite').checked
-  };
-  const r = await fetch('/admin/api/create', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
-  });
-  const d = await r.json();
-  if(r.ok){
-    toast('Доступ создан: ' + d.token, 'success');
-    document.getElementById('f-note').value = '';
-    loadAll();
-  } else toast(d.error || 'Ошибка', 'error');
-}
-
-async function act(token, action, days){
-  const r = await fetch('/admin/api/' + token + '/' + action, {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(days ? { days } : {})
-  });
-  const d = await r.json();
-  if(r.ok){ toast('OK', 'success'); loadAll(); }
-  else toast(d.error || 'Ошибка', 'error');
-}
-
-function copyLink(token){
-  const url = location.origin + '/sub/' + token;
-  navigator.clipboard.writeText(url);
-  toast('Скопировано: ' + url, 'success');
-}
-
-function statusLabel(s){
-  return { active:'Активна', expired:'Истекла', revoked:'Отозвана' }[s] || s;
-}
-
-function escape(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-function toast(msg, type='success'){
-  const t = document.createElement('div');
-  t.className = 'toast ' + type;
-  t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3000);
-}
-
-loadAll();
-setInterval(loadAll, 30000);
-
-/* STARS */
-const canvas = document.getElementById('stars');
-const ctx = canvas.getContext('2d');
-let stars = [], w, h, dpr;
-function resize(){
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  w = canvas.width = innerWidth * dpr; h = canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + 'px'; canvas.style.height = innerHeight + 'px';
-  stars = Array.from({length:100}, () => ({ x: Math.random()*w, y: Math.random()*h, r:(Math.random()*1.5+.4)*dpr, a: Math.random()*.5+.25 }));
-}
-resize(); addEventListener('resize', resize);
-function draw(){
-  ctx.clearRect(0,0,w,h);
-  for(const s of stars){
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(190,235,255,' + s.a + ')'; ctx.fill();
-  }
-  requestAnimationFrame(draw);
-}
-draw();
-
-/* CURSOR */
-const cursor = document.querySelector('.cursor');
-const dot = document.querySelector('.cursor-dot');
-let cx = innerWidth/2, cy = innerHeight/2, tx = cx, ty = cy;
-addEventListener('mousemove', e => {
-  tx = e.clientX; ty = e.clientY;
-  dot.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px) translate(-50%,-50%)';
-});
-(function loop(){
-  cx += (tx - cx) * .16; cy += (ty - cy) * .16;
-  cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
-  requestAnimationFrame(loop);
-})();
-document.querySelectorAll('a, button, .stat, .table-wrap').forEach(el => {
-  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
-  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
-});
-</script>
-</body></html>`;
 }
