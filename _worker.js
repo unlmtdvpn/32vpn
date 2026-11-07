@@ -195,6 +195,14 @@ const SERVERS = [
     "stats": {},
     "remarks": "📱 Обход глушилок #4",
     "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
+  },
+  {
+    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
+    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
+    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
+    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "fca7d7g.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "b592243922d5", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "fca7d7g.nl4.h1clayd.click", "publicKey": "YXQYOC41H8qEc08QW3KX9pS_ZVhR37NYbhwtns48ByU", "shortId": "428ecee00f55589e", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
+    "remarks": "❤️ Поддержите владельца",
+    "meta": { "serverDescription": "2202206778971874" }
   }
 ];
 
@@ -274,7 +282,7 @@ async function serveSubscription() {
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
       "Subscription-Userinfo": userInfo,
-      "announce": "wlvpn — быстрый и стабильный VPN сервис.",
+      "announce": "wlvpn — бесплатный VPN сервис.",
       "Cache-Control": "no-cache",
       "Access-Control-Allow-Origin": "*"
     }
@@ -315,7 +323,7 @@ async function debugTraffic() {
     results.push(r);
   }
 
-  return new Response(JSON.stringify({ ts: new Date().toISOString(), url: CHKAV_URL, results }, null, 2), {
+  return new Response(JSON.stringify({ url: CHKAV_URL, results }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
   });
 }
@@ -330,13 +338,11 @@ async function handle(request) {
 
   if (path === "/__debug") return debugTraffic();
 
-  // Корень — подписка для клиентов, лендинг для браузеров
   if (path === "/" || path === "") {
     if (isBrowser(ua)) return htmlResponse(renderLanding(url));
     return serveSubscription();
   }
 
-  // /sub — алиас для совместимости
   if (path === "/sub" || path === "/sub/") {
     if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
     return serveSubscription();
@@ -786,9 +792,22 @@ function renderLanding(url) {
 
   const serverCards = SERVERS.map((s, i) => {
     const remarks = s.remarks || `Server #${i + 1}`;
+
+    let flag, name;
     const flagMatch = remarks.match(/^([\u{1F1E6}-\u{1F1FF}]{2})\s*(.*)$/u);
-    const flag = flagMatch ? flagMatch[1] : "🌐";
-    const name = flagMatch ? flagMatch[2] : remarks;
+    if (flagMatch) {
+      flag = flagMatch[1];
+      name = flagMatch[2];
+    } else {
+      const emojiMatch = remarks.match(/^(\p{Extended_Pictographic}(?:\uFE0F)?)\s+(.*)$/u);
+      if (emojiMatch) {
+        flag = emojiMatch[1];
+        name = emojiMatch[2];
+      } else {
+        flag = "🌐";
+        name = remarks;
+      }
+    }
 
     const desc = (s.meta && s.meta.serverDescription) || "";
     const tag = desc.replace(/^WLVPN\s*·\s*/, "").trim();
