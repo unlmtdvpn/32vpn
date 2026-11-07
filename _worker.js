@@ -70,7 +70,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "52ee46g.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "d70a1e898970", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "52ee46g.fi8.h1clayd.click", "publicKey": "ls8qrjjxQECi4gAY66LpI7dFMCwkMIsdAxCTC8OjRiA", "shortId": "7cf5819f1c4cfed2", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇫🇮 Финляндия #2",
-    "meta": { "serverDescription": "WLVPN" }
+    "meta": { "serverDescription": "WLVPN, YouTube" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
