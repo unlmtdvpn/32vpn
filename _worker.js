@@ -128,14 +128,6 @@ const SERVERS = [
     "remarks": "🇵🇱 Польша #3",
     "meta": { "serverDescription": "WLVPN · Нейросети" }
   },
-{
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "fca7d7g.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "b592243922d5", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "fca7d7g.nl4.h1clayd.click", "publicKey": "YXQYOC41H8qEc08QW3KX9pS_ZVhR37NYbhwtns48ByU", "shortId": "428ecee00f55589e", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇵🇱 ❤️ Поддержите владельца ❤️",
-    "meta": { "serverDescription": "2202.2067.7897.1874" }
-  },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
     "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
@@ -169,7 +161,7 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #1",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
+    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
   },
   {
     "log": { "loglevel": "error" },
@@ -180,7 +172,7 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #2",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
+    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
   },
   {
     "log": { "loglevel": "error" },
@@ -191,7 +183,7 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #3",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
+    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
   },
   {
     "log": { "loglevel": "error" },
@@ -202,7 +194,7 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #4",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
+    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
   }
 ];
 
@@ -282,7 +274,7 @@ async function serveSubscription() {
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
       "Subscription-Userinfo": userInfo,
-      "announce": "wlvpn — быстрый VPN сервис. Благодаря вашей поддержке сервис может оставаться бесплатным. 2202.2067.7897.1874",
+      "announce": "wlvpn — быстрый и стабильный VPN сервис. 🌐",
       "Cache-Control": "no-cache",
       "Access-Control-Allow-Origin": "*"
     }
