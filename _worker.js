@@ -226,6 +226,14 @@ function htmlResponse(content, status = 200) {
 // ============================================================
 const CHKAV_URL = "https://newsub.chkav-vpn.space/ZjdjPsQn0mQXMHB1";
 
+function normalizeUserinfo(raw) {
+  if (!raw) return null;
+  const up = (raw.match(/upload=(\d+)/i) || [])[1] || "0";
+  const down = (raw.match(/download=(\d+)/i) || [])[1] || "0";
+  const total = (raw.match(/total=(\d+)/i) || [])[1] || "0";
+  return `upload=${up}; download=${down}; total=${total}; expire=0`;
+}
+
 async function fetchChkavUserinfo() {
   const variants = [
     { name: "INCY-full", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8" } },
@@ -243,11 +251,14 @@ async function fetchChkavUserinfo() {
       if (!res.ok) continue;
 
       const hdr = res.headers.get("Subscription-Userinfo");
-      if (hdr && /upload=\d+/.test(hdr) && !/upload=0; download=0; total=0; expire=0/.test(hdr)) return hdr;
+      if (hdr && /upload=\d+/.test(hdr) && !/upload=0; download=0; total=0/.test(hdr)) {
+        const n = normalizeUserinfo(hdr);
+        if (n) return n;
+      }
 
       const txt = await res.text();
-      const m = txt.match(/(?:upload|up)\s*[=:]\s*(\d+)\D+(?:download|down)\s*[=:]\s*(\d+)\D+total\s*[=:]\s*(\d+)(?:\D+expire\s*[=:]\s*(\d+))?/i);
-      if (m) return `upload=${m[1]}; download=${m[2]}; total=${m[3]}; expire=${m[4] || 0}`;
+      const m = txt.match(/(?:upload|up)\s*[=:]\s*(\d+)\D+(?:download|down)\s*[=:]\s*(\d+)\D+total\s*[=:]\s*(\d+)/i);
+      if (m) return `upload=${m[1]}; download=${m[2]}; total=${m[3]}; expire=0`;
     } catch (_) {}
   }
   return null;
