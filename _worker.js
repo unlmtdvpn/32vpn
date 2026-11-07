@@ -282,7 +282,7 @@ async function serveSubscription() {
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
       "Subscription-Userinfo": userInfo,
-      "announce": "wlvpn — быстрый VPN сервис. Благодаря вашей поддержке сервис может оставаться бесплатным.",
+      "announce": "wlvpn — быстрый VPN сервис. Благодаря вашей поддержке сервис может оставаться бесплатным. 2202.2067.7897.1874",
       "Cache-Control": "no-cache",
       "Access-Control-Allow-Origin": "*"
     }
