@@ -1,6 +1,6 @@
 // ============================================================
 // WLVPN — Free VPN Service (Cloudflare Worker)
-// JSON-подписка, 20 серверов, без админки/KV
+// JSON-подписка, трафик из chkav, дебаг /__debug
 // ============================================================
 
 const SERVERS = [
@@ -222,27 +222,40 @@ function htmlResponse(content, status = 200) {
 }
 
 // ============================================================
-// SUBSCRIPTION
+// SUBSCRIPTION + CHKAV TRAFFIC
 // ============================================================
+const CHKAV_URL = "https://newsub.chkav-vpn.space/ZjdjPsQn0mQXMHB1";
+
+async function fetchChkavUserinfo() {
+  const variants = [
+    { name: "INCY-full", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8" } },
+    { name: "INCY-basic", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" } },
+    { name: "Happ", h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*" } },
+    { name: "v2rayNG", h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*" } },
+    { name: "Streisand", h: { "User-Agent": "Streisand/1.6.31 CFNetwork/1410 Darwin/22.6.0", "Accept": "*/*" } },
+    { name: "Karing", h: { "User-Agent": "Karing/1.0.30", "Accept": "*/*" } },
+    { name: "no-UA", h: {} }
+  ];
+
+  for (const v of variants) {
+    try {
+      const res = await fetch(CHKAV_URL, { headers: v.h, redirect: "follow", cf: { cacheTtl: 0 } });
+      if (!res.ok) continue;
+
+      const hdr = res.headers.get("Subscription-Userinfo");
+      if (hdr && /upload=\d+/.test(hdr) && !/upload=0; download=0; total=0; expire=0/.test(hdr)) return hdr;
+
+      const txt = await res.text();
+      const m = txt.match(/(?:upload|up)\s*[=:]\s*(\d+)\D+(?:download|down)\s*[=:]\s*(\d+)\D+total\s*[=:]\s*(\d+)(?:\D+expire\s*[=:]\s*(\d+))?/i);
+      if (m) return `upload=${m[1]}; download=${m[2]}; total=${m[3]}; expire=${m[4] || 0}`;
+    } catch (_) {}
+  }
+  return null;
+}
+
 async function serveSubscription() {
   const body = JSON.stringify(SERVERS, null, 2);
-  let userInfo = "upload=0; download=0; total=0; expire=0";
-
-  try {
-    const res = await fetch("https://newsub.chkav-vpn.space/ZjdjPsqNmQXMHB1", {
-      headers: {
-        "User-Agent": "INCY/3.9.7/android",
-        "Accept": "*/*"
-      },
-      cf: { cacheTtl: 0 }
-    });
-    if (res.ok) {
-      const hdr = res.headers.get("Subscription-Userinfo");
-      if (hdr) userInfo = hdr;
-    }
-  } catch (_) {
-    // fallback — нули
-  }
+  const userInfo = (await fetchChkavUserinfo()) || "upload=0; download=0; total=0; expire=0";
 
   return new Response(body, {
     headers: {
@@ -257,6 +270,45 @@ async function serveSubscription() {
   });
 }
 
+async function debugTraffic() {
+  const variants = [
+    { name: "INCY-full", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8" } },
+    { name: "INCY-basic", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" } },
+    { name: "Happ", h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*" } },
+    { name: "v2rayNG", h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*" } },
+    { name: "browser", h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } },
+    { name: "no-UA", h: {} }
+  ];
+
+  const results = [];
+  for (const v of variants) {
+    const r = { name: v.name };
+    try {
+      const t0 = Date.now();
+      const res = await fetch(CHKAV_URL, { headers: v.h, redirect: "manual", cf: { cacheTtl: 0 } });
+      r.timeMs = Date.now() - t0;
+      r.status = res.status;
+      r.statusText = res.statusText;
+      const headers = {};
+      for (const [k, val] of res.headers) headers[k] = val;
+      r.headers = headers;
+      let buf;
+      try { buf = await res.arrayBuffer(); r.bodyLen = buf.byteLength; } catch (_) { r.bodyLen = -1; }
+      if (buf && buf.byteLength > 0) {
+        const text = new TextDecoder().decode(buf).slice(0, 500);
+        r.bodyText = text;
+      }
+    } catch (e) {
+      r.error = String((e && e.message) || e);
+    }
+    results.push(r);
+  }
+
+  return new Response(JSON.stringify({ ts: new Date().toISOString(), url: CHKAV_URL, results }, null, 2), {
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
+  });
+}
+
 // ============================================================
 // HANDLER
 // ============================================================
@@ -265,11 +317,15 @@ async function handle(request) {
   const path = url.pathname;
   const ua = request.headers.get("User-Agent") || "";
 
+  if (path === "/__debug") return debugTraffic();
+
+  // Корень — подписка для клиентов, лендинг для браузеров
   if (path === "/" || path === "") {
     if (isBrowser(ua)) return htmlResponse(renderLanding(url));
     return serveSubscription();
   }
 
+  // /sub — алиас для совместимости
   if (path === "/sub" || path === "/sub/") {
     if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
     return serveSubscription();
@@ -715,7 +771,7 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 // LANDING PAGE
 // ============================================================
 function renderLanding(url) {
-  const subUrl = url.origin + "/sub";
+  const subUrl = url.origin;
 
   const serverCards = SERVERS.map((s, i) => {
     const remarks = s.remarks || `Server #${i + 1}`;
@@ -808,7 +864,7 @@ function renderLanding(url) {
           </div>
           <p class="link-box-hint">
             Добавь ссылку в любой VLESS-клиент: <b>Happ</b>, <b>Incy</b>, <b>v2rayNG</b>, <b>Streisand</b>, <b>sing-box</b>, <b>Karing</b> и др.
-            Или отсканируй QR-код камерой телефона.
+            Просто вставь корневой URL — клиент сам подтянет серверы. Или отсканируй QR.
           </p>
         </div>
       </div>
@@ -1079,186 +1135,4 @@ function copySub(e) {
       ok = true;
     }
   } catch(_) {}
-  if (!ok) {
-    try { document.execCommand('copy'); ok = true; } catch(_) {}
-  }
-  const btn = e.currentTarget;
-  const orig = btn.textContent;
-  btn.textContent = ok ? '✓ Скопировано' : 'Не удалось';
-  setTimeout(() => { btn.textContent = orig; }, 1800);
-}
-
-/* ============ QR ============ */
-(function initQR() {
-  const box = document.getElementById('qr-box');
-  const input = document.getElementById('sub-url');
-  if (!box || !input || typeof qrcode === 'undefined') return;
-  try {
-    const qr = qrcode(0, 'M');
-    qr.addData(input.value);
-    qr.make();
-    box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1 });
-  } catch (err) {
-    console.warn('QR failed:', err);
-  }
-})();
-
-/* ============ STARS ============ */
-const canvas = document.getElementById('stars');
-const ctx = canvas.getContext('2d');
-let stars = [], w, h, dpr;
-const mouse = { x: -9999, y: -9999 };
-
-function resize(){
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  w = canvas.width = innerWidth * dpr;
-  h = canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + 'px';
-  canvas.style.height = innerHeight + 'px';
-  const count = Math.min(150, Math.floor((innerWidth * innerHeight) / 12000));
-  stars = Array.from({ length: count }, () => ({
-    x: Math.random() * w,
-    y: Math.random() * h,
-    vx: (Math.random() - .5) * .25 * dpr,
-    vy: (Math.random() - .5) * .25 * dpr,
-    r: (Math.random() * 1.5 + .4) * dpr,
-    a: Math.random() * .5 + .25
-  }));
-}
-resize();
-addEventListener('resize', resize);
-
-function draw(){
-  ctx.clearRect(0, 0, w, h);
-  const linkDist = 130 * dpr;
-  for (let i = 0; i < stars.length; i++){
-    const s = stars[i];
-    s.x += s.vx; s.y += s.vy;
-    if (s.x < 0 || s.x > w) s.vx *= -1;
-    if (s.y < 0 || s.y > h) s.vy *= -1;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(190,235,255,' + s.a + ')';
-    ctx.fill();
-    for (let j = i + 1; j < stars.length; j++){
-      const o = stars[j];
-      const dx = s.x - o.x, dy = s.y - o.y;
-      const d = Math.hypot(dx, dy);
-      if (d < linkDist){
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(o.x, o.y);
-        ctx.strokeStyle = 'rgba(0,224,255,' + ((1 - d / linkDist) * .26) + ')';
-        ctx.lineWidth = .6 * dpr;
-        ctx.stroke();
-      }
-    }
-    const mdx = s.x - mouse.x * dpr, mdy = s.y - mouse.y * dpr;
-    const md = Math.hypot(mdx, mdy);
-    if (md < 170 * dpr && md > 0){
-      const f = (1 - md / (170 * dpr)) * .9;
-      s.x += (mdx / md) * f;
-      s.y += (mdy / md) * f;
-    }
-  }
-  requestAnimationFrame(draw);
-}
-draw();
-
-/* ============ CURSOR ============ */
-const cursor = document.querySelector('.cursor');
-const dot = document.querySelector('.cursor-dot');
-let cx = innerWidth / 2, cy = innerHeight / 2;
-let tx = cx, ty = cy;
-addEventListener('mousemove', e => {
-  tx = e.clientX; ty = e.clientY;
-  mouse.x = e.clientX; mouse.y = e.clientY;
-  dot.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px) translate(-50%,-50%)';
-});
-(function loopCursor(){
-  cx += (tx - cx) * .16;
-  cy += (ty - cy) * .16;
-  cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
-  requestAnimationFrame(loopCursor);
-})();
-document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review, .link-box').forEach(el => {
-  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
-  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
-});
-
-/* ============ NAV ============ */
-const nav = document.getElementById('nav');
-addEventListener('scroll', () => {
-  nav.classList.toggle('scrolled', scrollY > 40);
-});
-
-/* ============ REVEAL ============ */
-const io = new IntersectionObserver(entries => {
-  entries.forEach((e, i) => {
-    if (e.isIntersecting){
-      e.target.style.transitionDelay = (i % 6) * 80 + 'ms';
-      e.target.classList.add('in');
-      io.unobserve(e.target);
-    }
-  });
-}, { threshold: .15, rootMargin: '0px 0px -60px 0px' });
-document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-setTimeout(() => {
-  document.querySelectorAll('.reveal:not(.in)').forEach(el => {
-    el.classList.add('in');
-    el.style.transitionDelay = '0ms';
-  });
-}, 3000);
-
-/* ============ TILT ============ */
-document.querySelectorAll('.tilt').forEach(card => {
-  card.addEventListener('mousemove', e => {
-    const r = card.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    card.style.setProperty('--mx', px * 100 + '%');
-    card.style.setProperty('--my', py * 100 + '%');
-    const rx = (py - .5) * -8;
-    const ry = (px - .5) * 8;
-    card.style.transform = 'perspective(900px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-6px)';
-  });
-  card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-});
-
-/* ============ LIVE PING ============ */
-const pingEls = document.querySelectorAll('[data-ping]');
-function updatePings(){
-  pingEls.forEach(el => {
-    const val = Math.floor(Math.random() * 31) + 30;
-    el.textContent = val + ' мс';
-    el.style.color = val < 40 ? 'var(--mint)' : (val < 50 ? 'var(--cyan)' : '#ffd166');
-  });
-}
-updatePings();
-setInterval(updatePings, 2500);
-
-/* ============ FAQ ============ */
-document.querySelectorAll('.faq-item').forEach(item => {
-  const q = item.querySelector('.faq-q');
-  const a = item.querySelector('.faq-a');
-  q.addEventListener('click', () => {
-    const isOpen = item.classList.contains('open');
-    document.querySelectorAll('.faq-item.open').forEach(other => {
-      if (other !== item){
-        other.classList.remove('open');
-        other.querySelector('.faq-a').style.maxHeight = null;
-      }
-    });
-    if (isOpen){
-      item.classList.remove('open');
-      a.style.maxHeight = null;
-    } else {
-      item.classList.add('open');
-      a.style.maxHeight = a.scrollHeight + 'px';
-    }
-  });
-});
-</script>
-</body>
-</html>`;
-}
+  if (!ok)
