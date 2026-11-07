@@ -224,14 +224,32 @@ function htmlResponse(content, status = 200) {
 // ============================================================
 // SUBSCRIPTION
 // ============================================================
-function serveSubscription() {
+async function serveSubscription() {
   const body = JSON.stringify(SERVERS, null, 2);
+  let userInfo = "upload=0; download=0; total=0; expire=0";
+
+  try {
+    const res = await fetch("https://newsub.chkav-vpn.space/ZjdjPsqNmQXMHB1", {
+      headers: {
+        "User-Agent": "INCY/3.9.7/android",
+        "Accept": "*/*"
+      },
+      cf: { cacheTtl: 0 }
+    });
+    if (res.ok) {
+      const hdr = res.headers.get("Subscription-Userinfo");
+      if (hdr) userInfo = hdr;
+    }
+  } catch (_) {
+    // fallback — нули
+  }
+
   return new Response(body, {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
-      "Subscription-Userinfo": "upload=0; download=0; total=0; expire=0",
+      "Subscription-Userinfo": userInfo,
       "announce": "wlvpn — бесплатный VPN сервис.",
       "Cache-Control": "no-cache",
       "Access-Control-Allow-Origin": "*"
