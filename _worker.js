@@ -358,10 +358,36 @@ async function serveSubscription() {
   let contentType = "application/json; charset=utf-8";
 
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
+    // 1. Обрабатываем то, что пришло от Chkav
     const servers = chkav.data.map(applyBrandingJson).filter(Boolean);
+
+    // 2. Собираем все хосты, которые уже есть в динамике
+    const existingHosts = new Set();
+    servers.forEach(s => {
+      if (s.routing && Array.isArray(s.routing.balancers)) return;
+      const proxy = (s.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
+      const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
+      if (host) existingHosts.add(host);
+    });
+
+    // 3. Добавляем недостающие (например, мобильные Обходы глушилок) из статики
+    SERVERS.forEach(staticServer => {
+      if (staticServer.routing && Array.isArray(staticServer.routing.balancers)) return; // Пропускаем Авто
+      
+      const proxy = (staticServer.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
+      const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
+
+      // Если такого сервера нет в ответе Chkav — добавляем его
+      if (host && !existingHosts.has(host)) {
+        servers.push(JSON.parse(JSON.stringify(staticServer))); // Клонируем
+      }
+    });
+
+    // 4. Если нет балансировщика — добавляем
     if (!servers.some(s => s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0)) {
       servers.unshift(SERVERS[0]);
     }
+
     body = JSON.stringify(servers, null, 2);
   } else if (chkav.format === "vless") {
     const list = applyBrandingVlessList(chkav.data);
