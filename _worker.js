@@ -198,9 +198,6 @@ const SERVERS = [
   }
 ];
 
-// ============================================================
-// HOST_MAP — наши приписки по hostname
-// ============================================================
 const HOST_MAP = {
   "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "Игровой" },
   "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
@@ -223,9 +220,6 @@ const HOST_MAP = {
   "sub-edge-05-1g.whitenw.net": { remarks: "📱 Обход глушилок #4", category: "Работает при ограничении мобильного интернета" }
 };
 
-// ============================================================
-// UTILS
-// ============================================================
 function isVpnClient(ua) {
   return /incy|happ|v2ray|clash|sing-box|nekobox|stash|streisand|karing|matsuri|shadowrocket|nekoray|v2rayng|ko*ng/i.test(ua);
 }
@@ -246,10 +240,8 @@ function htmlResponse(content, status = 200) {
   });
 }
 
-// ============================================================
-// SUBSCRIPTION
-// ============================================================
 const CHKAV_URL = "https://newsub.chkav-vpn.space/9zfbEsqma0tkNfc2";
+const WLVPN_HWID = "05D95B0D-F4B5-3AFD-B11D-7CCE9F3CAE59";
 
 function normalizeUserinfo(raw) {
   if (!raw) return null;
@@ -281,21 +273,12 @@ function parseSubscriptionBody(txt) {
   return null;
 }
 
-// Стабильный HWID нашего воркера — чтобы chkav видел нас как одно устройство
-// Твой реальный HWID от Incy
-const WLVPN_HWID = "05D95B0D-F4B5-3AFD-B11D-7CCE9F3CAE59";
-
 async function fetchChkav() {
   const variants = [
-    // Incy + X-Hwid
     { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID },
-    // Happ + X-Hwid
     { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID },
-    // Incy + X-Device-Id
     { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID },
-    // v2rayNG + X-Hwid
     { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID },
-    // Без UA, только X-Hwid
     { "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID }
   ];
 
@@ -312,7 +295,6 @@ async function fetchChkav() {
     } catch (_) {}
   }
 
-  // Fallback: пробуем через query-параметры
   const queryVariants = [
     CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID),
     CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID),
@@ -339,49 +321,6 @@ async function fetchChkav() {
   return { userInfo: null, format: null, data: null };
 }
 
-async function debugTraffic() {
-  const variants = [
-    { name: "INCY + X-Hwid",         h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
-    { name: "INCY + X-Hwid + X-HWID",h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID } },
-    { name: "INCY + X-Device-Id",    h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID } },
-    { name: "Happ + X-Hwid",         h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
-    { name: "v2rayNG + X-Hwid",      h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
-    { name: "no-UA + X-Hwid",        h: { "X-Hwid": WLVPN_HWID } },
-    { name: "query ?hwid=",          h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID) },
-    { name: "query ?device_id=",     h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID) },
-    { name: "browser + no hwid",     h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } }
-  ];
-
-  const results = [];
-  for (const v of variants) {
-    const r = { name: v.name };
-    try {
-      const t0 = Date.now();
-      const targetUrl = v.url || CHKAV_URL;
-      const res = await fetch(targetUrl, { headers: v.h, redirect: "manual", cf: { cacheTtl: 0 } });
-      r.url = targetUrl;
-      r.timeMs = Date.now() - t0;
-      r.status = res.status;
-      r.statusText = res.statusText;
-      const headers = {};
-      for (const [k, val] of res.headers) headers[k] = val;
-      r.headers = headers;
-      let buf;
-      try { buf = await res.arrayBuffer(); r.bodyLen = buf.byteLength; } catch (_) { r.bodyLen = -1; }
-      if (buf && buf.byteLength > 0) {
-        r.bodyText = new TextDecoder().decode(buf).slice(0, 500);
-      }
-    } catch (e) {
-      r.error = String((e && e.message) || e);
-    }
-    results.push(r);
-  }
-
-  return new Response(JSON.stringify({ url: CHKAV_URL, hwid: WLVPN_HWID, results }, null, 2), {
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
-  });
-}
-
 function isDonationServer(s) {
   const r = (s.remarks || "").toLowerCase();
   const d = ((s.meta && s.meta.serverDescription) || "").toLowerCase();
@@ -404,7 +343,6 @@ function applyBrandingJson(server) {
     server.remarks = HOST_MAP[host].remarks;
     server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · " + HOST_MAP[host].category });
   } else {
-    // Незнакомый — remarks из источника, description = WLVPN
     server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN" });
   }
 
@@ -472,12 +410,15 @@ async function serveSubscription() {
 
 async function debugTraffic() {
   const variants = [
-    { name: "INCY-full", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8" } },
-    { name: "INCY-basic", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" } },
-    { name: "Happ", h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*" } },
-    { name: "v2rayNG", h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*" } },
-    { name: "browser", h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } },
-    { name: "no-UA", h: {} }
+    { name: "INCY + X-Hwid",         h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "INCY + X-Hwid + X-HWID",h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID } },
+    { name: "INCY + X-Device-Id",    h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID } },
+    { name: "Happ + X-Hwid",         h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "v2rayNG + X-Hwid",      h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "no-UA + X-Hwid",        h: { "X-Hwid": WLVPN_HWID } },
+    { name: "query ?hwid=",          h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID) },
+    { name: "query ?device_id=",     h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID) },
+    { name: "browser + no hwid",     h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } }
   ];
 
   const results = [];
@@ -485,7 +426,9 @@ async function debugTraffic() {
     const r = { name: v.name };
     try {
       const t0 = Date.now();
-      const res = await fetch(CHKAV_URL, { headers: v.h, redirect: "manual", cf: { cacheTtl: 0 } });
+      const targetUrl = v.url || CHKAV_URL;
+      const res = await fetch(targetUrl, { headers: v.h, redirect: "manual", cf: { cacheTtl: 0 } });
+      r.url = targetUrl;
       r.timeMs = Date.now() - t0;
       r.status = res.status;
       r.statusText = res.statusText;
@@ -503,14 +446,11 @@ async function debugTraffic() {
     results.push(r);
   }
 
-  return new Response(JSON.stringify({ url: CHKAV_URL, results }, null, 2), {
+  return new Response(JSON.stringify({ url: CHKAV_URL, hwid: WLVPN_HWID, results }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
   });
 }
 
-// ============================================================
-// HANDLER
-// ============================================================
 async function handle(request) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -541,9 +481,6 @@ export default {
   }
 };
 
-// ============================================================
-// CSS
-// ============================================================
 const CSS = `
 :root{
   --bg:#050914;--bg-soft:#0a1020;--surface:#0a1225;--surface2:#111b33;
@@ -946,9 +883,6 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 }
 `;
 
-// ============================================================
-// LANDING PAGE
-// ============================================================
 function renderLanding(url) {
   const subUrl = url.origin;
 
