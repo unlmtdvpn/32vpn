@@ -281,12 +281,21 @@ function parseSubscriptionBody(txt) {
   return null;
 }
 
+// Стабильный HWID нашего воркера — чтобы chkav видел нас как одно устройство
+const WLVPN_HWID = "a7f3c9e2-1b4d-4f6a-9c8e-2d5b7a1f3e9c";
+
 async function fetchChkav() {
   const variants = [
-    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8" },
-    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" },
-    { "User-Agent": "Happ/1.6.0", "Accept": "*/*" },
-    { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*" }
+    // Incy + X-Hwid
+    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID },
+    // Happ + X-Hwid
+    { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID },
+    // Incy + X-Device-Id
+    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID },
+    // v2rayNG + X-Hwid
+    { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID },
+    // Без UA, только X-Hwid
+    { "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID }
   ];
 
   for (const h of variants) {
@@ -298,10 +307,78 @@ async function fetchChkav() {
       const txt = await res.text();
       const parsed = parseSubscriptionBody(txt);
 
-      if (userInfo || parsed) return { userInfo, ...(parsed || {}) };
+      if (parsed) return { userInfo, ...parsed };
     } catch (_) {}
   }
+
+  // Fallback: пробуем через query-параметры
+  const queryVariants = [
+    CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID),
+    CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID),
+    CHKAV_URL + "?deviceId=" + encodeURIComponent(WLVPN_HWID)
+  ];
+
+  for (const u of queryVariants) {
+    try {
+      const res = await fetch(u, {
+        headers: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID },
+        redirect: "follow",
+        cf: { cacheTtl: 0 }
+      });
+      if (!res.ok) continue;
+
+      const userInfo = normalizeUserinfo(res.headers.get("Subscription-Userinfo"));
+      const txt = await res.text();
+      const parsed = parseSubscriptionBody(txt);
+
+      if (parsed) return { userInfo, ...parsed };
+    } catch (_) {}
+  }
+
   return { userInfo: null, format: null, data: null };
+}
+
+async function debugTraffic() {
+  const variants = [
+    { name: "INCY + X-Hwid",         h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "INCY + X-Hwid + X-HWID",h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID } },
+    { name: "INCY + X-Device-Id",    h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID } },
+    { name: "Happ + X-Hwid",         h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "v2rayNG + X-Hwid",      h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "no-UA + X-Hwid",        h: { "X-Hwid": WLVPN_HWID } },
+    { name: "query ?hwid=",          h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID) },
+    { name: "query ?device_id=",     h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID) },
+    { name: "browser + no hwid",     h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } }
+  ];
+
+  const results = [];
+  for (const v of variants) {
+    const r = { name: v.name };
+    try {
+      const t0 = Date.now();
+      const targetUrl = v.url || CHKAV_URL;
+      const res = await fetch(targetUrl, { headers: v.h, redirect: "manual", cf: { cacheTtl: 0 } });
+      r.url = targetUrl;
+      r.timeMs = Date.now() - t0;
+      r.status = res.status;
+      r.statusText = res.statusText;
+      const headers = {};
+      for (const [k, val] of res.headers) headers[k] = val;
+      r.headers = headers;
+      let buf;
+      try { buf = await res.arrayBuffer(); r.bodyLen = buf.byteLength; } catch (_) { r.bodyLen = -1; }
+      if (buf && buf.byteLength > 0) {
+        r.bodyText = new TextDecoder().decode(buf).slice(0, 500);
+      }
+    } catch (e) {
+      r.error = String((e && e.message) || e);
+    }
+    results.push(r);
+  }
+
+  return new Response(JSON.stringify({ url: CHKAV_URL, hwid: WLVPN_HWID, results }, null, 2), {
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
+  });
 }
 
 function isDonationServer(s) {
