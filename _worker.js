@@ -249,7 +249,7 @@ function htmlResponse(content, status = 200) {
 // ============================================================
 // SUBSCRIPTION
 // ============================================================
-const CHKAV_URL = "https://newsub.chkav-vpn.space/ZjdjPsQn0mQXMHB1";
+const CHKAV_URL = "https://newsub.chkav-vpn.space/9zfbEsqma0tkNfc2";
 
 function normalizeUserinfo(raw) {
   if (!raw) return null;
