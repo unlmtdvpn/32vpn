@@ -282,7 +282,8 @@ function parseSubscriptionBody(txt) {
 }
 
 // Стабильный HWID нашего воркера — чтобы chkav видел нас как одно устройство
-const WLVPN_HWID = "a7f3c9e2-1b4d-4f6a-9c8e-2d5b7a1f3e9c";
+// Твой реальный HWID от Incy
+const WLVPN_HWID = "05D95B0D-F4B5-3AFD-B11D-7CCE9F3CAE59";
 
 async function fetchChkav() {
   const variants = [
