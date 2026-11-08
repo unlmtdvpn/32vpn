@@ -275,11 +275,9 @@ function parseSubscriptionBody(txt) {
 
 async function fetchChkav() {
   const variants = [
-    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID },
-    { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID },
-    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID },
-    { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID },
-    { "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID }
+    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID },
+    { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID },
+    { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID }
   ];
 
   for (const h of variants) {
@@ -289,35 +287,14 @@ async function fetchChkav() {
 
       const userInfo = normalizeUserinfo(res.headers.get("Subscription-Userinfo"));
       const txt = await res.text();
-      const parsed = parseSubscriptionBody(txt);
+      
+      // Защита: если chkav вернул фейковый сервер (0.0.0.0:1), пропускаем
+      if (txt.includes("00000000-0000-0000-0000-000000000000") || txt.includes("0.0.0.0:1")) continue;
 
+      const parsed = parseSubscriptionBody(txt);
       if (parsed) return { userInfo, ...parsed };
     } catch (_) {}
   }
-
-  const queryVariants = [
-    CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID),
-    CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID),
-    CHKAV_URL + "?deviceId=" + encodeURIComponent(WLVPN_HWID)
-  ];
-
-  for (const u of queryVariants) {
-    try {
-      const res = await fetch(u, {
-        headers: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID },
-        redirect: "follow",
-        cf: { cacheTtl: 0 }
-      });
-      if (!res.ok) continue;
-
-      const userInfo = normalizeUserinfo(res.headers.get("Subscription-Userinfo"));
-      const txt = await res.text();
-      const parsed = parseSubscriptionBody(txt);
-
-      if (parsed) return { userInfo, ...parsed };
-    } catch (_) {}
-  }
-
   return { userInfo: null, format: null, data: null };
 }
 
