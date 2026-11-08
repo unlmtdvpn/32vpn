@@ -241,7 +241,7 @@ function htmlResponse(content, status = 200) {
 }
 
 const CHKAV_URL = "https://newsub.chkav-vpn.space/9zfbEsqma0tkNfc2";
-const WLVPN_HWID = "9CC7C608-24F0-31EF-9921-EFD911992AC5";
+const WLVPN_HWID = "1BEF4F22-1340-8D05-2641-3CC6D7CC1B27";
 
 function normalizeUserinfo(raw) {
   if (!raw) return null;
