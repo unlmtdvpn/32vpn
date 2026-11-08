@@ -1,6 +1,6 @@
 // ============================================================
 // WLVPN — Free VPN Service (Cloudflare Worker)
-// JSON-подписка, трафик из chkav, дебаг /__debug
+// Динамическая подписка из chkav + наши приписки
 // ============================================================
 
 const SERVERS = [
@@ -161,7 +161,7 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #1",
-    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
+    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
   },
   {
     "log": { "loglevel": "error" },
@@ -172,7 +172,7 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #2",
-    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
+    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
   },
   {
     "log": { "loglevel": "error" },
@@ -183,7 +183,7 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #3",
-    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
+    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
   },
   {
     "log": { "loglevel": "error" },
@@ -194,9 +194,34 @@ const SERVERS = [
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
     "remarks": "📱 Обход глушилок #4",
-    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
+    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
   }
 ];
+
+// ============================================================
+// HOST_MAP — наши приписки по hostname
+// ============================================================
+const HOST_MAP = {
+  "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "Игровой" },
+  "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
+  "6b83b0x.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
+  "5f9abbt.de21.h1clayd.click": { remarks: "🇩🇪 Германия #1",   category: "Игровой" },
+  "403e8ag.de21.h1clayd.click": { remarks: "🇩🇪 Германия #2",   category: "Нейросети" },
+  "e1efc1x.de21.h1clayd.click": { remarks: "🇩🇪 Германия #3",   category: "Нейросети" },
+  "defc63t.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
+  "fca7d7g.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
+  "b3a336x.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
+  "e900bbt.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
+  "c190afg.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
+  "7c5fbcx.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
+  "c84a94t.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #1",     category: "YouTube" },
+  "0e6251g.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
+  "bd5c13x.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #3",     category: "Нейросети" },
+  "panel.betust.net":           { remarks: "📱 Обход глушилок #1", category: "Работает при ограничении мобильного интернета" },
+  "9aa6d5b7f0bf.vps.myjino.ru": { remarks: "📱 Обход глушилок #2", category: "Работает при ограничении мобильного интернета" },
+  "sub-edge-08-1g.xrent.cloud": { remarks: "📱 Обход глушилок #3", category: "Работает при ограничении мобильного интернета" },
+  "sub-edge-05-1g.whitenw.net": { remarks: "📱 Обход глушилок #4", category: "Работает при ограничении мобильного интернета" }
+};
 
 // ============================================================
 // UTILS
@@ -222,7 +247,7 @@ function htmlResponse(content, status = 200) {
 }
 
 // ============================================================
-// SUBSCRIPTION + CHKAV TRAFFIC
+// SUBSCRIPTION
 // ============================================================
 const CHKAV_URL = "https://newsub.chkav-vpn.space/ZjdjPsQn0mQXMHB1";
 
@@ -234,47 +259,133 @@ function normalizeUserinfo(raw) {
   return `upload=${up}; download=${down}; total=${total}; expire=0`;
 }
 
-async function fetchChkavUserinfo() {
-  const variants = [
-    { name: "INCY-full", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8" } },
-    { name: "INCY-basic", h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" } },
-    { name: "Happ", h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*" } },
-    { name: "v2rayNG", h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*" } },
-    { name: "Streisand", h: { "User-Agent": "Streisand/1.6.31 CFNetwork/1410 Darwin/22.6.0", "Accept": "*/*" } },
-    { name: "Karing", h: { "User-Agent": "Karing/1.0.30", "Accept": "*/*" } },
-    { name: "no-UA", h: {} }
-  ];
+function parseSubscriptionBody(txt) {
+  try {
+    const arr = JSON.parse(txt);
+    if (Array.isArray(arr) && arr.length > 0) return { format: "json", data: arr };
+  } catch (_) {}
 
-  for (const v of variants) {
-    try {
-      const res = await fetch(CHKAV_URL, { headers: v.h, redirect: "follow", cf: { cacheTtl: 0 } });
-      if (!res.ok) continue;
+  try {
+    const dec = atob(txt.trim());
+    const arr = JSON.parse(dec);
+    if (Array.isArray(arr) && arr.length > 0) return { format: "json", data: arr };
+  } catch (_) {}
 
-      const hdr = res.headers.get("Subscription-Userinfo");
-      if (hdr && /upload=\d+/.test(hdr) && !/upload=0; download=0; total=0/.test(hdr)) {
-        const n = normalizeUserinfo(hdr);
-        if (n) return n;
-      }
+  try {
+    const dec = atob(txt.trim());
+    if (/^vless:\/\//m.test(dec)) return { format: "vless", data: dec };
+  } catch (_) {}
 
-      const txt = await res.text();
-      const m = txt.match(/(?:upload|up)\s*[=:]\s*(\d+)\D+(?:download|down)\s*[=:]\s*(\d+)\D+total\s*[=:]\s*(\d+)/i);
-      if (m) return `upload=${m[1]}; download=${m[2]}; total=${m[3]}; expire=0`;
-    } catch (_) {}
-  }
+  if (/^vless:\/\//m.test(txt)) return { format: "vless", data: txt };
+
   return null;
 }
 
+async function fetchChkav() {
+  const variants = [
+    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "Accept-Encoding": "gzip, deflate", "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8" },
+    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" },
+    { "User-Agent": "Happ/1.6.0", "Accept": "*/*" },
+    { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*" }
+  ];
+
+  for (const h of variants) {
+    try {
+      const res = await fetch(CHKAV_URL, { headers: h, redirect: "follow", cf: { cacheTtl: 0 } });
+      if (!res.ok) continue;
+
+      const userInfo = normalizeUserinfo(res.headers.get("Subscription-Userinfo"));
+      const txt = await res.text();
+      const parsed = parseSubscriptionBody(txt);
+
+      if (userInfo || parsed) return { userInfo, ...(parsed || {}) };
+    } catch (_) {}
+  }
+  return { userInfo: null, format: null, data: null };
+}
+
+function isDonationServer(s) {
+  const r = (s.remarks || "").toLowerCase();
+  const d = ((s.meta && s.meta.serverDescription) || "").toLowerCase();
+  return r.includes("поддержите") || r.includes("владельца") || d.includes("2202206778971874");
+}
+
+function applyBrandingJson(server) {
+  if (isDonationServer(server)) return null;
+
+  if (server.routing && Array.isArray(server.routing.balancers) && server.routing.balancers.length > 0) {
+    server.remarks = "🔁 Авто - самый быстрый";
+    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · Скоростной" });
+    return server;
+  }
+
+  const proxy = (server.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
+  const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
+
+  if (host && HOST_MAP[host]) {
+    server.remarks = HOST_MAP[host].remarks;
+    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · " + HOST_MAP[host].category });
+  } else {
+    // Незнакомый — remarks из источника, description = WLVPN
+    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN" });
+  }
+
+  return server;
+}
+
+function applyBrandingVlessList(txt) {
+  const lines = txt.split(/\r?\n/).filter(l => l.trim().startsWith("vless://"));
+  const out = [];
+
+  for (const line of lines) {
+    const fragIdx = line.indexOf("#");
+    const existingFrag = fragIdx >= 0 ? decodeURIComponent(line.slice(fragIdx + 1)) : "";
+
+    if (/поддержите|владельца|2202206778971874/i.test(existingFrag)) continue;
+
+    const m = line.match(/@([^:\/?#]+):\d+/);
+    const host = m ? m[1] : null;
+    const base = line.split("#")[0];
+
+    if (host && HOST_MAP[host]) {
+      const remark = HOST_MAP[host].remarks + " · WLVPN · " + HOST_MAP[host].category;
+      out.push(base + "#" + encodeURIComponent(remark));
+    } else {
+      out.push(line);
+    }
+  }
+  return out;
+}
+
 async function serveSubscription() {
-  const body = JSON.stringify(SERVERS, null, 2);
-  const userInfo = (await fetchChkavUserinfo()) || "upload=0; download=0; total=0; expire=0";
+  const chkav = await fetchChkav();
+  const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
+
+  let body;
+  let contentType = "application/json; charset=utf-8";
+
+  if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
+    const servers = chkav.data.map(applyBrandingJson).filter(Boolean);
+    if (!servers.some(s => s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0)) {
+      servers.unshift(SERVERS[0]);
+    }
+    body = JSON.stringify(servers, null, 2);
+  } else if (chkav.format === "vless") {
+    const list = applyBrandingVlessList(chkav.data);
+    const joined = list.join("\n");
+    body = btoa(unescape(encodeURIComponent(joined)));
+    contentType = "text/plain; charset=utf-8";
+  } else {
+    body = JSON.stringify(SERVERS, null, 2);
+  }
 
   return new Response(body, {
     headers: {
-      "Content-Type": "application/json; charset=utf-8",
+      "Content-Type": contentType,
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
       "Subscription-Userinfo": userInfo,
-      "announce": "wlvpn — быстрый и стабильный VPN сервис. 🌐",
+      "announce": "wlvpn — бесплатный VPN сервис.",
       "Cache-Control": "no-cache",
       "Access-Control-Allow-Origin": "*"
     }
@@ -306,8 +417,7 @@ async function debugTraffic() {
       let buf;
       try { buf = await res.arrayBuffer(); r.bodyLen = buf.byteLength; } catch (_) { r.bodyLen = -1; }
       if (buf && buf.byteLength > 0) {
-        const text = new TextDecoder().decode(buf).slice(0, 500);
-        r.bodyText = text;
+        r.bodyText = new TextDecoder().decode(buf).slice(0, 500);
       }
     } catch (e) {
       r.error = String((e && e.message) || e);
@@ -374,7 +484,6 @@ body{
 a{color:var(--cyan)}
 .wrap{position:relative;z-index:2;max-width:1240px;margin:0 auto;padding:0 28px}
 
-/* CURSOR */
 .cursor,.cursor-dot{
   position:fixed;top:0;left:0;pointer-events:none !important;z-index:9999;
   border-radius:50%;transform:translate(-50%,-50%);will-change:transform;
@@ -388,10 +497,8 @@ a{color:var(--cyan)}
 .cursor.hover{width:70px;height:70px;background:rgba(0,224,255,.14);border-color:rgba(0,255,163,.9)}
 @media (hover:none){.cursor,.cursor-dot{display:none}}
 
-/* CANVAS */
 #stars{position:fixed;inset:0;z-index:0;opacity:.85;pointer-events:none}
 
-/* AURORA */
 .aurora{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;filter:blur(90px);opacity:.5}
 .blob{position:absolute;border-radius:50%;animation:float 22s ease-in-out infinite}
 .b1{width:46vw;height:46vw;background:var(--cyan);top:-12vw;left:-10vw}
@@ -403,7 +510,6 @@ a{color:var(--cyan)}
   66%{transform:translate(-5vw,5vw) scale(.92)}
 }
 
-/* NAV */
 nav.top{
   position:fixed;top:0;left:0;right:0;z-index:100;
   transition:background .4s,backdrop-filter .4s,border-color .4s;
@@ -454,7 +560,6 @@ nav.top.scrolled{background:rgba(5,9,20,.78);backdrop-filter:blur(18px);border-b
 .nav-cta:hover{box-shadow:0 8px 30px -6px rgba(0,255,163,.8);transform:translateY(-2px)}
 @media(max-width:880px){.nav-links{display:none}}
 
-/* BUTTONS */
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
   padding:12px 24px;border-radius:100px;font-size:.92rem;font-weight:600;
@@ -470,7 +575,6 @@ nav.top.scrolled{background:rgba(5,9,20,.78);backdrop-filter:blur(18px);border-b
 .btn-ghost{background:var(--glass);color:var(--text);border:1px solid var(--stroke)}
 .btn-ghost:hover{border-color:rgba(0,224,255,.5)}
 
-/* HERO */
 header.hero{min-height:100vh;display:flex;align-items:center;padding:150px 0 100px;position:relative}
 .badge{
   display:inline-flex;align-items:center;gap:10px;
@@ -513,7 +617,6 @@ h1.title .line:nth-child(3) > span{animation-delay:.24s}
 }
 @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 
-/* LINK BOX */
 .link-box{
   margin:36px 0 44px;padding:26px 28px;border-radius:22px;
   background:linear-gradient(160deg,rgba(0,224,255,.09),rgba(0,255,163,.03));
@@ -567,7 +670,6 @@ h1.title .line:nth-child(3) > span{animation-delay:.24s}
 .trust-item{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:.86rem}
 .trust-item svg{width:18px;height:18px;flex-shrink:0;color:var(--mint)}
 
-/* SECTIONS */
 section{padding:120px 0;position:relative}
 .sec-head{margin-bottom:64px;max-width:680px}
 .sec-tag{
@@ -577,11 +679,9 @@ section{padding:120px 0;position:relative}
 h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;letter-spacing:-.025em}
 .sec-head p{color:var(--muted);margin-top:20px;line-height:1.75;font-size:1rem;max-width:560px}
 
-/* REVEAL */
 .reveal{opacity:0;transform:translateY(44px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
 .reveal.in{opacity:1;transform:none}
 
-/* SERVERS */
 .servers-note{
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   padding:14px 22px;border-radius:100px;
@@ -634,7 +734,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 }
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
 
-/* FEATURES */
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px}
 .card{
   position:relative;padding:38px 30px;border-radius:22px;
@@ -660,7 +759,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .card p{color:var(--muted);font-size:.94rem;line-height:1.7}
 .card p b{color:var(--cyan);font-weight:600}
 
-/* STEPS */
 .steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:30px}
 .step{
   position:relative;padding:32px 26px 30px;border-radius:22px;
@@ -675,7 +773,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .step h3{font-size:1.15rem;margin-bottom:10px;font-weight:600}
 .step p{color:var(--muted);font-size:.92rem;line-height:1.65}
 
-/* SECURITY BLOCK */
 .security-block{
   position:relative;padding:80px 60px;border-radius:32px;
   background:linear-gradient(160deg,rgba(0,224,255,.08),rgba(124,92,255,.06));
@@ -695,7 +792,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .sec-list li::before{content:'✦';color:var(--mint);font-size:.9rem;margin-top:2px;text-shadow:0 0 14px var(--mint)}
 .sec-list b{color:var(--text);font-weight:600}
 
-/* REVIEWS */
 .reviews{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px}
 .review{
   padding:34px 28px;border-radius:22px;
@@ -714,7 +810,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .review-name{font-weight:600;font-size:.9rem}
 .review-role{color:var(--muted);font-size:.78rem}
 
-/* FAQ */
 .faq{max-width:820px;margin:0 auto;display:grid;gap:12px}
 .faq-item{
   border-radius:16px;background:var(--glass);border:1px solid var(--stroke);
@@ -736,7 +831,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .faq-a{max-height:0;overflow:hidden;transition:max-height .4s cubic-bezier(.65,0,.35,1)}
 .faq-a-inner{padding:0 26px 24px;color:var(--muted);line-height:1.75;font-size:.92rem}
 
-/* CTA */
 .cta-box{
   position:relative;text-align:center;padding:90px 40px;border-radius:32px;
   background:linear-gradient(160deg,rgba(0,224,255,.14),rgba(0,255,163,.06));
@@ -751,7 +845,6 @@ h2.sec{font-weight:800;font-size:clamp(2rem,4.6vw,3.4rem);line-height:1.05;lette
 .cta-box p{color:var(--muted);max-width:460px;margin:0 auto 40px;line-height:1.7;position:relative}
 .cta-box .btn{position:relative}
 
-/* FOOTER */
 footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;z-index:2}
 .foot-inner{display:flex;justify-content:space-between;align-items:center;gap:30px;flex-wrap:wrap}
 .foot-inner p{color:var(--muted);font-size:.86rem}
@@ -763,7 +856,6 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 }
 .socials a:hover{color:#fff;border-color:var(--cyan);background:rgba(0,224,255,.15);transform:translateY(-3px)}
 
-/* SCROLLBAR */
 ::-webkit-scrollbar{width:9px}
 ::-webkit-scrollbar-track{background:#050914}
 ::-webkit-scrollbar-thumb{background:linear-gradient(var(--cyan),var(--mint));border-radius:10px}
@@ -909,7 +1001,6 @@ function renderLanding(url) {
   </div>
 </header>
 
-<!-- SERVERS -->
 <section id="servers">
   <div class="wrap">
     <div class="sec-head reveal">
@@ -929,7 +1020,6 @@ function renderLanding(url) {
   </div>
 </section>
 
-<!-- FEATURES -->
 <section id="features">
   <div class="wrap">
     <div class="sec-head reveal">
@@ -983,7 +1073,6 @@ function renderLanding(url) {
   </div>
 </section>
 
-<!-- STEPS -->
 <section id="steps">
   <div class="wrap">
     <div class="sec-head reveal">
@@ -1010,7 +1099,6 @@ function renderLanding(url) {
   </div>
 </section>
 
-<!-- SECURITY -->
 <section>
   <div class="wrap">
     <div class="security-block reveal">
@@ -1029,7 +1117,6 @@ function renderLanding(url) {
   </div>
 </section>
 
-<!-- REVIEWS -->
 <section>
   <div class="wrap">
     <div class="sec-head reveal">
@@ -1074,7 +1161,6 @@ function renderLanding(url) {
   </div>
 </section>
 
-<!-- FAQ -->
 <section id="faq">
   <div class="wrap">
     <div class="sec-head reveal" style="text-align:center;margin-left:auto;margin-right:auto">
@@ -1118,7 +1204,6 @@ function renderLanding(url) {
   </div>
 </section>
 
-<!-- CTA -->
 <section id="cta">
   <div class="wrap">
     <div class="cta-box reveal">
@@ -1143,7 +1228,6 @@ function renderLanding(url) {
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
-/* ============ COPY ============ */
 function copySub(e) {
   const input = document.getElementById('sub-url');
   if (!input) return;
@@ -1166,7 +1250,6 @@ function copySub(e) {
   setTimeout(() => { btn.textContent = orig; }, 1800);
 }
 
-/* ============ QR ============ */
 (function initQR() {
   const box = document.getElementById('qr-box');
   const input = document.getElementById('sub-url');
@@ -1181,7 +1264,6 @@ function copySub(e) {
   }
 })();
 
-/* ============ STARS ============ */
 const canvas = document.getElementById('stars');
 const ctx = canvas.getContext('2d');
 let stars = [], w, h, dpr;
@@ -1243,7 +1325,6 @@ function draw(){
 }
 draw();
 
-/* ============ CURSOR ============ */
 const cursor = document.querySelector('.cursor');
 const dot = document.querySelector('.cursor-dot');
 let cx = innerWidth / 2, cy = innerHeight / 2;
@@ -1264,13 +1345,11 @@ document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review, .lin
   el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
 });
 
-/* ============ NAV ============ */
 const nav = document.getElementById('nav');
 addEventListener('scroll', () => {
   nav.classList.toggle('scrolled', scrollY > 40);
 });
 
-/* ============ REVEAL ============ */
 const io = new IntersectionObserver(entries => {
   entries.forEach((e, i) => {
     if (e.isIntersecting){
@@ -1288,7 +1367,6 @@ setTimeout(() => {
   });
 }, 3000);
 
-/* ============ TILT ============ */
 document.querySelectorAll('.tilt').forEach(card => {
   card.addEventListener('mousemove', e => {
     const r = card.getBoundingClientRect();
@@ -1303,7 +1381,6 @@ document.querySelectorAll('.tilt').forEach(card => {
   card.addEventListener('mouseleave', () => { card.style.transform = ''; });
 });
 
-/* ============ LIVE PING ============ */
 const pingEls = document.querySelectorAll('[data-ping]');
 function updatePings(){
   pingEls.forEach(el => {
@@ -1315,7 +1392,6 @@ function updatePings(){
 updatePings();
 setInterval(updatePings, 2500);
 
-/* ============ FAQ ============ */
 document.querySelectorAll('.faq-item').forEach(item => {
   const q = item.querySelector('.faq-q');
   const a = item.querySelector('.faq-a');
