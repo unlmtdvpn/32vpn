@@ -1,5 +1,5 @@
 // ============================================================
-// WLVPN — Free VPN Service (Cloudflare Worker)
+// WLVPN — Free VPN Service (Cloudflare Worker) — FIXED v3
 // ============================================================
 
 const FALLBACK_SERVER = {
@@ -12,11 +12,11 @@ const FALLBACK_SERVER = {
 };
 
 const LOCATIONS = {
-  "fi8": { flag: "🇫🇮", name: "Финляндия", tag: "WLVPN · Нейросети", selector: "proxy-fi-" },
-  "de21": { flag: "🇩🇪", name: "Германия", tag: "WLVPN · Скоростной", selector: "proxy-de-" },
-  "nl4": { flag: "🇳🇱", name: "Нидерланды", tag: "WLVPN · Скоростной", selector: "proxy-nl-" },
-  "pl6": { flag: "🇵🇱", name: "Польша", tag: "WLVPN · YouTube", selector: "proxy-pl-" },
-  "es7": { flag: "🇪🇸", name: "Испания", tag: "WLVPN · Нейросети", selector: "proxy-es-" }
+  "fi8": { flag: "🇫🇮", name: "Финляндия", tag: "WLVPN · Нейросети" },
+  "de21": { flag: "🇩🇪", name: "Германия", tag: "WLVPN · Скоростной" },
+  "nl4": { flag: "🇳🇱", name: "Нидерланды", tag: "WLVPN · Скоростной" },
+  "pl6": { flag: "🇵🇱", name: "Польша", tag: "WLVPN · YouTube" },
+  "es7": { flag: "🇪🇸", name: "Испания", tag: "WLVPN · Нейросети" }
 };
 
 function isVpnClient(ua) {
@@ -111,7 +111,7 @@ async function fetchMobileBalancer() {
         data.forEach(cfg => {
           if (cfg.outbounds) cfg.outbounds.forEach(ob => {
             if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-              ob.tag = `mobile-${outbounds.length + 1}`;
+              ob.tag = `mob-${outbounds.length + 1}`;
               outbounds.push(ob);
             }
           });
@@ -119,7 +119,7 @@ async function fetchMobileBalancer() {
       } else if (data.outbounds) {
         data.outbounds.forEach(ob => {
           if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-            ob.tag = `mobile-${outbounds.length + 1}`;
+            ob.tag = `mob-${outbounds.length + 1}`;
             outbounds.push(ob);
           }
         });
@@ -131,7 +131,7 @@ async function fetchMobileBalancer() {
           const url = new URL(line);
           const params = url.searchParams;
           const ob = {
-            "tag": `mobile-${outbounds.length + 1}`,
+            "tag": `mob-${outbounds.length + 1}`,
             "protocol": "vless",
             "settings": { "vnext": [{ "address": url.hostname, "port": parseInt(url.port) || 443, "users": [{ "id": url.username, "encryption": "none", "flow": params.get("flow") || "" }] }] },
             "streamSettings": {
@@ -152,12 +152,19 @@ async function fetchMobileBalancer() {
 
     return {
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "mobile_balancer" }], "balancers": [{ "tag": "mobile_balancer", "selector": ["mobile-"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "mobile-1" }], "domainStrategy": "AsIs" },
-      "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
+      "routing": { 
+        "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "b-mob" }], 
+        "balancers": [{ "tag": "b-mob", "selector": ["mob-"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "mob-1" }], 
+        "domainStrategy": "AsIs" 
+      },
+      "inbounds": [
+        { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, 
+        { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }
+      ],
       "outbounds": outbounds,
       "remarks": "🇷🇺 📱 Обход глушилок",
       "meta": { "serverDescription": "WLVPN · Работает при белых списках" },
-      "burstObservatory": { "subjectSelector": ["mobile-"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
+      "burstObservatory": { "subjectSelector": ["mob-"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
     };
   } catch (_) { return null; }
 }
@@ -177,7 +184,7 @@ function buildLocationBalancers(chkavServers) {
       if (host.includes(`.${loc}.`)) {
         s.outbounds.forEach(ob => {
           if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-            ob.tag = `loc-${loc}-${locOutbounds[loc].length + 1}`;
+            ob.tag = `node-${loc}-${locOutbounds[loc].length + 1}`;
             locOutbounds[loc].push(ob);
           }
         });
@@ -196,12 +203,19 @@ function buildLocationBalancers(chkavServers) {
     const info = LOCATIONS[loc];
     result.push({
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `balancer-${loc}` }], "balancers": [{ "tag": `balancer-${loc}`, "selector": [`loc-${loc}-`], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": locOutbounds[loc][0].tag }], "domainStrategy": "AsIs" },
-      "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
+      "routing": { 
+        "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `b-${loc}` }], 
+        "balancers": [{ "tag": `b-${loc}`, "selector": [`node-${loc}-`], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": `node-${loc}-1` }], 
+        "domainStrategy": "AsIs" 
+      },
+      "inbounds": [
+        { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, 
+        { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }
+      ],
       "outbounds": locOutbounds[loc],
       "remarks": `${info.flag} ${info.name}`,
       "meta": { "serverDescription": info.tag },
-      "burstObservatory": { "subjectSelector": [`loc-${loc}-`], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
+      "burstObservatory": { "subjectSelector": [`node-${loc}-`], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
     });
   }
 
@@ -257,7 +271,10 @@ async function serveSubscription() {
         }], 
         "domainStrategy": "AsIs" 
       },
-      "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }],
+      "inbounds": [
+        { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }, 
+        { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }
+      ],
       "outbounds": allOutbounds,
       "remarks": "🔁 Авто - самый быстрый",
       "meta": { "serverDescription": "WLVPN · Лучше выбрать его" },
@@ -282,7 +299,43 @@ async function serveSubscription() {
   });
 }
 
-// ============================================================
+const CSS = `
+:root{--bg:#050914;--cyan:#00e0ff;--mint:#00ffa3;--text:#e8f0ff;--muted:#7a8aa8;--glass:rgba(120,180,255,.045);--stroke:rgba(120,180,255,.12)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:sans-serif;padding:40px 20px;display:grid;place-items:center;min-height:100vh}
+.card{max-width:500px;padding:30px;border-radius:20px;background:var(--glass);border:1px solid var(--stroke);backdrop-filter:blur(12px);text-align:center}
+h1{font-size:1.8rem;margin-bottom:12px;background:linear-gradient(100deg,var(--cyan),var(--mint));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+p{color:var(--muted);font-size:.95rem;line-height:1.6;margin-bottom:20px}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--stroke);background:rgba(0,0,0,.5);color:#fff;font-family:monospace;font-size:.85rem;margin-bottom:15px}
+button{padding:12px 24px;border-radius:100px;border:none;background:linear-gradient(120deg,var(--mint),var(--cyan));color:#031018;font-weight:700;cursor:pointer}
+`;
+
+function renderLanding(url) {
+  const subUrl = url.origin;
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WLVPN</title><style>${CSS}</style></head>
+<body><div class="card"><h1>WLVPN Service</h1><p>Скопируйте ссылку ниже и добавьте её в свой VLESS-клиент (INCY, Happ и др.):</p><input type="text" id="u" readonly value="${subUrl}"><button onclick="navigator.clipboard.writeText(document.getElementById('u').value);this.textContent='✓ Скопировано'">Скопировать</button></div></body></html>`;
+}
+
+async function handle(request) {
+  const url = new URL(request.url);
+  const ua = request.headers.get("User-Agent") || "";
+  if (url.pathname === "/" || url.pathname === "") {
+    if (isBrowser(ua)) return htmlResponse(renderLanding(url));
+    return serveSubscription();
+  }
+  if (url.pathname === "/sub" || url.pathname === "/sub/") {
+    if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
+    return serveSubscription();
+  }
+  return new Response("Not Found", { status: 404 });
+}
+
+export default {
+  async fetch(request) {
+    try { return await handle(request); } 
+    catch (e) { return new Response("Internal Error: " + (e.message || e), { status: 500 }); }
+  }
+}; ============================================================
 // LANDING PAGE CSS & HTML
 // ============================================================
 const CSS = `
