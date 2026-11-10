@@ -162,7 +162,6 @@ async function fetchMobileBalancer() {
   } catch (_) { return null; }
 }
 
-// Собирает все ноды в балансировщики по локациям
 function buildLocationBalancers(chkavServers) {
   const locOutbounds = { fi8: [], de21: [], nl4: [], pl6: [], es7: [] };
   const otherServers = [];
@@ -178,7 +177,7 @@ function buildLocationBalancers(chkavServers) {
       if (host.includes(`.${loc}.`)) {
         s.outbounds.forEach(ob => {
           if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-            ob.tag = `loc-${LOCATIONS[loc].selector}${locOutbounds[loc].length + 1}`;
+            ob.tag = `loc-${loc}-${locOutbounds[loc].length + 1}`;
             locOutbounds[loc].push(ob);
           }
         });
@@ -197,12 +196,12 @@ function buildLocationBalancers(chkavServers) {
     const info = LOCATIONS[loc];
     result.push({
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `balancer-${loc}` }], "balancers": [{ "tag": `balancer-${loc}`, "selector": [`loc-${info.selector}`], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": locOutbounds[loc][0].tag }], "domainStrategy": "AsIs" },
+      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `balancer-${loc}` }], "balancers": [{ "tag": `balancer-${loc}`, "selector": [`loc-${loc}-`], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": locOutbounds[loc][0].tag }], "domainStrategy": "AsIs" },
       "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
       "outbounds": locOutbounds[loc],
       "remarks": `${info.flag} ${info.name}`,
       "meta": { "serverDescription": info.tag },
-      "burstObservatory": { "subjectSelector": [`loc-${info.selector}`], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
+      "burstObservatory": { "subjectSelector": [`loc-${loc}-`], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
     });
   }
 
@@ -215,7 +214,6 @@ async function serveSubscription() {
   let finalServers = [];
   let allOutbounds = [];
 
-  // 1. Собираем страны
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
     finalServers = buildLocationBalancers(chkav.data);
     
@@ -230,7 +228,6 @@ async function serveSubscription() {
     });
   }
 
-  // 2. Собираем мобильные
   const mobileBalancer = await fetchMobileBalancer();
   if (mobileBalancer) {
     finalServers.push(mobileBalancer);
@@ -243,7 +240,6 @@ async function serveSubscription() {
     }
   }
 
-  // 3. Формируем главный сервер «Авто»
   if (allOutbounds.length > 0) {
     allOutbounds.forEach((ob, idx) => {
       ob.tag = `all-${idx + 1}`;
@@ -286,81 +282,8 @@ async function serveSubscription() {
   });
 }
 
-async function debugTraffic() {
-  const variants = [
-    { name: "INCY + X-Hwid",         h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
-    { name: "INCY + X-Hwid + X-HWID",h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID } },
-    { name: "INCY + X-Device-Id",    h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID } },
-    { name: "Happ + X-Hwid",         h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
-    { name: "v2rayNG + X-Hwid",      h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
-    { name: "no-UA + X-Hwid",        h: { "X-Hwid": WLVPN_HWID } },
-    { name: "query ?hwid=",          h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID) },
-    { name: "query ?device_id=",     h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID) },
-    { name: "browser + no hwid",     h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } }
-  ];
-
-  const results = [];
-  for (const v of variants) {
-    const r = { name: v.name };
-    try {
-      const t0 = Date.now();
-      const targetUrl = v.url || CHKAV_URL;
-      const res = await fetch(targetUrl, { headers: v.h, redirect: "manual", cf: { cacheTtl: 0 } });
-      r.url = targetUrl;
-      r.timeMs = Date.now() - t0;
-      r.status = res.status;
-      r.statusText = res.statusText;
-      const headers = {};
-      for (const [k, val] of res.headers) headers[k] = val;
-      r.headers = headers;
-      let buf;
-      try { buf = await res.arrayBuffer(); r.bodyLen = buf.byteLength; } catch (_) { r.bodyLen = -1; }
-      if (buf && buf.byteLength > 0) {
-        r.bodyText = new TextDecoder().decode(buf).slice(0, 500);
-      }
-    } catch (e) {
-      r.error = String((e && e.message) || e);
-    }
-    results.push(r);
-  }
-
-  return new Response(JSON.stringify({ url: CHKAV_URL, hwid: WLVPN_HWID, results }, null, 2), {
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
-  });
-}
-
-async function handle(request) {
-  const url = new URL(request.url);
-  const path = url.pathname;
-  const ua = request.headers.get("User-Agent") || "";
-
-  if (path === "/__debug") return debugTraffic();
-
-  if (path === "/" || path === "") {
-    if (isBrowser(ua)) return htmlResponse(renderLanding(url));
-    return serveSubscription();
-  }
-
-  if (path === "/sub" || path === "/sub/") {
-    if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
-    return serveSubscription();
-  }
-
-  return new Response("Not Found", { status: 404 });
-}
-
-export default {
-  async fetch(request) {
-    try {
-      return await handle(request);
-    } catch (e) {
-      return new Response("Internal Error: " + (e.message || e), { status: 500 });
-    }
-  }
-};
-
 // ============================================================
-// LANDING PAGE (ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ)
+// LANDING PAGE CSS & HTML
 // ============================================================
 const CSS = `
 :root{
@@ -766,52 +689,6 @@ footer{border-top:1px solid var(--stroke);padding:56px 0 40px;position:relative;
 
 function renderLanding(url) {
   const subUrl = url.origin;
-
-  const serverCards = SERVERS.map((s, i) => {
-    const remarks = s.remarks || `Server #${i + 1}`;
-
-    let flag, name;
-    const flagMatch = remarks.match(/^([\u{1F1E6}-\u{1F1FF}]{2})\s*(.*)$/u);
-    if (flagMatch) {
-      flag = flagMatch[1];
-      name = flagMatch[2];
-    } else {
-      const emojiMatch = remarks.match(/^(\p{Extended_Pictographic}(?:\uFE0F)?)\s+(.*)$/u);
-      if (emojiMatch) {
-        flag = emojiMatch[1];
-        name = emojiMatch[2];
-      } else {
-        flag = "🌐";
-        name = remarks;
-      }
-    }
-
-    const desc = (s.meta && s.meta.serverDescription) || "";
-    const tag = desc.replace(/^WLVPN\s*·\s*/, "").trim();
-
-    let proto = "VLESS";
-    if (s.outbounds) {
-      const proxyOb = s.outbounds.find(o => o.tag === "proxy" || o.tag.startsWith("proxy-"));
-      if (proxyOb && proxyOb.streamSettings) {
-        const net = proxyOb.streamSettings.network;
-        if (net === "grpc") proto = "VLESS · gRPC";
-        else if (net === "xhttp") proto = "VLESS · XHTTP";
-        else if (net === "tcp") proto = "VLESS · TCP";
-      }
-    }
-
-    return `
-      <div class="server-card tilt reveal">
-        <div class="server-flag">${flag}</div>
-        <div class="server-name">${name}${tag ? ` <span class="server-tag">${tag}</span>` : ""}</div>
-        <div class="server-stats">
-          <div class="server-stat"><span><span class="live-dot"></span>Пинг</span><b class="ping-val" data-ping>— мс</b></div>
-          <div class="server-stat"><span>Скорость</span><b>до 10 Гбит/с</b></div>
-          <div class="server-stat"><span>Протокол</span><b class="proto">${proto}</b></div>
-        </div>
-      </div>`;
-  }).join("");
-
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -821,7 +698,6 @@ function renderLanding(url) {
 <style>${CSS}</style>
 </head>
 <body>
-
 <div class="cursor"></div>
 <div class="cursor-dot"></div>
 <canvas id="stars"></canvas>
@@ -830,20 +706,12 @@ function renderLanding(url) {
   <div class="blob b2"></div>
   <div class="blob b3"></div>
 </div>
-
 <nav class="top" id="nav">
   <div class="nav-inner">
     <div class="logo"><div class="logo-mark"></div><span>WLVPN</span></div>
-    <ul class="nav-links">
-      <li><a href="#servers">Серверы</a></li>
-      <li><a href="#features">Возможности</a></li>
-      <li><a href="#steps">Как подключиться</a></li>
-      <li><a href="#faq">FAQ</a></li>
-    </ul>
     <button type="button" class="nav-cta" onclick="copySub(event)">Скопировать ссылку</button>
   </div>
 </nav>
-
 <header class="hero">
   <div class="wrap">
     <div class="badge"><span class="pulse"></span> VLESS · Бесплатно навсегда</div>
@@ -852,11 +720,7 @@ function renderLanding(url) {
       <span class="line"><span class="grad">Твои правила.</span></span>
       <span class="line"><span>На VLESS.</span></span>
     </h1>
-    <p class="hero-sub">
-      Бесплатный VPN без лимитов, регистрации и карт.
-      Скопируй ссылку ниже и добавь её в свой VPN-клиент — серверы подтянутся автоматически.
-    </p>
-
+    <p class="hero-sub">Бесплатный VPN без лимитов, регистрации и карт. Скопируй ссылку ниже и добавь её в свой VPN-клиент.</p>
     <div class="link-box">
       <div class="link-box-header">
         <span class="link-box-title">Твоя ссылка-подписка</span>
@@ -869,256 +733,12 @@ function renderLanding(url) {
             <input type="text" id="sub-url" readonly value="${subUrl}">
             <button type="button" class="copy-btn" onclick="copySub(event)">Копировать</button>
           </div>
-          <p class="link-box-hint">
-            Добавь ссылку в любой VLESS-клиент: <b>Happ</b>, <b>Incy</b>, <b>v2rayNG</b>, <b>Streisand</b>, <b>sing-box</b>, <b>Karing</b> и др.
-            Просто вставь корневой URL — клиент сам подтянет серверы. Или отсканируй QR.
-          </p>
+          <p class="link-box-hint">Добавь ссылку в любой VLESS-клиент: <b>Happ</b>, <b>Incy</b>, <b>v2rayNG</b> и др.</p>
         </div>
-      </div>
-    </div>
-
-    <div class="trust">
-      <div class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        Без лимитов трафика
-      </div>
-      <div class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        Без регистрации и карты
-      </div>
-      <div class="trust-item">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        Защита от утечек DNS/IPv6/WebRTC
       </div>
     </div>
   </div>
 </header>
-
-<section id="servers">
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="sec-tag">Серверы</span>
-      <h2 class="sec">Серверы, которые всегда с тобой.<br>Один протокол. Максимальная скорость.</h2>
-      <p>Все серверы WLVPN работают на VLESS — лёгком протоколе, который маскирует трафик под обычный HTTPS и не оставляет следов для DPI.</p>
-    </div>
-
-    <div class="servers-note reveal">
-      <span class="dot"></span>
-      <span>Пинг обновляется в реальном времени · <strong>VLESS</strong> на всех нодах</span>
-    </div>
-
-    <div class="servers-grid">
-      ${serverCards}
-    </div>
-  </div>
-</section>
-
-<section id="features">
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="sec-tag">Возможности</span>
-      <h2 class="sec">Всё, чтобы интернет был свободным</h2>
-      <p>Бесплатно. Без компромиссов между скоростью, приватностью и доступом к контенту.</p>
-    </div>
-
-    <div class="grid">
-      <div class="card tilt reveal">
-        <div class="card-icon">⚡</div>
-        <h3>Протокол VLESS</h3>
-        <p>Легче и быстрее OpenVPN и WireGuard. Меньше задержек, ниже нагрузка на устройство, маскировка под HTTPS.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🔓</div>
-        <h3>Обход блокировок</h3>
-        <p>Доступ к <b>YouTube, Discord, Telegram</b> и другим заблокированным соцсетям и сервисам — без танцев с бубном.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🛡️</div>
-        <h3>Обход белых списков</h3>
-        <p>Когда провайдер оставляет только «разрешённые» сайты — WLVPN возвращает вам весь интернет. VLESS маскирует трафик так, что DPI не видит разницы.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">📶</div>
-        <h3>Сервер «Обход глушилок»</h3>
-        <p>Отдельный сервер для мобильного интернета. Обходит ограничения операторов, когда оставлены только «разрешённые» сайты — и возвращает весь интернет даже на улице.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🚀</div>
-        <h3>Скорость до 10 Гбит/с</h3>
-        <p>Стриминг в 4K, игры без лагов, скачивание без ожидания. Каналы серверов рассчитаны на пиковые нагрузки.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">♾️</div>
-        <h3>Без лимитов трафика</h3>
-        <p>Скачивайте, смотрите и играйте сколько угодно. Мы не считаем трафик, не режем скорость и не блокируем за перерасход.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🔒</div>
-        <h3>Защита от утечек</h3>
-        <p>На уровне VLESS блокируются утечки <b>DNS</b>, <b>IPv6</b> и <b>WebRTC</b>. Ваш реальный IP не просочится даже при сбое.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🎛️</div>
-        <h3>Настройка в один клик</h3>
-        <p>Скопировал ссылку, вставил в клиент, нажал «Подключиться». VLESS включается автоматически, конфиг — по QR-коду.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="steps">
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="sec-tag">Как это работает</span>
-      <h2 class="sec">Три шага до свободного интернета</h2>
-    </div>
-    <div class="steps">
-      <div class="step reveal">
-        <div class="step-num">1</div>
-        <h3>Скачай приложение</h3>
-        <p>Happ, Incy, v2rayNG, Streisand, sing-box, Karing — на Windows, macOS, iOS, Android или Linux.</p>
-      </div>
-      <div class="step reveal">
-        <div class="step-num">2</div>
-        <h3>Скопируй ссылку</h3>
-        <p>Возьми ссылку-подписку в блоке выше — она универсальная и бессрочная. Или отсканируй QR-код.</p>
-      </div>
-      <div class="step reveal">
-        <div class="step-num">3</div>
-        <h3>Вставь в клиент</h3>
-        <p>Добавь ссылку в VPN-клиент — серверы подтянутся автоматически. Нажми «Подключиться», и VLESS уже работает.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <div class="security-block reveal">
-      <div>
-        <span class="sec-tag">Приватность</span>
-        <h2 class="sec">VLESS не оставляет следов</h2>
-        <p>Мы выбрали VLESS не случайно. Это протокол без тяжёлых handshake, без лишних метаданных и с маскировкой трафика под обычный HTTPS — для провайдера ваш трафик выглядит как визит на обычный сайт.</p>
-      </div>
-      <ul class="sec-list">
-        <li><b>Нулевые логи.</b> Мы не храним историю подключений и не знаем, куда вы ходите.</li>
-        <li><b>Защита от утечек.</b> DNS, IPv6 и WebRTC блокируются на уровне клиента.</li>
-        <li><b>Маскировка под HTTPS.</b> DPI не отличает ваш трафик от обычного веб-сёрфинга.</li>
-        <li><b>Обходит белые списки</b> — включая ограничения мобильного интернета через отдельный сервер «Обход глушилок».</li>
-      </ul>
-    </div>
-  </div>
-</section>
-
-<section>
-  <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="sec-tag">Отзывы</span>
-      <h2 class="sec">Что говорят пользователи</h2>
-    </div>
-    <div class="reviews">
-      <div class="review reveal">
-        <div class="review-stars">★★★★★</div>
-        <p>Наконец-то YouTube в 4K без буферизации. VLESS реально быстрее того, что я пробовал раньше.</p>
-        <div class="review-author">
-          <div class="review-avatar">АК</div>
-          <div>
-            <div class="review-name">Алексей К.</div>
-            <div class="review-role">Москва</div>
-          </div>
-        </div>
-      </div>
-      <div class="review reveal">
-        <div class="review-stars">★★★★★</div>
-        <p>Discord снова работает без лагов. Подключил на ноутбуке и телефоне — интернет на улице тоже летает.</p>
-        <div class="review-author">
-          <div class="review-avatar">МД</div>
-          <div>
-            <div class="review-name">Марина Д.</div>
-            <div class="review-role">Санкт-Петербург</div>
-          </div>
-        </div>
-      </div>
-      <div class="review reveal">
-        <div class="review-stars">★★★★★</div>
-        <p>Когда провайдер оставил только «разрешённые» сайты — WLVPN вернул весь интернет. Telegram снова со мной.</p>
-        <div class="review-author">
-          <div class="review-avatar">ИС</div>
-          <div>
-            <div class="review-name">Игорь С.</div>
-            <div class="review-role">Новосибирск</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="faq">
-  <div class="wrap">
-    <div class="sec-head reveal" style="text-align:center;margin-left:auto;margin-right:auto">
-      <span class="sec-tag">FAQ</span>
-      <h2 class="sec">Частые вопросы</h2>
-    </div>
-    <div class="faq">
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Сервис правда бесплатный?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. WLVPN полностью бесплатен — без скрытых платежей, без премиум-тарифов, без регистрации и без ограничений по трафику. Ссылка-подписка бессрочная.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Что такое VLESS и чем он лучше OpenVPN?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">VLESS — современный лёгкий протокол. Он не использует тяжёлое шифрование на транспортном уровне, поэтому работает быстрее, потребляет меньше батареи и не оставляет характерных сигнатур, по которым DPI распознаёт VPN. При этом трафик маскируется под обычный HTTPS.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Как подключиться?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Скопируй ссылку-подписку с главной страницы и вставь её в свой VPN-клиент (Happ, Incy, v2rayNG, Streisand, sing-box, Karing и др.). Клиент сам подтянет все серверы. Выбери любой и нажми «Подключиться».</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Насколько падает скорость?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Минимально. Германия — до 10 Гбит/с, Швеция и Нидерланды — до 5, Польша, Россия, Финляндия и Турция — до 3. Пинг на всех серверах держится в диапазоне 30–60 мс.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Работает ли обход блокировок для YouTube, Discord и Telegram?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. VLESS маскирует трафик так, что провайдер не может отличить ваш сеанс от обычного визита на разрешённый сайт. Это позволяет обходить как обычные блокировки, так и режим «белых списков».</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Есть ли лимит трафика?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Нет. Трафик не ограничен — качайте, смотрите и играйте сколько хотите. Мы не считаем гигабайты и не режем скорость за перерасход.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Можно ли пользоваться на нескольких устройствах?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да, одну ссылку-подписку можно добавить на неограниченное число устройств. Приложения есть для Windows, macOS, iOS, Android и Linux.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Работает ли на мобильном интернете и при ограничениях оператора?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. Для мобильных сетей у нас есть сервер «Обход глушилок» — он обходит ограничения мобильного интернета и режим «белых списков», когда оператор оставляет доступ только к разрешённым сайтам. Работает в роуминге и на общественном Wi-Fi.</div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="cta">
-  <div class="wrap">
-    <div class="cta-box reveal">
-      <h2 class="sec">Интернет без границ —<br>на VLESS</h2>
-      <p>Бесплатно. Навсегда. Без карты и регистрации.</p>
-      <button type="button" class="btn btn-primary" onclick="copySub(event)">Скопировать ссылку</button>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap foot-inner">
-    <div class="logo"><div class="logo-mark"></div><span>WLVPN</span></div>
-    <p>© 2025 WLVPN. Свободный интернет для каждого.</p>
-    <div class="socials">
-      <a href="#" aria-label="Telegram">TG</a>
-      <a href="#" aria-label="X">X</a>
-      <a href="#" aria-label="GitHub">GH</a>
-    </div>
-  </div>
-</footer>
-
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
 function copySub(e) {
@@ -1126,23 +746,12 @@ function copySub(e) {
   if (!input) return;
   const url = input.value;
   input.select();
-  input.setSelectionRange(0, url.length);
-  let ok = false;
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(url);
-      ok = true;
-    }
-  } catch(_) {}
-  if (!ok) {
-    try { document.execCommand('copy'); ok = true; } catch(_) {}
-  }
+  navigator.clipboard.writeText(url);
   const btn = e.currentTarget;
   const orig = btn.textContent;
-  btn.textContent = ok ? '✓ Скопировано' : 'Не удалось';
+  btn.textContent = '✓ Скопировано';
   setTimeout(() => { btn.textContent = orig; }, 1800);
 }
-
 (function initQR() {
   const box = document.getElementById('qr-box');
   const input = document.getElementById('sub-url');
@@ -1152,160 +761,35 @@ function copySub(e) {
     qr.addData(input.value);
     qr.make();
     box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1 });
-  } catch (err) {
-    console.warn('QR failed:', err);
-  }
+  } catch (err) {}
 })();
-
-const canvas = document.getElementById('stars');
-const ctx = canvas.getContext('2d');
-let stars = [], w, h, dpr;
-const mouse = { x: -9999, y: -9999 };
-
-function resize(){
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  w = canvas.width = innerWidth * dpr;
-  h = canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + 'px';
-  canvas.style.height = innerHeight + 'px';
-  const count = Math.min(150, Math.floor((innerWidth * innerHeight) / 12000));
-  stars = Array.from({ length: count }, () => ({
-    x: Math.random() * w,
-    y: Math.random() * h,
-    vx: (Math.random() - .5) * .25 * dpr,
-    vy: (Math.random() - .5) * .25 * dpr,
-    r: (Math.random() * 1.5 + .4) * dpr,
-    a: Math.random() * .5 + .25
-  }));
-}
-resize();
-addEventListener('resize', resize);
-
-function draw(){
-  ctx.clearRect(0, 0, w, h);
-  const linkDist = 130 * dpr;
-  for (let i = 0; i < stars.length; i++){
-    const s = stars[i];
-    s.x += s.vx; s.y += s.vy;
-    if (s.x < 0 || s.x > w) s.vx *= -1;
-    if (s.y < 0 || s.y > h) s.vy *= -1;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(190,235,255,' + s.a + ')';
-    ctx.fill();
-    for (let j = i + 1; j < stars.length; j++){
-      const o = stars[j];
-      const dx = s.x - o.x, dy = s.y - o.y;
-      const d = Math.hypot(dx, dy);
-      if (d < linkDist){
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(o.x, o.y);
-        ctx.strokeStyle = 'rgba(0,224,255,' + ((1 - d / linkDist) * .26) + ')';
-        ctx.lineWidth = .6 * dpr;
-        ctx.stroke();
-      }
-    }
-    const mdx = s.x - mouse.x * dpr, mdy = s.y - mouse.y * dpr;
-    const md = Math.hypot(mdx, mdy);
-    if (md < 170 * dpr && md > 0){
-      const f = (1 - md / (170 * dpr)) * .9;
-      s.x += (mdx / md) * f;
-      s.y += (mdy / md) * f;
-    }
-  }
-  requestAnimationFrame(draw);
-}
-draw();
-
-const cursor = document.querySelector('.cursor');
-const dot = document.querySelector('.cursor-dot');
-let cx = innerWidth / 2, cy = innerHeight / 2;
-let tx = cx, ty = cy;
-addEventListener('mousemove', e => {
-  tx = e.clientX; ty = e.clientY;
-  mouse.x = e.clientX; mouse.y = e.clientY;
-  dot.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px) translate(-50%,-50%)';
-});
-(function loopCursor(){
-  cx += (tx - cx) * .16;
-  cy += (ty - cy) * .16;
-  cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
-  requestAnimationFrame(loopCursor);
-})();
-document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review, .link-box').forEach(el => {
-  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
-  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
-});
-
-const nav = document.getElementById('nav');
-addEventListener('scroll', () => {
-  nav.classList.toggle('scrolled', scrollY > 40);
-});
-
-const io = new IntersectionObserver(entries => {
-  entries.forEach((e, i) => {
-    if (e.isIntersecting){
-      e.target.style.transitionDelay = (i % 6) * 80 + 'ms';
-      e.target.classList.add('in');
-      io.unobserve(e.target);
-    }
-  });
-}, { threshold: .15, rootMargin: '0px 0px -60px 0px' });
-document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-setTimeout(() => {
-  document.querySelectorAll('.reveal:not(.in)').forEach(el => {
-    el.classList.add('in');
-    el.style.transitionDelay = '0ms';
-  });
-}, 3000);
-
-document.querySelectorAll('.tilt').forEach(card => {
-  card.addEventListener('mousemove', e => {
-    const r = card.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    card.style.setProperty('--mx', px * 100 + '%');
-    card.style.setProperty('--my', py * 100 + '%');
-    const rx = (py - .5) * -8;
-    const ry = (px - .5) * 8;
-    card.style.transform = 'perspective(900px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-6px)';
-  });
-  card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-});
-
-const pingEls = document.querySelectorAll('[data-ping]');
-function updatePings(){
-  pingEls.forEach(el => {
-    const val = Math.floor(Math.random() * 31) + 30;
-    el.textContent = val + ' мс';
-    el.style.color = val < 40 ? 'var(--mint)' : (val < 50 ? 'var(--cyan)' : '#ffd166');
-  });
-}
-updatePings();
-setInterval(updatePings, 2500);
-
-document.querySelectorAll('.faq-item').forEach(item => {
-  const q = item.querySelector('.faq-q');
-  const a = item.querySelector('.faq-a');
-  q.addEventListener('click', () => {
-    const isOpen = item.classList.contains('open');
-    document.querySelectorAll('.faq-item.open').forEach(other => {
-      if (other !== item){
-        other.classList.remove('open');
-        other.querySelector('.faq-a').style.maxHeight = null;
-      }
-    });
-    if (isOpen){
-      item.classList.remove('open');
-      a.style.maxHeight = null;
-    } else {
-      item.classList.add('open');
-      a.style.maxHeight = a.scrollHeight + 'px';
-    }
-  });
-});
 </script>
 </body>
 </html>`;
 }
+
+async function handle(request) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const ua = request.headers.get("User-Agent") || "";
+
+  if (path === "/" || path === "") {
+    if (isBrowser(ua)) return htmlResponse(renderLanding(url));
+    return serveSubscription();
+  }
+  if (path === "/sub" || path === "/sub/") {
+    if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
+    return serveSubscription();
+  }
+  return new Response("Not Found", { status: 404 });
+}
+
+export default {
+  async fetch(request) {
+    try {
+      return await handle(request);
+    } catch (e) {
+      return new Response("Internal Error: " + (e.message || e), { status: 500 });
+    }
+  }
+};
