@@ -2,22 +2,14 @@
 // WLVPN — Free VPN Service (Cloudflare Worker)
 // ============================================================
 
-const SERVERS = [
-  // Оставляем только заглушку на случай, если chkav вообще ляжет
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "Super_Balancer" }], "balancers": [{ "tag": "Super_Balancer", "selector": ["proxy"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "proxy" }], "domainStrategy": "AsIs" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }],
-    "outbounds": [
-      { "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e308b5t.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "e308b5t.fi8.h1clayd.click", "publicKey": "_08KSLGimBZVDR5-Gidyk3dh0jEBabdv7QmqdOvWowQ", "shortId": "ba6efea04a89cbd8", "fingerprint": "firefox" } } },
-      { "tag": "direct", "protocol": "freedom", "settings": { "domainStrategy": "UseIPv4" } },
-      { "tag": "block", "protocol": "blackhole" }
-    ],
-    "burstObservatory": { "pingConfig": { "timeout": "5s", "interval": "1m", "sampling": 10, "destination": "https://connectivitycheck.gstatic.com/generate_204" }, "subjectSelector": ["proxy"] },
-    "remarks": "🔁 Авто - самый быстрый",
-    "meta": { "serverDescription": "WLVPN · Лучше выбрать его" }
-  }
-];
+const FALLBACK_SERVER = {
+  "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
+  "routing": { "domainStrategy": "AsIs" },
+  "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" } }],
+  "outbounds": [{ "tag": "block", "protocol": "blackhole" }],
+  "remarks": "🛠 Ведутся технические работы",
+  "meta": { "serverDescription": "WLVPN · Скоро вернёмся" }
+};
 
 const LOCATIONS = {
   "fi8": { flag: "🇫🇮", name: "Финляндия", tag: "WLVPN · Нейросети", selector: "proxy-fi-" },
@@ -170,12 +162,11 @@ async function fetchMobileBalancer() {
   } catch (_) { return null; }
 }
 
-// Функция собирает все ноды в балансировщики по локациям
+// Собирает все ноды в балансировщики по локациям
 function buildLocationBalancers(chkavServers) {
   const locOutbounds = { fi8: [], de21: [], nl4: [], pl6: [], es7: [] };
   const otherServers = [];
 
-  // Раскидываем сервера по локациям
   chkavServers.forEach(s => {
     let host = "";
     if (s.outbounds) {
@@ -185,10 +176,9 @@ function buildLocationBalancers(chkavServers) {
     let found = false;
     for (const loc in LOCATIONS) {
       if (host.includes(`.${loc}.`)) {
-        // Переименовываем тег, чтобы он попал в селектор балансировщика
         s.outbounds.forEach(ob => {
           if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-            ob.tag = LOCATIONS[loc].selector + (locOutbounds[loc].length + 1);
+            ob.tag = `loc-${LOCATIONS[loc].selector}${locOutbounds[loc].length + 1}`;
             locOutbounds[loc].push(ob);
           }
         });
@@ -197,24 +187,22 @@ function buildLocationBalancers(chkavServers) {
       }
     }
     if (!found && !s.routing?.balancers?.length) {
-      // Незнакомые сервера (не донат и не балансировщик) добавляем как есть
       otherServers.push(s);
     }
   });
 
-  // Создаем сервера-балансировщики для каждой локации
   const result = [];
   for (const loc in LOCATIONS) {
     if (locOutbounds[loc].length === 0) continue;
     const info = LOCATIONS[loc];
     result.push({
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `balancer-${loc}` }], "balancers": [{ "tag": `balancer-${loc}`, "selector": [info.selector], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": locOutbounds[loc][0].tag }], "domainStrategy": "AsIs" },
+      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `balancer-${loc}` }], "balancers": [{ "tag": `balancer-${loc}`, "selector": [`loc-${info.selector}`], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": locOutbounds[loc][0].tag }], "domainStrategy": "AsIs" },
       "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
       "outbounds": locOutbounds[loc],
       "remarks": `${info.flag} ${info.name}`,
       "meta": { "serverDescription": info.tag },
-      "burstObservatory": { "subjectSelector": [info.selector], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
+      "burstObservatory": { "subjectSelector": [`loc-${info.selector}`], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
     });
   }
 
@@ -225,23 +213,65 @@ async function serveSubscription() {
   const chkav = await fetchChkav();
   const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
   let finalServers = [];
+  let allOutbounds = [];
 
+  // 1. Собираем страны
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
-    // Если chkav вернул данные — группируем их по странам
     finalServers = buildLocationBalancers(chkav.data);
     
-    // Добавляем главный «Авто», если его нет
-    if (!finalServers.some(s => s.remarks?.includes("Авто"))) {
-      finalServers.unshift(JSON.parse(JSON.stringify(SERVERS[0])));
-    }
-  } else {
-    // Если chkav упал — отдаем статику
-    finalServers = JSON.parse(JSON.stringify(SERVERS));
+    finalServers.forEach(s => {
+      if (s.outbounds) {
+        s.outbounds.forEach(ob => {
+          if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
+            allOutbounds.push(ob);
+          }
+        });
+      }
+    });
   }
 
-  // Добавляем мобильный балансировщик
+  // 2. Собираем мобильные
   const mobileBalancer = await fetchMobileBalancer();
-  if (mobileBalancer) finalServers.push(mobileBalancer);
+  if (mobileBalancer) {
+    finalServers.push(mobileBalancer);
+    if (mobileBalancer.outbounds) {
+      mobileBalancer.outbounds.forEach(ob => {
+        if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
+          allOutbounds.push(ob);
+        }
+      });
+    }
+  }
+
+  // 3. Формируем главный сервер «Авто»
+  if (allOutbounds.length > 0) {
+    allOutbounds.forEach((ob, idx) => {
+      ob.tag = `all-${idx + 1}`;
+    });
+
+    const autoServer = {
+      "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
+      "routing": { 
+        "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "Super_Balancer" }], 
+        "balancers": [{ 
+          "tag": "Super_Balancer", 
+          "selector": ["all-"], 
+          "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, 
+          "fallbackTag": "all-1" 
+        }], 
+        "domainStrategy": "AsIs" 
+      },
+      "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }],
+      "outbounds": allOutbounds,
+      "remarks": "🔁 Авто - самый быстрый",
+      "meta": { "serverDescription": "WLVPN · Лучше выбрать его" },
+      "burstObservatory": { "subjectSelector": ["all-"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
+    };
+
+    finalServers.unshift(autoServer);
+  } else {
+    finalServers = [JSON.parse(JSON.stringify(FALLBACK_SERVER))];
+  }
 
   return new Response(JSON.stringify(finalServers, null, 2), {
     headers: {
@@ -328,8 +358,6 @@ export default {
     }
   }
 };
-
-// ... CSS и renderLanding остаются без изменений ...
 
 // ============================================================
 // LANDING PAGE (ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ)
