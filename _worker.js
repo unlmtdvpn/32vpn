@@ -48,6 +48,7 @@ function htmlResponse(content, status = 200) {
 
 const CHKAV_URL = "https://newsub.chkav-vpn.space/9zfbEsqma0tkNfc2";
 const WLVPN_HWID = "1BEF4F22-1340-8D05-2641-3CC6D7CC1B27";
+const MOBILE_SUB_URL = "https://sub.chkav-vpn.space/?id=90f7c8dd85644850aa0e629cfb0e877c";
 
 function normalizeUserinfo(raw) {
   if (!raw) return null;
@@ -105,11 +106,78 @@ async function fetchChkav() {
   return { userInfo: null, format: null, data: null };
 }
 
+async function fetchMobileBalancer() {
+  try {
+    const res = await fetch(MOBILE_SUB_URL, { headers: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" }, cf: { cacheTtl: 0 } });
+    if (!res.ok) return null;
+    const txt = await res.text();
+    const parsed = parseSubscriptionBody(txt);
+    if (!parsed) return null;
+
+    let outbounds = [];
+    if (parsed.format === "json") {
+      const data = parsed.data;
+      if (Array.isArray(data)) {
+        data.forEach(cfg => {
+          if (cfg.outbounds) cfg.outbounds.forEach(ob => {
+            if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
+              ob.tag = `mobile-${outbounds.length + 1}`;
+              outbounds.push(ob);
+            }
+          });
+        });
+      } else if (data.outbounds) {
+        data.outbounds.forEach(ob => {
+          if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
+            ob.tag = `mobile-${outbounds.length + 1}`;
+            outbounds.push(ob);
+          }
+        });
+      }
+    } else if (parsed.format === "vless") {
+      const lines = parsed.data.split(/\r?\n/).filter(l => l.trim().startsWith("vless://"));
+      lines.forEach((line) => {
+        try {
+          const url = new URL(line);
+          const params = url.searchParams;
+          const ob = {
+            "tag": `mobile-${outbounds.length + 1}`,
+            "protocol": "vless",
+            "settings": { "vnext": [{ "address": url.hostname, "port": parseInt(url.port) || 443, "users": [{ "id": url.username, "encryption": "none", "flow": params.get("flow") || "" }] }] },
+            "streamSettings": {
+              "network": params.get("type") || "tcp",
+              "security": "reality",
+              "realitySettings": { "serverName": params.get("sni") || url.hostname, "publicKey": params.get("pbk") || "", "shortId": params.get("sid") || "", "fingerprint": params.get("fp") || "chrome" }
+            }
+          };
+          const type = params.get("type") || "tcp";
+          if (type === "xhttp") ob.streamSettings.xhttpSettings = { "mode": "auto", "path": params.get("path") || "/" };
+          else if (type === "grpc") ob.streamSettings.grpcSettings = { "serviceName": params.get("serviceName") || "", "authority": "", "multiMode": false };
+          outbounds.push(ob);
+        } catch (_) {}
+      });
+    }
+
+    if (outbounds.length === 0) return null;
+
+    return {
+      "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
+      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "mobile_balancer" }], "balancers": [{ "tag": "mobile_balancer", "selector": ["mobile-"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "mobile-1" }], "domainStrategy": "AsIs" },
+      "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
+      "outbounds": outbounds,
+      "remarks": "🇷🇺 📱 Обход глушилок",
+      "meta": { "serverDescription": "WLVPN · Работает при белых списках" },
+      "burstObservatory": { "subjectSelector": ["mobile-"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
+    };
+  } catch (_) { return null; }
+}
+
 async function serveSubscription() {
   const chkav = await fetchChkav();
   const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
   let finalServers = [];
 
+  // 1. Сначала забираем сервера из основной подписки (включая Авто)
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
     finalServers = chkav.data.map(s => {
       if (s.remarks && (s.remarks.includes("поддержите") || s.remarks.includes("владельца"))) return null;
@@ -131,7 +199,14 @@ async function serveSubscription() {
       return s;
     }).filter(Boolean);
   } else {
+    // Если chkav упал — отдаем заглушку
     finalServers = [JSON.parse(JSON.stringify(FALLBACK_SERVER))];
+  }
+
+  // 2. Добавляем мобильный сервер в самый конец
+  const mobileBalancer = await fetchMobileBalancer();
+  if (mobileBalancer) {
+    finalServers.push(mobileBalancer);
   }
 
   return new Response(JSON.stringify(finalServers, null, 2), {
