@@ -1,5 +1,5 @@
 // ============================================================
-// WLVPN — Free VPN Service (Cloudflare Worker) — FIXED v3
+// WLVPN — Free VPN Service (Cloudflare Worker)
 // ============================================================
 
 const FALLBACK_SERVER = {
@@ -11,12 +11,22 @@ const FALLBACK_SERVER = {
   "meta": { "serverDescription": "WLVPN · Скоро вернёмся" }
 };
 
-const LOCATIONS = {
-  "fi8": { flag: "🇫🇮", name: "Финляндия", tag: "WLVPN · Нейросети" },
-  "de21": { flag: "🇩🇪", name: "Германия", tag: "WLVPN · Скоростной" },
-  "nl4": { flag: "🇳🇱", name: "Нидерланды", tag: "WLVPN · Скоростной" },
-  "pl6": { flag: "🇵🇱", name: "Польша", tag: "WLVPN · YouTube" },
-  "es7": { flag: "🇪🇸", name: "Испания", tag: "WLVPN · Нейросети" }
+const HOST_MAP = {
+  "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "Нейросети" },
+  "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
+  "6b83b0x.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
+  "5f9abbt.de21.h1clayd.click": { remarks: "🇩🇪 Германия #1",   category: "Скоростной" },
+  "403e8ag.de21.h1clayd.click": { remarks: "🇩🇪 Германия #2",   category: "Скоростной" },
+  "e1efc1x.de21.h1clayd.click": { remarks: "🇩🇪 Германия #3",   category: "Скоростной" },
+  "defc63t.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
+  "fca7d7g.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
+  "b3a336x.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
+  "e900bbt.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
+  "c190afg.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
+  "7c5fbcx.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
+  "c84a94t.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #1",     category: "YouTube" },
+  "0e6251g.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
+  "bd5c13x.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #3",     category: "Нейросети" }
 };
 
 function isVpnClient(ua) {
@@ -38,7 +48,6 @@ function htmlResponse(content, status = 200) {
 
 const CHKAV_URL = "https://newsub.chkav-vpn.space/9zfbEsqma0tkNfc2";
 const WLVPN_HWID = "1BEF4F22-1340-8D05-2641-3CC6D7CC1B27";
-const MOBILE_SUB_URL = "https://sub.chkav-vpn.space/?id=90f7c8dd85644850aa0e629cfb0e877c";
 
 function normalizeUserinfo(raw) {
   if (!raw) return null;
@@ -96,193 +105,34 @@ async function fetchChkav() {
   return { userInfo: null, format: null, data: null };
 }
 
-async function fetchMobileBalancer() {
-  try {
-    const res = await fetch(MOBILE_SUB_URL, { headers: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" }, cf: { cacheTtl: 0 } });
-    if (!res.ok) return null;
-    const txt = await res.text();
-    const parsed = parseSubscriptionBody(txt);
-    if (!parsed) return null;
-
-    let outbounds = [];
-    if (parsed.format === "json") {
-      const data = parsed.data;
-      if (Array.isArray(data)) {
-        data.forEach(cfg => {
-          if (cfg.outbounds) cfg.outbounds.forEach(ob => {
-            if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-              ob.tag = `mob-${outbounds.length + 1}`;
-              outbounds.push(ob);
-            }
-          });
-        });
-      } else if (data.outbounds) {
-        data.outbounds.forEach(ob => {
-          if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-            ob.tag = `mob-${outbounds.length + 1}`;
-            outbounds.push(ob);
-          }
-        });
-      }
-    } else if (parsed.format === "vless") {
-      const lines = parsed.data.split(/\r?\n/).filter(l => l.trim().startsWith("vless://"));
-      lines.forEach((line) => {
-        try {
-          const url = new URL(line);
-          const params = url.searchParams;
-          const ob = {
-            "tag": `mob-${outbounds.length + 1}`,
-            "protocol": "vless",
-            "settings": { "vnext": [{ "address": url.hostname, "port": parseInt(url.port) || 443, "users": [{ "id": url.username, "encryption": "none", "flow": params.get("flow") || "" }] }] },
-            "streamSettings": {
-              "network": params.get("type") || "tcp",
-              "security": "reality",
-              "realitySettings": { "serverName": params.get("sni") || url.hostname, "publicKey": params.get("pbk") || "", "shortId": params.get("sid") || "", "fingerprint": params.get("fp") || "chrome" }
-            }
-          };
-          const type = params.get("type") || "tcp";
-          if (type === "xhttp") ob.streamSettings.xhttpSettings = { "mode": "auto", "path": params.get("path") || "/" };
-          else if (type === "grpc") ob.streamSettings.grpcSettings = { "serviceName": params.get("serviceName") || "", "authority": "", "multiMode": false };
-          outbounds.push(ob);
-        } catch (_) {}
-      });
-    }
-
-    if (outbounds.length === 0) return null;
-
-    return {
-      "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": { 
-        "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "b-mob" }], 
-        "balancers": [{ "tag": "b-mob", "selector": ["mob-"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "mob-1" }], 
-        "domainStrategy": "AsIs" 
-      },
-      "inbounds": [
-        { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, 
-        { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }
-      ],
-      "outbounds": outbounds,
-      "remarks": "🇷🇺 📱 Обход глушилок",
-      "meta": { "serverDescription": "WLVPN · Работает при белых списках" },
-      "burstObservatory": { "subjectSelector": ["mob-"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
-    };
-  } catch (_) { return null; }
-}
-
-function buildLocationBalancers(chkavServers) {
-  const locOutbounds = { fi8: [], de21: [], nl4: [], pl6: [], es7: [] };
-  const otherServers = [];
-
-  chkavServers.forEach(s => {
-    let host = "";
-    if (s.outbounds) {
-      const proxy = s.outbounds.find(o => o.tag === "proxy" || o.tag.startsWith("proxy-"));
-      if (proxy && proxy.settings?.vnext?.[0]) host = proxy.settings.vnext[0].address;
-    }
-    let found = false;
-    for (const loc in LOCATIONS) {
-      if (host.includes(`.${loc}.`)) {
-        s.outbounds.forEach(ob => {
-          if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-            ob.tag = `node-${loc}-${locOutbounds[loc].length + 1}`;
-            locOutbounds[loc].push(ob);
-          }
-        });
-        found = true;
-        break;
-      }
-    }
-    if (!found && !s.routing?.balancers?.length) {
-      otherServers.push(s);
-    }
-  });
-
-  const result = [];
-  for (const loc in LOCATIONS) {
-    if (locOutbounds[loc].length === 0) continue;
-    const info = LOCATIONS[loc];
-    result.push({
-      "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": { 
-        "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `b-${loc}` }], 
-        "balancers": [{ "tag": `b-${loc}`, "selector": [`node-${loc}-`], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": `node-${loc}-1` }], 
-        "domainStrategy": "AsIs" 
-      },
-      "inbounds": [
-        { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, 
-        { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }
-      ],
-      "outbounds": locOutbounds[loc],
-      "remarks": `${info.flag} ${info.name}`,
-      "meta": { "serverDescription": info.tag },
-      "burstObservatory": { "subjectSelector": [`node-${loc}-`], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
-    });
-  }
-
-  return result.concat(otherServers);
-}
-
 async function serveSubscription() {
   const chkav = await fetchChkav();
   const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
   let finalServers = [];
-  let allOutbounds = [];
 
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
-    finalServers = buildLocationBalancers(chkav.data);
-    
-    finalServers.forEach(s => {
+    // Берем все сервера, выкидываем донат, применяем названия
+    finalServers = chkav.data.map(s => {
+      if (s.remarks && (s.remarks.includes("поддержите") || s.remarks.includes("владельца"))) return null;
+      if (s.meta && s.meta.serverDescription && s.meta.serverDescription.includes("2202206778971874")) return null;
+
+      let host = "";
       if (s.outbounds) {
-        s.outbounds.forEach(ob => {
-          if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-            allOutbounds.push(ob);
-          }
-        });
+        const proxy = s.outbounds.find(o => o.tag === "proxy" || o.tag.startsWith("proxy-"));
+        if (proxy && proxy.settings?.vnext?.[0]) host = proxy.settings.vnext[0].address;
       }
-    });
-  }
 
-  const mobileBalancer = await fetchMobileBalancer();
-  if (mobileBalancer) {
-    finalServers.push(mobileBalancer);
-    if (mobileBalancer.outbounds) {
-      mobileBalancer.outbounds.forEach(ob => {
-        if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
-          allOutbounds.push(ob);
-        }
-      });
-    }
-  }
+      if (host && HOST_MAP[host]) {
+        s.remarks = HOST_MAP[host].remarks;
+        s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · " + HOST_MAP[host].category });
+      } else {
+        s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN" });
+      }
 
-  if (allOutbounds.length > 0) {
-    allOutbounds.forEach((ob, idx) => {
-      ob.tag = `all-${idx + 1}`;
-    });
-
-    const autoServer = {
-      "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": { 
-        "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "Super_Balancer" }], 
-        "balancers": [{ 
-          "tag": "Super_Balancer", 
-          "selector": ["all-"], 
-          "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, 
-          "fallbackTag": "all-1" 
-        }], 
-        "domainStrategy": "AsIs" 
-      },
-      "inbounds": [
-        { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }, 
-        { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }
-      ],
-      "outbounds": allOutbounds,
-      "remarks": "🔁 Авто - самый быстрый",
-      "meta": { "serverDescription": "WLVPN · Лучше выбрать его" },
-      "burstObservatory": { "subjectSelector": ["all-"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
-    };
-
-    finalServers.unshift(autoServer);
+      return s;
+    }).filter(Boolean);
   } else {
+    // Если chkav упал — отдаем заглушку
     finalServers = [JSON.parse(JSON.stringify(FALLBACK_SERVER))];
   }
 
@@ -298,6 +148,81 @@ async function serveSubscription() {
     }
   });
 }
+
+async function debugTraffic() {
+  const variants = [
+    { name: "INCY + X-Hwid",         h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "INCY + X-Hwid + X-HWID",h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID, "X-HWID": WLVPN_HWID } },
+    { name: "INCY + X-Device-Id",    h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Device-Id": WLVPN_HWID } },
+    { name: "Happ + X-Hwid",         h: { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "v2rayNG + X-Hwid",      h: { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": WLVPN_HWID } },
+    { name: "no-UA + X-Hwid",        h: { "X-Hwid": WLVPN_HWID } },
+    { name: "query ?hwid=",          h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?hwid=" + encodeURIComponent(WLVPN_HWID) },
+    { name: "query ?device_id=",     h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": WLVPN_HWID }, url: CHKAV_URL + "?device_id=" + encodeURIComponent(WLVPN_HWID) },
+    { name: "browser + no hwid",     h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } }
+  ];
+
+  const results = [];
+  for (const v of variants) {
+    const r = { name: v.name };
+    try {
+      const t0 = Date.now();
+      const targetUrl = v.url || CHKAV_URL;
+      const res = await fetch(targetUrl, { headers: v.h, redirect: "manual", cf: { cacheTtl: 0 } });
+      r.url = targetUrl;
+      r.timeMs = Date.now() - t0;
+      r.status = res.status;
+      r.statusText = res.statusText;
+      const headers = {};
+      for (const [k, val] of res.headers) headers[k] = val;
+      r.headers = headers;
+      let buf;
+      try { buf = await res.arrayBuffer(); r.bodyLen = buf.byteLength; } catch (_) { r.bodyLen = -1; }
+      if (buf && buf.byteLength > 0) {
+        r.bodyText = new TextDecoder().decode(buf).slice(0, 500);
+      }
+    } catch (e) {
+      r.error = String((e && e.message) || e);
+    }
+    results.push(r);
+  }
+
+  return new Response(JSON.stringify({ url: CHKAV_URL, hwid: WLVPN_HWID, results }, null, 2), {
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
+  });
+}
+
+async function handle(request) {
+  const url = new URL(request.url);
+  const path = url.pathname;
+  const ua = request.headers.get("User-Agent") || "";
+
+  if (path === "/__debug") return debugTraffic();
+
+  if (path === "/" || path === "") {
+    if (isBrowser(ua)) return htmlResponse(renderLanding(url));
+    return serveSubscription();
+  }
+
+  if (path === "/sub" || path === "/sub/") {
+    if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
+    return serveSubscription();
+  }
+
+  return new Response("Not Found", { status: 404 });
+}
+
+export default {
+  async fetch(request) {
+    try {
+      return await handle(request);
+    } catch (e) {
+      return new Response("Internal Error: " + (e.message || e), { status: 500 });
+    }
+  }
+};
+
+// Дальше должны идти CSS и renderLanding из предыдущего кода
 
 const CSS = `
 :root{--bg:#050914;--cyan:#00e0ff;--mint:#00ffa3;--text:#e8f0ff;--muted:#7a8aa8;--glass:rgba(120,180,255,.045);--stroke:rgba(120,180,255,.12)}
