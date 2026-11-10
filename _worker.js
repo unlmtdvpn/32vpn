@@ -178,10 +178,20 @@ async function serveSubscription() {
   let finalServers = [];
 
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
-    // Берем СТРОГО в том порядке, в котором они пришли из источника
     finalServers = chkav.data.map(s => {
       if (s.remarks && (s.remarks.includes("поддержите") || s.remarks.includes("владельца"))) return null;
       if (s.meta && s.meta.serverDescription && s.meta.serverDescription.includes("2202206778971874")) return null;
+
+      // Проверка: это балансировщик («Авто»)?
+      const isBalancer =
+        (s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0) ||
+        (s.routing && Array.isArray(s.routing.rules) && s.routing.rules.some(r => r.balancerTag));
+
+      if (isBalancer) {
+        s.remarks = "🔁 Авто - самый быстрый";
+        s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · Лучше выбрать его" });
+        return s;
+      }
 
       let host = "";
       if (s.outbounds) {
