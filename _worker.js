@@ -177,8 +177,8 @@ async function serveSubscription() {
   const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
   let finalServers = [];
 
-  // 1. Сначала забираем сервера из основной подписки (включая Авто)
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
+    // Берем СТРОГО в том порядке, в котором они пришли из источника
     finalServers = chkav.data.map(s => {
       if (s.remarks && (s.remarks.includes("поддержите") || s.remarks.includes("владельца"))) return null;
       if (s.meta && s.meta.serverDescription && s.meta.serverDescription.includes("2202206778971874")) return null;
@@ -199,11 +199,10 @@ async function serveSubscription() {
       return s;
     }).filter(Boolean);
   } else {
-    // Если chkav упал — отдаем заглушку
     finalServers = [JSON.parse(JSON.stringify(FALLBACK_SERVER))];
   }
 
-  // 2. Добавляем мобильный сервер в самый конец
+  // Добавляем Обход глушилок в самый конец
   const mobileBalancer = await fetchMobileBalancer();
   if (mobileBalancer) {
     finalServers.push(mobileBalancer);
