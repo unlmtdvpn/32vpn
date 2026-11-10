@@ -30,7 +30,7 @@ const SERVERS = [
     ],
     "burstObservatory": { "pingConfig": { "timeout": "5s", "interval": "1m", "sampling": 10, "destination": "https://connectivitycheck.gstatic.com/generate_204" }, "subjectSelector": ["proxy"] },
     "remarks": "🔁 Авто - самый быстрый",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -38,7 +38,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "defc63t.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "defc63t.nl4.h1clayd.click", "publicKey": "AfQ4wXENhcp8xtaqzy9_CiIDxILg1yePHRzR8nmIfjM", "shortId": "bc14cd2dcfb5f11e", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇳🇱 Нидерланды #1",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -46,7 +46,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "fca7d7g.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "b592243922d5", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "fca7d7g.nl4.h1clayd.click", "publicKey": "YXQYOC41H8qEc08QW3KX9pS_ZVhR37NYbhwtns48ByU", "shortId": "428ecee00f55589e", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇳🇱 Нидерланды #2",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -54,7 +54,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "b3a336x.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/73a604831147" }, "security": "reality", "realitySettings": { "serverName": "b3a336x.nl4.h1clayd.click", "publicKey": "wrmXxOr9g-Mep88N8qGM-CbpGhMk8Q3sC5k4FfcaRgw", "shortId": "812078ae7a98e6c3", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇳🇱 Нидерланды #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -62,7 +62,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e308b5t.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "e308b5t.fi8.h1clayd.click", "publicKey": "_08KSLGimBZVDR5-Gidyk3dh0jEBabdv7QmqdOvWowQ", "shortId": "ba6efea04a89cbd8", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇫🇮 Финляндия #1",
-    "meta": { "serverDescription": "WLVPN · Игровой" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -70,7 +70,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "52ee46g.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "d70a1e898970", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "52ee46g.fi8.h1clayd.click", "publicKey": "ls8qrjjxQECi4gAY66LpI7dFMCwkMIsdAxCTC8OjRiA", "shortId": "7cf5819f1c4cfed2", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇫🇮 Финляндия #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -78,7 +78,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "6b83b0x.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/6800998ad1f5" }, "security": "reality", "realitySettings": { "serverName": "6b83b0x.fi8.h1clayd.click", "publicKey": "X91DOditRACMv59RWubXujk3CgDjaoZ-XXIPWcBcA0w", "shortId": "a343ae230b063834", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇫🇮 Финляндия #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -86,7 +86,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "5f9abbt.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "5f9abbt.de21.h1clayd.click", "publicKey": "9QO1ji13sHtja_Jcc_2i4nytv5t5YvSIknDmEN5WQkM", "shortId": "b20610f50e49aef5", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇩🇪 Германия #1",
-    "meta": { "serverDescription": "WLVPN · Игровой" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -94,7 +94,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "403e8ag.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "5add04febeb7", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "403e8ag.de21.h1clayd.click", "publicKey": "IETal8xrzCBQwsExYplQgQSMiDOukKChGlmH19UGYjs", "shortId": "e6c597096e61602b", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇩🇪 Германия #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -102,7 +102,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e1efc1x.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/89dbe548ede2" }, "security": "reality", "realitySettings": { "serverName": "e1efc1x.de21.h1clayd.click", "publicKey": "oDDvTPfBLopjIoq-CsSIrxUKS43rLaGfZSxugJG7fFQ", "shortId": "b086e7b7ea49618f", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇩🇪 Германия #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -118,7 +118,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "0e6251g.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "a1f73023a69f", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "0e6251g.pl6.h1clayd.click", "publicKey": "m2UsNME_0bPdvGIaoNV4btXVrzP3ZFR_u7ko8gKvgCw", "shortId": "bcf93d38da921aa7", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇵🇱 Польша #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -126,7 +126,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "bd5c13x.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/81ae1dd750f3" }, "security": "reality", "realitySettings": { "serverName": "bd5c13x.pl6.h1clayd.click", "publicKey": "RJBNXgvfEYG3C4eqvm6P32rEY8h3X7NrTYWFrIHi0lo", "shortId": "df3777e271102963", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇵🇱 Польша #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -134,7 +134,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e900bbt.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "e900bbt.es7.h1clayd.click", "publicKey": "W9yfgXcgYfGiNZrRzTrJscdZMBjEk-8NXtjLuaCykAg", "shortId": "b28cadcbeba64fd0", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇪🇸 Испания #1",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -142,7 +142,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "c190afg.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "8590bbe2de06", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "c190afg.es7.h1clayd.click", "publicKey": "aRkzpHdZ3dqpyDvDeGJzRXqIb_DeTyUo2zf1N6NRGCE", "shortId": "e5bea197477cbea1", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇪🇸 Испания #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -150,18 +150,7 @@ const SERVERS = [
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
     "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "7c5fbcx.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/2c010424dfa0" }, "security": "reality", "realitySettings": { "serverName": "7c5fbcx.es7.h1clayd.click", "publicKey": "Z4Yl_Gg_2Zc_ekgb_FhBBil3v4u6lu8GkwcdMSBZe0w", "shortId": "38c2f6bfa90702d5", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
     "remarks": "🇪🇸 Испания #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "log": { "loglevel": "error" },
-    "inbounds": [{ "tag": "in-cj3ipw", "port": 10808, "listen": "127.0.0.1", "protocol": "mixed", "settings": { "auth": "noauth", "udp": true }, "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"], "routeOnly": true } }, { "tag": "tun-in", "protocol": "tun", "settings": { "name": "wwan99", "mtu": 8500, "gateway": ["198.18.0.1/16"], "dns": ["1.1.1.1", "8.8.8.8"] }, "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"], "routeOnly": true } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "panel.betust.net", "port": 443, "users": [{ "id": "fb37d713-0ed3-4146-b085-a5c879a9aafa", "encryption": "none", "level": 8, "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "show": false, "fingerprint": "firefox", "serverName": "panel.betust.net", "shortId": "8ece2039", "spiderX": "/", "password": "2e9dGid5D-e4demAVGqU71uEeusuBhviikchaJ96E3o", "publicKey": "2e9dGid5D-e4demAVGqU71uEeusuBhviikchaJ96E3o" } } }, { "tag": "direct", "protocol": "freedom", "settings": { "ipsBlocked": [] }, "streamSettings": { "sockopt": { "domainStrategy": "ForceIP" } } }, { "tag": "block", "protocol": "blackhole", "settings": {} }, { "tag": "dns-out", "protocol": "dns" }, { "tag": "incy-private-dns-block", "protocol": "blackhole" }],
-    "routing": { "domainStrategy": "AsIs", "rules": [{ "type": "field", "inboundTag": ["in-cj3ipw", "tun-in"], "network": "tcp,udp", "port": "853", "outboundTag": "incy-private-dns-block" }, { "inboundTag": ["domestic_dns"], "outboundTag": "direct", "type": "field" }, { "inboundTag": ["wg_bootstrap_dns"], "outboundTag": "direct", "type": "field" }, { "inboundTag": ["dns"], "outboundTag": "proxy", "type": "field" }, { "port": "53", "outboundTag": "dns-out", "type": "field" }] },
-    "dns": { "queryStrategy": "UseIP", "tag": "dns", "servers": ["1.1.1.1", "8.8.8.8"] },
-    "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
-    "stats": {},
-    "remarks": "📱 Обход глушилок #1",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
+    "meta": { "serverDescription": "WLVPN ·" }
   },
   {
     "log": { "loglevel": "error" },
@@ -171,30 +160,8 @@ const SERVERS = [
     "dns": { "queryStrategy": "UseIP", "tag": "dns", "servers": ["1.1.1.1", "8.8.8.8"] },
     "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
     "stats": {},
-    "remarks": "📱 Обход глушилок #2",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
-  },
-  {
-    "log": { "loglevel": "error" },
-    "inbounds": [{ "tag": "in-025izr", "port": 10808, "listen": "127.0.0.1", "protocol": "mixed", "settings": { "auth": "noauth", "udp": true }, "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"], "routeOnly": true } }, { "tag": "tun-in", "protocol": "tun", "settings": { "name": "wwan99", "mtu": 8500, "gateway": ["198.18.0.1/16"], "dns": ["1.1.1.1", "8.8.8.8"] }, "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"], "routeOnly": true } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "sub-edge-08-1g.xrent.cloud", "port": 10488, "users": [{ "id": "d3a30cc1-00d1-4e7e-93e9-78795cda0d90", "encryption": "none", "level": 8 }] }] }, "streamSettings": { "network": "xhttp", "security": "reality", "realitySettings": { "show": false, "fingerprint": "chrome", "serverName": "ligastavok.ru", "shortId": "f28145401b4f633a", "spiderX": "/", "password": "kDEc42JBZxig3BrLD3V1ofs3oJZk15-ANWN-rM0JW10", "publicKey": "kDEc42JBZxig3BrLD3V1ofs3oJZk15-ANWN-rM0JW10" }, "xhttpSettings": { "path": "/" } } }, { "tag": "direct", "protocol": "freedom", "settings": { "ipsBlocked": [] }, "streamSettings": { "sockopt": { "domainStrategy": "ForceIP" } } }, { "tag": "block", "protocol": "blackhole", "settings": {} }, { "tag": "dns-out", "protocol": "dns" }, { "tag": "incy-private-dns-block", "protocol": "blackhole" }],
-    "routing": { "domainStrategy": "AsIs", "rules": [{ "type": "field", "inboundTag": ["in-025izr", "tun-in"], "network": "tcp,udp", "port": "853", "outboundTag": "incy-private-dns-block" }, { "inboundTag": ["domestic_dns"], "outboundTag": "direct", "type": "field" }, { "inboundTag": ["wg_bootstrap_dns"], "outboundTag": "direct", "type": "field" }, { "inboundTag": ["dns"], "outboundTag": "proxy", "type": "field" }, { "port": "53", "outboundTag": "dns-out", "type": "field" }] },
-    "dns": { "queryStrategy": "UseIP", "tag": "dns", "servers": ["1.1.1.1", "8.8.8.8"] },
-    "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
-    "stats": {},
-    "remarks": "📱 Обход глушилок #3",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
-  },
-  {
-    "log": { "loglevel": "error" },
-    "inbounds": [{ "tag": "in-4ac3h3", "port": 10808, "listen": "127.0.0.1", "protocol": "mixed", "settings": { "auth": "noauth", "udp": true }, "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"], "routeOnly": true } }, { "tag": "tun-in", "protocol": "tun", "settings": { "name": "wwan99", "mtu": 8500, "gateway": ["198.18.0.1/16"], "dns": ["1.1.1.1", "8.8.8.8"] }, "sniffing": { "enabled": true, "destOverride": ["http", "tls", "quic"], "routeOnly": true } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "sub-edge-05-1g.whitenw.net", "port": 20001, "users": [{ "id": "d3a30cc1-00d1-4e7e-93e9-78795cda0d90", "encryption": "none", "level": 8 }] }] }, "streamSettings": { "network": "xhttp", "security": "reality", "realitySettings": { "show": false, "fingerprint": "chrome", "serverName": "ligastavok.ru", "shortId": "f28145401b4f633a", "spiderX": "/", "password": "kDEc42JBZxig3BrLD3V1ofs3oJZk15-ANWN-rM0JW10", "publicKey": "kDEc42JBZxig3BrLD3V1ofs3oJZk15-ANWN-rM0JW10" }, "xhttpSettings": { "path": "/" } } }, { "tag": "direct", "protocol": "freedom", "settings": { "ipsBlocked": [] }, "streamSettings": { "sockopt": { "domainStrategy": "ForceIP" } } }, { "tag": "block", "protocol": "blackhole", "settings": {} }, { "tag": "dns-out", "protocol": "dns" }, { "tag": "incy-private-dns-block", "protocol": "blackhole" }],
-    "routing": { "domainStrategy": "AsIs", "rules": [{ "type": "field", "inboundTag": ["in-4ac3h3", "tun-in"], "network": "tcp,udp", "port": "853", "outboundTag": "incy-private-dns-block" }, { "inboundTag": ["domestic_dns"], "outboundTag": "direct", "type": "field" }, { "inboundTag": ["wg_bootstrap_dns"], "outboundTag": "direct", "type": "field" }, { "inboundTag": ["dns"], "outboundTag": "proxy", "type": "field" }, { "port": "53", "outboundTag": "dns-out", "type": "field" }] },
-    "dns": { "queryStrategy": "UseIP", "tag": "dns", "servers": ["1.1.1.1", "8.8.8.8"] },
-    "policy": { "levels": { "8": { "connIdle": 300, "downlinkOnly": 4, "handshake": 3, "uplinkOnly": 2, "bufferSize": 3, "statsUserDownlink": false, "statsUserUplink": false, "statsUserOnline": false } }, "system": { "statsInboundDownlink": true, "statsInboundUplink": true, "statsOutboundDownlink": true, "statsOutboundUplink": true } },
-    "stats": {},
-    "remarks": "📱 Обход глушилок #4",
-    "meta": { "serverDescription": "WLVPN · Работает при ограничении мобильного интернета" }
+    "remarks": "🇷🇺 📱 Обход глушилок",
+    "meta": { "serverDescription": "WLVPN · Работает при белых списках." }
   }
 ];
 
