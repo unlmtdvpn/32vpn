@@ -166,25 +166,25 @@ const SERVERS = [
 ];
 
 const HOST_MAP = {
-  "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "Игровой" },
-  "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
-  "6b83b0x.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
-  "5f9abbt.de21.h1clayd.click": { remarks: "🇩🇪 Германия #1",   category: "Игровой" },
-  "403e8ag.de21.h1clayd.click": { remarks: "🇩🇪 Германия #2",   category: "Нейросети" },
-  "e1efc1x.de21.h1clayd.click": { remarks: "🇩🇪 Германия #3",   category: "Нейросети" },
-  "defc63t.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
-  "fca7d7g.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
-  "b3a336x.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
-  "e900bbt.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
-  "c190afg.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
-  "7c5fbcx.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
+  "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "WLVPN ·" },
+  "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "WLVPN ·" },
+  "6b83b0x.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #3",  category: "WLVPN ·" },
+  "5f9abbt.de21.h1clayd.click": { remarks: "🇩🇪 Германия #1",   category: "WLVPN ·" },
+  "403e8ag.de21.h1clayd.click": { remarks: "🇩🇪 Германия #2",   category: "WLVPN ·" },
+  "e1efc1x.de21.h1clayd.click": { remarks: "🇩🇪 Германия #3",   category: "WLVPN ·" },
+  "defc63t.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #1", category: "WLVPN ·" },
+  "fca7d7g.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #2", category: "WLVPN ·" },
+  "b3a336x.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #3", category: "WLVPN ·" },
+  "e900bbt.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #1",    category: "WLVPN ·" },
+  "c190afg.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #2",    category: "WLVPN ·" },
+  "7c5fbcx.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #3",    category: "WLVPN ·" },
   "c84a94t.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #1",     category: "YouTube" },
-  "0e6251g.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
-  "bd5c13x.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #3",     category: "Нейросети" },
-  "panel.betust.net":           { remarks: "📱 Обход глушилок #1", category: "Работает при ограничении мобильного интернета" },
-  "9aa6d5b7f0bf.vps.myjino.ru": { remarks: "📱 Обход глушилок #2", category: "Работает при ограничении мобильного интернета" },
-  "sub-edge-08-1g.xrent.cloud": { remarks: "📱 Обход глушилок #3", category: "Работает при ограничении мобильного интернета" },
-  "sub-edge-05-1g.whitenw.net": { remarks: "📱 Обход глушилок #4", category: "Работает при ограничении мобильного интернета" }
+  "0e6251g.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #2",     category: "WLVPN ·" },
+  "bd5c13x.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #3",     category: "WLVPN ·" },
+  "panel.betust.net":           { remarks: "📱 Обход глушилок #1", category: "WLVPN · Работает при белых списках." },
+  "9aa6d5b7f0bf.vps.myjino.ru": { remarks: "📱 Обход глушилок #2", category: "WLVPN · Работает при белых списках." },
+  "sub-edge-08-1g.xrent.cloud": { remarks: "📱 Обход глушилок #3", category: "WLVPN · Работает при белых списках." },
+  "sub-edge-05-1g.whitenw.net": { remarks: "📱 Обход глушилок #4", category: "WLVPN · Работает при белых списках." }
 };
 
 function isVpnClient(ua) {
