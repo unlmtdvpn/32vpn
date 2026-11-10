@@ -27,7 +27,8 @@ const SERVERS = [
       { "tag": "block", "protocol": "blackhole" }
     ],
     "remarks": "🔁 Авто - самый быстрый",
-    "meta": { "serverDescription": "WLVPN · Лучше выбрать его" }
+    "meta": { "serverDescription": "WLVPN · Лучше выбрать его" },
+    "burstObservatory": { "subjectSelector": ["proxy"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -41,7 +42,8 @@ const SERVERS = [
       { "tag": "block", "protocol": "blackhole" }
     ],
     "remarks": "🇫🇮 Финляндия",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
+    "meta": { "serverDescription": "WLVPN · Скоростной" },
+    "burstObservatory": { "subjectSelector": ["proxy-fi"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -55,7 +57,8 @@ const SERVERS = [
       { "tag": "block", "protocol": "blackhole" }
     ],
     "remarks": "🇩🇪 Германия",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
+    "meta": { "serverDescription": "WLVPN · Скоростной" },
+    "burstObservatory": { "subjectSelector": ["proxy-de"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -69,7 +72,8 @@ const SERVERS = [
       { "tag": "block", "protocol": "blackhole" }
     ],
     "remarks": "🇳🇱 Нидерланды",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN · Нейросети" },
+    "burstObservatory": { "subjectSelector": ["proxy-nl"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -83,7 +87,8 @@ const SERVERS = [
       { "tag": "block", "protocol": "blackhole" }
     ],
     "remarks": "🇵🇱 Польша",
-    "meta": { "serverDescription": "WLVPN · YouTube" }
+    "meta": { "serverDescription": "WLVPN · YouTube" },
+    "burstObservatory": { "subjectSelector": ["proxy-pl"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
   },
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -97,7 +102,8 @@ const SERVERS = [
       { "tag": "block", "protocol": "blackhole" }
     ],
     "remarks": "🇪🇸 Испания",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
+    "meta": { "serverDescription": "WLVPN · Нейросети" },
+    "burstObservatory": { "subjectSelector": ["proxy-es"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
   }
 ];
 
@@ -125,7 +131,6 @@ function htmlResponse(content, status = 200) {
 
 const CHKAV_URL = "https://newsub.chkav-vpn.space/9zfbEsqma0tkNfc2";
 const WLVPN_HWID = "1BEF4F22-1340-8D05-2641-3CC6D7CC1B27";
-
 const MOBILE_SUB_URL = "https://sub.chkav-vpn.space/?id=90f7c8dd85644850aa0e629cfb0e877c";
 
 function normalizeUserinfo(raw) {
@@ -136,22 +141,30 @@ function normalizeUserinfo(raw) {
   return `upload=${up}; download=${down}; total=${total}; expire=0`;
 }
 
+function b64decode(str) {
+  try {
+    let s = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return atob(s);
+  } catch (_) {
+    return null;
+  }
+}
+
 function parseSubscriptionBody(txt) {
   try {
     const arr = JSON.parse(txt);
     if (Array.isArray(arr) && arr.length > 0) return { format: "json", data: arr };
   } catch (_) {}
 
-  try {
-    const dec = atob(txt.trim());
-    const arr = JSON.parse(dec);
-    if (Array.isArray(arr) && arr.length > 0) return { format: "json", data: arr };
-  } catch (_) {}
-
-  try {
-    const dec = atob(txt.trim());
-    if (/^vless:\/\//m.test(dec)) return { format: "vless", data: dec };
-  } catch (_) {}
+  const dec1 = b64decode(txt.trim());
+  if (dec1) {
+    try {
+      const arr = JSON.parse(dec1);
+      if (Array.isArray(arr) && arr.length > 0) return { format: "json", data: arr };
+    } catch (_) {}
+    if (/^vless:\/\//m.test(dec1)) return { format: "vless", data: dec1 };
+  }
 
   if (/^vless:\/\//m.test(txt)) return { format: "vless", data: txt };
 
@@ -198,31 +211,28 @@ async function fetchMobileBalancer() {
 
     if (parsed.format === "json") {
       const data = parsed.data;
-      // Если это массив конфигов
       if (Array.isArray(data)) {
         data.forEach(cfg => {
           if (cfg.outbounds) {
             cfg.outbounds.forEach(ob => {
               if (ob.protocol === "vless" || ob.protocol === "vmess" || ob.protocol === "trojan") {
+                ob.tag = `mobile-${outbounds.length + 1}`;
                 outbounds.push(ob);
               }
             });
           }
         });
-      } 
-      // Если это один конфиг
-      else if (data.outbounds) {
+      } else if (data.outbounds) {
         data.outbounds.forEach(ob => {
           if (ob.protocol === "vless" || ob.protocol === "vmess" || ob.protocol === "trojan") {
+            ob.tag = `mobile-${outbounds.length + 1}`;
             outbounds.push(ob);
           }
         });
       }
-    } 
-    else if (parsed.format === "vless") {
-      // Парсим vless ссылки в outbounds
+    } else if (parsed.format === "vless") {
       const lines = parsed.data.split(/\r?\n/).filter(l => l.trim().startsWith("vless://"));
-      lines.forEach((line, idx) => {
+      lines.forEach((line) => {
         try {
           const url = new URL(line);
           const params = url.searchParams;
@@ -239,7 +249,7 @@ async function fetchMobileBalancer() {
           const serviceName = params.get("serviceName") || "";
 
           const ob = {
-            "tag": `mobile-${idx + 1}`,
+            "tag": `mobile-${outbounds.length + 1}`,
             "protocol": "vless",
             "settings": {
               "vnext": [{
@@ -273,16 +283,11 @@ async function fetchMobileBalancer() {
 
     if (outbounds.length === 0) return null;
 
-    // Собираем балансировщик
-    const balancer = {
+    return {
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
       "routing": {
         "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "mobile_balancer" }],
-        "balancers": [{
-          "tag": "mobile_balancer",
-          "selector": ["mobile-"],
-          "strategy": { "type": "leastLoad" }
-        }],
+        "balancers": [{ "tag": "mobile_balancer", "selector": ["mobile-"], "strategy": { "type": "leastLoad" } }],
         "domainStrategy": "AsIs"
       },
       "inbounds": [
@@ -291,127 +296,37 @@ async function fetchMobileBalancer() {
       ],
       "outbounds": outbounds,
       "remarks": "🇷🇺 📱 Обход глушилок",
-      "meta": { "serverDescription": "WLVPN · Работает при белых списках" }
+      "meta": { "serverDescription": "WLVPN · Работает при белых списках" },
+      "burstObservatory": {
+        "subjectSelector": ["mobile-"],
+        "pingConfig": {
+          "destination": "https://connectivitycheck.gstatic.com/generate_204",
+          "interval": "1m",
+          "sampling": 10,
+          "timeout": "5s",
+          "httpMethod": "HEAD"
+        }
+      }
     };
-
-    return balancer;
   } catch (_) {
     return null;
   }
-}
-
-function isDonationServer(s) {
-  const r = (s.remarks || "").toLowerCase();
-  const d = ((s.meta && s.meta.serverDescription) || "").toLowerCase();
-  return r.includes("поддержите") || r.includes("владельца") || d.includes("2202206778971874");
-}
-
-function applyBrandingJson(server) {
-  if (isDonationServer(server)) return null;
-
-  if (server.routing && Array.isArray(server.routing.balancers) && server.routing.balancers.length > 0) {
-    server.remarks = "🔁 Авто - самый быстрый";
-    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · Лучше выбрать его" });
-    return server;
-  }
-
-  const proxy = (server.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
-  const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
-
-  if (host && HOST_MAP[host]) {
-    server.remarks = HOST_MAP[host].remarks;
-    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · " + HOST_MAP[host].category });
-  } else {
-    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN" });
-  }
-
-  return server;
-}
-
-function applyBrandingVlessList(txt) {
-  const lines = txt.split(/\r?\n/).filter(l => l.trim().startsWith("vless://"));
-  const out = [];
-
-  for (const line of lines) {
-    const fragIdx = line.indexOf("#");
-    const existingFrag = fragIdx >= 0 ? decodeURIComponent(line.slice(fragIdx + 1)) : "";
-
-    if (/поддержите|владельца|2202206778971874/i.test(existingFrag)) continue;
-
-    const m = line.match(/@([^:\/?#]+):\d+/);
-    const host = m ? m[1] : null;
-    const base = line.split("#")[0];
-
-    if (host && HOST_MAP[host]) {
-      const remark = HOST_MAP[host].remarks + " · WLVPN · " + HOST_MAP[host].category;
-      out.push(base + "#" + encodeURIComponent(remark));
-    } else {
-      out.push(line);
-    }
-  }
-  return out;
 }
 
 async function serveSubscription() {
   const chkav = await fetchChkav();
   const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
 
-  let body;
-  let contentType = "application/json; charset=utf-8";
+  const servers = JSON.parse(JSON.stringify(SERVERS));
 
-  if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
-    const servers = chkav.data.map(applyBrandingJson).filter(Boolean);
-
-    const existingHosts = new Set();
-    servers.forEach(s => {
-      if (s.routing && Array.isArray(s.routing.balancers)) return;
-      const proxy = (s.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
-      const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
-      if (host) existingHosts.add(host);
-    });
-
-    SERVERS.forEach(staticServer => {
-      if (staticServer.routing && Array.isArray(staticServer.routing.balancers)) return;
-      
-      const proxy = (staticServer.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
-      const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
-
-      if (host && !existingHosts.has(host)) {
-        servers.push(JSON.parse(JSON.stringify(staticServer)));
-      }
-    });
-
-    if (!servers.some(s => s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0)) {
-      servers.unshift(SERVERS[0]);
-    }
-
-    body = JSON.stringify(servers, null, 2);
-  } else if (chkav.format === "vless") {
-    const list = applyBrandingVlessList(chkav.data);
-    const joined = list.join("\n");
-    body = btoa(unescape(encodeURIComponent(joined)));
-    contentType = "text/plain; charset=utf-8";
-  } else {
-    body = JSON.stringify(SERVERS, null, 2);
-  }
-
-  // Добавляем мобильный балансировщик, если он есть
   const mobileBalancer = await fetchMobileBalancer();
   if (mobileBalancer) {
-    if (contentType === "application/json; charset=utf-8") {
-      try {
-        const servers = JSON.parse(body);
-        servers.push(mobileBalancer);
-        body = JSON.stringify(servers, null, 2);
-      } catch (_) {}
-    } else {
-      // Если это vless base64, то просто игнорируем мобильные, так как они в JSON
-    }
+    servers.push(mobileBalancer);
   }
 
-  return new Response(body, {
+  return new Response(JSON.stringify(servers, null, 2), {
     headers: {
-      "Content-Type": contentType,
+      "Content-Type": "application/json; charset=utf-8",
       "Profile-Title": "wlvpn",
       "Profile-Update-Interval": "6",
       "Subscription-Userinfo": userInfo,
@@ -1031,7 +946,7 @@ function renderLanding(url) {
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="sec-tag">Серверы</span>
-      <h2 class="sec">20 серверов в 6 странах.<br>Один протокол. Максимальная скорость.</h2>
+      <h2 class="sec">Максимальная скорость.<br>Один протокол.</h2>
       <p>Все серверы WLVPN работают на VLESS — лёгком протоколе, который маскирует трафик под обычный HTTPS и не оставляет следов для DPI.</p>
     </div>
 
@@ -1072,8 +987,8 @@ function renderLanding(url) {
       </div>
       <div class="card tilt reveal">
         <div class="card-icon">📶</div>
-        <h3>Серверы «Обход глушилок»</h3>
-        <p>Отдельные серверы для мобильного интернета. Обходят ограничения операторов, когда оставлены только «разрешённые» сайты — и возвращают весь интернет даже на улице.</p>
+        <h3>Сервер «Обход глушилок»</h3>
+        <p>Отдельный сервер для мобильного интернета. Обходит ограничения операторов, когда оставлены только «разрешённые» сайты — и возвращает весь интернет даже на улице.</p>
       </div>
       <div class="card tilt reveal">
         <div class="card-icon">🚀</div>
@@ -1137,7 +1052,7 @@ function renderLanding(url) {
         <li><b>Нулевые логи.</b> Мы не храним историю подключений и не знаем, куда вы ходите.</li>
         <li><b>Защита от утечек.</b> DNS, IPv6 и WebRTC блокируются на уровне клиента.</li>
         <li><b>Маскировка под HTTPS.</b> DPI не отличает ваш трафик от обычного веб-сёрфинга.</li>
-        <li><b>Обходит белые списки</b> — включая ограничения мобильного интернета через отдельные серверы «Обход глушилок».</li>
+        <li><b>Обходит белые списки</b> — включая ограничения мобильного интернета через отдельный сервер «Обход глушилок».</li>
       </ul>
     </div>
   </div>
@@ -1224,7 +1139,7 @@ function renderLanding(url) {
       </div>
       <div class="faq-item reveal">
         <div class="faq-q"><span>Работает ли на мобильном интернете и при ограничениях оператора?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. Для мобильных сетей у нас есть серверы «Обход глушилок» — они обходят ограничения мобильного интернета и режим «белых списков», когда оператор оставляет доступ только к разрешённым сайтам. Работает в роуминге и на общественном Wi-Fi.</div></div>
+        <div class="faq-a"><div class="faq-a-inner">Да. Для мобильных сетей у нас есть сервер «Обход глушилок» — он обходит ограничения мобильного интернета и режим «белых списков», когда оператор оставляет доступ только к разрешённым сайтам. Работает в роуминге и на общественном Wi-Fi.</div></div>
       </div>
     </div>
   </div>
