@@ -2,158 +2,40 @@
 // WLVPN — Free VPN Service (Cloudflare Worker)
 // ============================================================
 
+// Хардкод используется ТОЛЬКО как fallback, если chkav не отвечает
 const SERVERS = [
   {
-    "dns": { "servers": [{ "address": "77.88.8.8", "domains": ["domain:ru", "domain:su", "domain:xn--p1ai", "domain:yandex.net", "domain:yandex.com", "domain:yastatic.net", "domain:vk.com", "domain:vk.me", "domain:userapi.com", "domain:mycdn.me"], "skipFallback": true }, "https://1.1.1.1/dns-query"], "queryStrategy": "UseIPv4" },
-    "routing": { "rules": [{ "ip": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8", "169.254.0.0/16", "100.64.0.0/10"], "type": "field", "outboundTag": "direct" }, { "port": "53", "type": "field", "network": "tcp,udp", "outboundTag": "dns-out" }, { "port": "443", "type": "field", "network": "udp", "outboundTag": "block" }, { "type": "field", "domain": ["domain:ru", "domain:su", "domain:xn--p1ai", "domain:yandex.net", "domain:yandex.com", "domain:yastatic.net", "domain:vk.com", "domain:vk.me", "domain:userapi.com", "domain:vkuser.net", "domain:vkuseraudio.net", "domain:vkuservideo.net", "domain:mycdn.me", "domain:avito.st", "domain:ozonusercontent.com"], "outboundTag": "direct" }, { "type": "field", "network": "tcp,udp", "balancerTag": "Super_Balancer" }], "balancers": [{ "tag": "Super_Balancer", "selector": ["proxy-"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "proxy" }], "domainStrategy": "AsIs" },
+    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
+    "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "Super_Balancer" }], "balancers": [{ "tag": "Super_Balancer", "selector": ["proxy"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "proxy" }], "domainStrategy": "AsIs" },
     "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls"] } }],
     "outbounds": [
       { "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e308b5t.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "e308b5t.fi8.h1clayd.click", "publicKey": "_08KSLGimBZVDR5-Gidyk3dh0jEBabdv7QmqdOvWowQ", "shortId": "ba6efea04a89cbd8", "fingerprint": "firefox" } } },
-      { "tag": "proxy-2", "protocol": "vless", "settings": { "vnext": [{ "address": "52ee46g.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "d70a1e898970", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "52ee46g.fi8.h1clayd.click", "publicKey": "ls8qrjjxQECi4gAY66LpI7dFMCwkMIsdAxCTC8OjRiA", "shortId": "7cf5819f1c4cfed2", "fingerprint": "firefox" } } },
-      { "tag": "proxy-3", "protocol": "vless", "settings": { "vnext": [{ "address": "6b83b0x.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/6800998ad1f5" }, "security": "reality", "realitySettings": { "serverName": "6b83b0x.fi8.h1clayd.click", "publicKey": "X91DOditRACMv59RWubXujk3CgDjaoZ-XXIPWcBcA0w", "shortId": "a343ae230b063834", "fingerprint": "firefox" } } },
-      { "tag": "proxy-4", "protocol": "vless", "settings": { "vnext": [{ "address": "5f9abbt.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "5f9abbt.de21.h1clayd.click", "publicKey": "9QO1ji13sHtja_Jcc_2i4nytv5t5YvSIknDmEN5WQkM", "shortId": "b20610f50e49aef5", "fingerprint": "firefox" } } },
-      { "tag": "proxy-5", "protocol": "vless", "settings": { "vnext": [{ "address": "403e8ag.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "5add04febeb7", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "403e8ag.de21.h1clayd.click", "publicKey": "IETal8xrzCBQwsExYplQgQSMiDOukKChGlmH19UGYjs", "shortId": "e6c597096e61602b", "fingerprint": "firefox" } } },
-      { "tag": "proxy-6", "protocol": "vless", "settings": { "vnext": [{ "address": "e1efc1x.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/89dbe548ede2" }, "security": "reality", "realitySettings": { "serverName": "e1efc1x.de21.h1clayd.click", "publicKey": "oDDvTPfBLopjIoq-CsSIrxUKS43rLaGfZSxugJG7fFQ", "shortId": "b086e7b7ea49618f", "fingerprint": "firefox" } } },
-      { "tag": "proxy-7", "protocol": "vless", "settings": { "vnext": [{ "address": "defc63t.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "defc63t.nl4.h1clayd.click", "publicKey": "AfQ4wXENhcp8xtaqzy9_CiIDxILg1yePHRzR8nmIfjM", "shortId": "bc14cd2dcfb5f11e", "fingerprint": "firefox" } } },
-      { "tag": "proxy-8", "protocol": "vless", "settings": { "vnext": [{ "address": "fca7d7g.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "b592243922d5", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "fca7d7g.nl4.h1clayd.click", "publicKey": "YXQYOC41H8qEc08QW3KX9pS_ZVhR37NYbhwtns48ByU", "shortId": "428ecee00f55589e", "fingerprint": "firefox" } } },
-      { "tag": "proxy-9", "protocol": "vless", "settings": { "vnext": [{ "address": "b3a336x.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/73a604831147" }, "security": "reality", "realitySettings": { "serverName": "b3a336x.nl4.h1clayd.click", "publicKey": "wrmXxOr9g-Mep88N8qGM-CbpGhMk8Q3sC5k4FfcaRgw", "shortId": "812078ae7a98e6c3", "fingerprint": "firefox" } } },
-      { "tag": "proxy-10", "protocol": "vless", "settings": { "vnext": [{ "address": "e900bbt.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "e900bbt.es7.h1clayd.click", "publicKey": "W9yfgXcgYfGiNZrRzTrJscdZMBjEk-8NXtjLuaCykAg", "shortId": "b28cadcbeba64fd0", "fingerprint": "firefox" } } },
-      { "tag": "proxy-11", "protocol": "vless", "settings": { "vnext": [{ "address": "c190afg.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "8590bbe2de06", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "c190afg.es7.h1clayd.click", "publicKey": "aRkzpHdZ3dqpyDvDeGJzRXqIb_DeTyUo2zf1N6NRGCE", "shortId": "e5bea197477cbea1", "fingerprint": "firefox" } } },
-      { "tag": "proxy-12", "protocol": "vless", "settings": { "vnext": [{ "address": "7c5fbcx.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/2c010424dfa0" }, "security": "reality", "realitySettings": { "serverName": "7c5fbcx.es7.h1clayd.click", "publicKey": "Z4Yl_Gg_2Zc_ekgb_FhBBil3v4u6lu8GkwcdMSBZe0w", "shortId": "38c2f6bfa90702d5", "fingerprint": "firefox" } } },
-      { "tag": "proxy-13", "protocol": "vless", "settings": { "vnext": [{ "address": "c84a94t.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "c84a94t.pl6.h1clayd.click", "publicKey": "2j6Ph2f21xRR0RaYwBiT0BrX7fHsk2DNSnnOghi-GEI", "shortId": "3e2d2f5a2ea4fdf3", "fingerprint": "firefox" } } },
-      { "tag": "proxy-14", "protocol": "vless", "settings": { "vnext": [{ "address": "0e6251g.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "a1f73023a69f", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "0e6251g.pl6.h1clayd.click", "publicKey": "m2UsNME_0bPdvGIaoNV4btXVrzP3ZFR_u7ko8gKvgCw", "shortId": "bcf93d38da921aa7", "fingerprint": "firefox" } } },
-      { "tag": "proxy-15", "protocol": "vless", "settings": { "vnext": [{ "address": "bd5c13x.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/81ae1dd750f3" }, "security": "reality", "realitySettings": { "serverName": "bd5c13x.pl6.h1clayd.click", "publicKey": "RJBNXgvfEYG3C4eqvm6P32rEY8h3X7NrTYWFrIHi0lo", "shortId": "df3777e271102963", "fingerprint": "firefox" } } },
       { "tag": "direct", "protocol": "freedom", "settings": { "domainStrategy": "UseIPv4" } },
-      { "tag": "block", "protocol": "blackhole" },
-      { "tag": "dns-out", "protocol": "dns" }
+      { "tag": "block", "protocol": "blackhole" }
     ],
-    "burstObservatory": { "pingConfig": { "timeout": "5s", "interval": "1m", "sampling": 10, "destination": "https://connectivitycheck.gstatic.com/generate_204" }, "subjectSelector": ["proxy-"] },
+    "burstObservatory": { "pingConfig": { "timeout": "5s", "interval": "1m", "sampling": 10, "destination": "https://connectivitycheck.gstatic.com/generate_204" }, "subjectSelector": ["proxy"] },
     "remarks": "🔁 Авто - самый быстрый",
     "meta": { "serverDescription": "WLVPN · Лучше выбрать его" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e308b5t.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "e308b5t.fi8.h1clayd.click", "publicKey": "_08KSLGimBZVDR5-Gidyk3dh0jEBabdv7QmqdOvWowQ", "shortId": "ba6efea04a89cbd8", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇫🇮 Финляндия #1",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "52ee46g.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "d70a1e898970", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "52ee46g.fi8.h1clayd.click", "publicKey": "ls8qrjjxQECi4gAY66LpI7dFMCwkMIsdAxCTC8OjRiA", "shortId": "7cf5819f1c4cfed2", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇫🇮 Финляндия #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "6b83b0x.fi8.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/6800998ad1f5" }, "security": "reality", "realitySettings": { "serverName": "6b83b0x.fi8.h1clayd.click", "publicKey": "X91DOditRACMv59RWubXujk3CgDjaoZ-XXIPWcBcA0w", "shortId": "a343ae230b063834", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇫🇮 Финляндия #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "5f9abbt.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "5f9abbt.de21.h1clayd.click", "publicKey": "9QO1ji13sHtja_Jcc_2i4nytv5t5YvSIknDmEN5WQkM", "shortId": "b20610f50e49aef5", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇩🇪 Германия #1",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "403e8ag.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "5add04febeb7", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "403e8ag.de21.h1clayd.click", "publicKey": "IETal8xrzCBQwsExYplQgQSMiDOukKChGlmH19UGYjs", "shortId": "e6c597096e61602b", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇩🇪 Германия #2",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e1efc1x.de21.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/89dbe548ede2" }, "security": "reality", "realitySettings": { "serverName": "e1efc1x.de21.h1clayd.click", "publicKey": "oDDvTPfBLopjIoq-CsSIrxUKS43rLaGfZSxugJG7fFQ", "shortId": "b086e7b7ea49618f", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇩🇪 Германия #3",
-    "meta": { "serverDescription": "WLVPN · Скоростной" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "defc63t.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "defc63t.nl4.h1clayd.click", "publicKey": "AfQ4wXENhcp8xtaqzy9_CiIDxILg1yePHRzR8nmIfjM", "shortId": "bc14cd2dcfb5f11e", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇳🇱 Нидерланды #1",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "fca7d7g.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "b592243922d5", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "fca7d7g.nl4.h1clayd.click", "publicKey": "YXQYOC41H8qEc08QW3KX9pS_ZVhR37NYbhwtns48ByU", "shortId": "428ecee00f55589e", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇳🇱 Нидерланды #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "b3a336x.nl4.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/73a604831147" }, "security": "reality", "realitySettings": { "serverName": "b3a336x.nl4.h1clayd.click", "publicKey": "wrmXxOr9g-Mep88N8qGM-CbpGhMk8Q3sC5k4FfcaRgw", "shortId": "812078ae7a98e6c3", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇳🇱 Нидерланды #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "c84a94t.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "c84a94t.pl6.h1clayd.click", "publicKey": "2j6Ph2f21xRR0RaYwBiT0BrX7fHsk2DNSnnOghi-GEI", "shortId": "3e2d2f5a2ea4fdf3", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇵🇱 Польша #1",
-    "meta": { "serverDescription": "WLVPN · YouTube" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "0e6251g.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "a1f73023a69f", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "0e6251g.pl6.h1clayd.click", "publicKey": "m2UsNME_0bPdvGIaoNV4btXVrzP3ZFR_u7ko8gKvgCw", "shortId": "bcf93d38da921aa7", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇵🇱 Польша #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "bd5c13x.pl6.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/81ae1dd750f3" }, "security": "reality", "realitySettings": { "serverName": "bd5c13x.pl6.h1clayd.click", "publicKey": "RJBNXgvfEYG3C4eqvm6P32rEY8h3X7NrTYWFrIHi0lo", "shortId": "df3777e271102963", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇵🇱 Польша #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "e900bbt.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "xtls-rprx-vision" }] }] }, "streamSettings": { "network": "tcp", "tcpSettings": { "header": { "type": "none" } }, "security": "reality", "realitySettings": { "serverName": "e900bbt.es7.h1clayd.click", "publicKey": "W9yfgXcgYfGiNZrRzTrJscdZMBjEk-8NXtjLuaCykAg", "shortId": "b28cadcbeba64fd0", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇪🇸 Испания #1",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "c190afg.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "grpc", "grpcSettings": { "serviceName": "8590bbe2de06", "authority": "", "multiMode": false }, "security": "reality", "realitySettings": { "serverName": "c190afg.es7.h1clayd.click", "publicKey": "aRkzpHdZ3dqpyDvDeGJzRXqIb_DeTyUo2zf1N6NRGCE", "shortId": "e5bea197477cbea1", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇪🇸 Испания #2",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
-  },
-  {
-    "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-    "routing": { "rules": [{ "type": "field", "protocol": ["bittorrent"], "outboundTag": "direct" }], "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch" },
-    "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
-    "outbounds": [{ "tag": "proxy", "protocol": "vless", "settings": { "vnext": [{ "address": "7c5fbcx.es7.h1clayd.click", "port": 443, "users": [{ "id": "1eae439a-d78a-4f42-9d3e-0e49a54bd558", "encryption": "none", "flow": "" }] }] }, "streamSettings": { "network": "xhttp", "xhttpSettings": { "mode": "auto", "host": "", "path": "/2c010424dfa0" }, "security": "reality", "realitySettings": { "serverName": "7c5fbcx.es7.h1clayd.click", "publicKey": "Z4Yl_Gg_2Zc_ekgb_FhBBil3v4u6lu8GkwcdMSBZe0w", "shortId": "38c2f6bfa90702d5", "fingerprint": "firefox" } } }, { "tag": "direct", "protocol": "freedom" }, { "tag": "block", "protocol": "blackhole" }],
-    "remarks": "🇪🇸 Испания #3",
-    "meta": { "serverDescription": "WLVPN · Нейросети" }
   }
 ];
 
-const HOST_MAP = {};
+const HOST_MAP = {
+  "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "Игровой" },
+  "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
+  "6b83b0x.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
+  "5f9abbt.de21.h1clayd.click": { remarks: "🇩🇪 Германия #1",   category: "Игровой" },
+  "403e8ag.de21.h1clayd.click": { remarks: "🇩🇪 Германия #2",   category: "Скоростной" },
+  "e1efc1x.de21.h1clayd.click": { remarks: "🇩🇪 Германия #3",   category: "Скоростной" },
+  "defc63t.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
+  "fca7d7g.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
+  "b3a336x.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
+  "e900bbt.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
+  "c190afg.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
+  "7c5fbcx.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
+  "c84a94t.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #1",     category: "YouTube" },
+  "0e6251g.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
+  "bd5c13x.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #3",     category: "Нейросети" }
+};
 
 function isVpnClient(ua) {
   return /incy|happ|v2ray|clash|sing-box|nekobox|stash|streisand|karing|matsuri|shadowrocket|nekoray|v2rayng|ko*ng/i.test(ua);
@@ -364,12 +246,56 @@ async function fetchMobileBalancer() {
   }
 }
 
+function isDonationServer(s) {
+  const r = (s.remarks || "").toLowerCase();
+  const d = ((s.meta && s.meta.serverDescription) || "").toLowerCase();
+  return r.includes("поддержите") || r.includes("владельца") || d.includes("2202206778971874");
+}
+
+function applyBrandingJson(server) {
+  if (isDonationServer(server)) return null;
+
+  if (server.routing && Array.isArray(server.routing.balancers) && server.routing.balancers.length > 0) {
+    server.remarks = "🔁 Авто - самый быстрый";
+    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · Лучше выбрать его" });
+    return server;
+  }
+
+  const proxy = (server.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
+  const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
+
+  if (host && HOST_MAP[host]) {
+    server.remarks = HOST_MAP[host].remarks;
+    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · " + HOST_MAP[host].category });
+  } else {
+    // Незнакомый сервер — просто оставляем как есть, но меняем описание на WLVPN
+    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN" });
+  }
+
+  return server;
+}
+
 async function serveSubscription() {
+  // 1. Забираем трафик и сервера из основной подписки chkav
   const chkav = await fetchChkav();
   const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
 
-  const servers = JSON.parse(JSON.stringify(SERVERS));
+  let servers;
+  
+  if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
+    // Если chkav вернул JSON — парсим и брендируем сервера
+    servers = chkav.data.map(applyBrandingJson).filter(Boolean);
+    
+    // Проверяем, есть ли балансировщик. Если нет — добавляем наш «Авто»
+    if (!servers.some(s => s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0)) {
+      servers.unshift(JSON.parse(JSON.stringify(SERVERS[0])));
+    }
+  } else {
+    // Если chkav упал или вернул формат vless, используем хардкод
+    servers = JSON.parse(JSON.stringify(SERVERS));
+  }
 
+  // 2. Забираем мобильный балансировщик
   const mobileBalancer = await fetchMobileBalancer();
   if (mobileBalancer) {
     servers.push(mobileBalancer);
@@ -461,6 +387,9 @@ export default {
   }
 };
 
+// ============================================================
+// LANDING PAGE (ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ)
+// ============================================================
 const CSS = `
 :root{
   --bg:#050914;--bg-soft:#0a1020;--surface:#0a1225;--surface2:#111b33;
@@ -997,7 +926,7 @@ function renderLanding(url) {
   <div class="wrap">
     <div class="sec-head reveal">
       <span class="sec-tag">Серверы</span>
-      <h2 class="sec">15 серверов в 5 странах.<br>Один протокол. Максимальная скорость.</h2>
+      <h2 class="sec">Серверы, которые всегда с тобой.<br>Один протокол. Максимальная скорость.</h2>
       <p>Все серверы WLVPN работают на VLESS — лёгком протоколе, который маскирует трафик под обычный HTTPS и не оставляет следов для DPI.</p>
     </div>
 
@@ -1178,233 +1107,4 @@ function renderLanding(url) {
       </div>
       <div class="faq-item reveal">
         <div class="faq-q"><span>Работает ли обход блокировок для YouTube, Discord и Telegram?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. VLESS маскирует трафик так, что провайдер не может отличить ваш сеанс от обычного визита на разрешённый сайт. Это позволяет обходить как обычные блокировки, так и режим «белых списков».</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Есть ли лимит трафика?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Нет. Трафик не ограничен — качайте, смотрите и играйте сколько хотите. Мы не считаем гигабайты и не режем скорость за перерасход.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Можно ли пользоваться на нескольких устройствах?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да, одну ссылку-подписку можно добавить на неограниченное число устройств. Приложения есть для Windows, macOS, iOS, Android и Linux.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Работает ли на мобильном интернете и при ограничениях оператора?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. Для мобильных сетей у нас есть сервер «Обход глушилок» — он обходит ограничения мобильного интернета и режим «белых списков», когда оператор оставляет доступ только к разрешённым сайтам. Работает в роуминге и на общественном Wi-Fi.</div></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section id="cta">
-  <div class="wrap">
-    <div class="cta-box reveal">
-      <h2 class="sec">Интернет без границ —<br>на VLESS</h2>
-      <p>Бесплатно. Навсегда. Без карты и регистрации.</p>
-      <button type="button" class="btn btn-primary" onclick="copySub(event)">Скопировать ссылку</button>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap foot-inner">
-    <div class="logo"><div class="logo-mark"></div><span>WLVPN</span></div>
-    <p>© 2025 WLVPN. Свободный интернет для каждого.</p>
-    <div class="socials">
-      <a href="#" aria-label="Telegram">TG</a>
-      <a href="#" aria-label="X">X</a>
-      <a href="#" aria-label="GitHub">GH</a>
-    </div>
-  </div>
-</footer>
-
-<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-<script>
-function copySub(e) {
-  const input = document.getElementById('sub-url');
-  if (!input) return;
-  const url = input.value;
-  input.select();
-  input.setSelectionRange(0, url.length);
-  let ok = false;
-  try {
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(url);
-      ok = true;
-    }
-  } catch(_) {}
-  if (!ok) {
-    try { document.execCommand('copy'); ok = true; } catch(_) {}
-  }
-  const btn = e.currentTarget;
-  const orig = btn.textContent;
-  btn.textContent = ok ? '✓ Скопировано' : 'Не удалось';
-  setTimeout(() => { btn.textContent = orig; }, 1800);
-}
-
-(function initQR() {
-  const box = document.getElementById('qr-box');
-  const input = document.getElementById('sub-url');
-  if (!box || !input || typeof qrcode === 'undefined') return;
-  try {
-    const qr = qrcode(0, 'M');
-    qr.addData(input.value);
-    qr.make();
-    box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 1 });
-  } catch (err) {
-    console.warn('QR failed:', err);
-  }
-})();
-
-const canvas = document.getElementById('stars');
-const ctx = canvas.getContext('2d');
-let stars = [], w, h, dpr;
-const mouse = { x: -9999, y: -9999 };
-
-function resize(){
-  dpr = Math.min(window.devicePixelRatio || 1, 2);
-  w = canvas.width = innerWidth * dpr;
-  h = canvas.height = innerHeight * dpr;
-  canvas.style.width = innerWidth + 'px';
-  canvas.style.height = innerHeight + 'px';
-  const count = Math.min(150, Math.floor((innerWidth * innerHeight) / 12000));
-  stars = Array.from({ length: count }, () => ({
-    x: Math.random() * w,
-    y: Math.random() * h,
-    vx: (Math.random() - .5) * .25 * dpr,
-    vy: (Math.random() - .5) * .25 * dpr,
-    r: (Math.random() * 1.5 + .4) * dpr,
-    a: Math.random() * .5 + .25
-  }));
-}
-resize();
-addEventListener('resize', resize);
-
-function draw(){
-  ctx.clearRect(0, 0, w, h);
-  const linkDist = 130 * dpr;
-  for (let i = 0; i < stars.length; i++){
-    const s = stars[i];
-    s.x += s.vx; s.y += s.vy;
-    if (s.x < 0 || s.x > w) s.vx *= -1;
-    if (s.y < 0 || s.y > h) s.vy *= -1;
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(190,235,255,' + s.a + ')';
-    ctx.fill();
-    for (let j = i + 1; j < stars.length; j++){
-      const o = stars[j];
-      const dx = s.x - o.x, dy = s.y - o.y;
-      const d = Math.hypot(dx, dy);
-      if (d < linkDist){
-        ctx.beginPath();
-        ctx.moveTo(s.x, s.y);
-        ctx.lineTo(o.x, o.y);
-        ctx.strokeStyle = 'rgba(0,224,255,' + ((1 - d / linkDist) * .26) + ')';
-        ctx.lineWidth = .6 * dpr;
-        ctx.stroke();
-      }
-    }
-    const mdx = s.x - mouse.x * dpr, mdy = s.y - mouse.y * dpr;
-    const md = Math.hypot(mdx, mdy);
-    if (md < 170 * dpr && md > 0){
-      const f = (1 - md / (170 * dpr)) * .9;
-      s.x += (mdx / md) * f;
-      s.y += (mdy / md) * f;
-    }
-  }
-  requestAnimationFrame(draw);
-}
-draw();
-
-const cursor = document.querySelector('.cursor');
-const dot = document.querySelector('.cursor-dot');
-let cx = innerWidth / 2, cy = innerHeight / 2;
-let tx = cx, ty = cy;
-addEventListener('mousemove', e => {
-  tx = e.clientX; ty = e.clientY;
-  mouse.x = e.clientX; mouse.y = e.clientY;
-  dot.style.transform = 'translate(' + e.clientX + 'px, ' + e.clientY + 'px) translate(-50%,-50%)';
-});
-(function loopCursor(){
-  cx += (tx - cx) * .16;
-  cy += (ty - cy) * .16;
-  cursor.style.transform = 'translate(' + cx + 'px, ' + cy + 'px) translate(-50%,-50%)';
-  requestAnimationFrame(loopCursor);
-})();
-document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review, .link-box').forEach(el => {
-  el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
-  el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
-});
-
-const nav = document.getElementById('nav');
-addEventListener('scroll', () => {
-  nav.classList.toggle('scrolled', scrollY > 40);
-});
-
-const io = new IntersectionObserver(entries => {
-  entries.forEach((e, i) => {
-    if (e.isIntersecting){
-      e.target.style.transitionDelay = (i % 6) * 80 + 'ms';
-      e.target.classList.add('in');
-      io.unobserve(e.target);
-    }
-  });
-}, { threshold: .15, rootMargin: '0px 0px -60px 0px' });
-document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-setTimeout(() => {
-  document.querySelectorAll('.reveal:not(.in)').forEach(el => {
-    el.classList.add('in');
-    el.style.transitionDelay = '0ms';
-  });
-}, 3000);
-
-document.querySelectorAll('.tilt').forEach(card => {
-  card.addEventListener('mousemove', e => {
-    const r = card.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    card.style.setProperty('--mx', px * 100 + '%');
-    card.style.setProperty('--my', py * 100 + '%');
-    const rx = (py - .5) * -8;
-    const ry = (px - .5) * 8;
-    card.style.transform = 'perspective(900px) rotateX(' + rx + 'deg) rotateY(' + ry + 'deg) translateY(-6px)';
-  });
-  card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-});
-
-const pingEls = document.querySelectorAll('[data-ping]');
-function updatePings(){
-  pingEls.forEach(el => {
-    const val = Math.floor(Math.random() * 31) + 30;
-    el.textContent = val + ' мс';
-    el.style.color = val < 40 ? 'var(--mint)' : (val < 50 ? 'var(--cyan)' : '#ffd166');
-  });
-}
-updatePings();
-setInterval(updatePings, 2500);
-
-document.querySelectorAll('.faq-item').forEach(item => {
-  const q = item.querySelector('.faq-q');
-  const a = item.querySelector('.faq-a');
-  q.addEventListener('click', () => {
-    const isOpen = item.classList.contains('open');
-    document.querySelectorAll('.faq-item.open').forEach(other => {
-      if (other !== item){
-        other.classList.remove('open');
-        other.querySelector('.faq-a').style.maxHeight = null;
-      }
-    });
-    if (isOpen){
-      item.classList.remove('open');
-      a.style.maxHeight = null;
-    } else {
-      item.classList.add('open');
-      a.style.maxHeight = a.scrollHeight + 'px';
-    }
-  });
-});
-</script>
-</body>
-</html>`;
-}
+        <div class="faq-a"><div class="faq-a
