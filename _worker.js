@@ -2,8 +2,8 @@
 // WLVPN — Free VPN Service (Cloudflare Worker)
 // ============================================================
 
-// Хардкод используется ТОЛЬКО как fallback, если chkav не отвечает
 const SERVERS = [
+  // Оставляем только заглушку на случай, если chkav вообще ляжет
   {
     "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
     "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "Super_Balancer" }], "balancers": [{ "tag": "Super_Balancer", "selector": ["proxy"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "proxy" }], "domainStrategy": "AsIs" },
@@ -19,22 +19,12 @@ const SERVERS = [
   }
 ];
 
-const HOST_MAP = {
-  "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "Игровой" },
-  "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
-  "6b83b0x.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
-  "5f9abbt.de21.h1clayd.click": { remarks: "🇩🇪 Германия #1",   category: "Игровой" },
-  "403e8ag.de21.h1clayd.click": { remarks: "🇩🇪 Германия #2",   category: "Скоростной" },
-  "e1efc1x.de21.h1clayd.click": { remarks: "🇩🇪 Германия #3",   category: "Скоростной" },
-  "defc63t.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
-  "fca7d7g.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
-  "b3a336x.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
-  "e900bbt.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
-  "c190afg.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
-  "7c5fbcx.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
-  "c84a94t.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #1",     category: "YouTube" },
-  "0e6251g.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
-  "bd5c13x.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #3",     category: "Нейросети" }
+const LOCATIONS = {
+  "fi8": { flag: "🇫🇮", name: "Финляндия", tag: "WLVPN · Нейросети", selector: "proxy-fi-" },
+  "de21": { flag: "🇩🇪", name: "Германия", tag: "WLVPN · Скоростной", selector: "proxy-de-" },
+  "nl4": { flag: "🇳🇱", name: "Нидерланды", tag: "WLVPN · Скоростной", selector: "proxy-nl-" },
+  "pl6": { flag: "🇵🇱", name: "Польша", tag: "WLVPN · YouTube", selector: "proxy-pl-" },
+  "es7": { flag: "🇪🇸", name: "Испания", tag: "WLVPN · Нейросети", selector: "proxy-es-" }
 };
 
 function isVpnClient(ua) {
@@ -50,10 +40,7 @@ function isBrowser(ua) {
 function htmlResponse(content, status = 200) {
   return new Response(content, {
     status,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "no-store"
-    }
+    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
   });
 }
 
@@ -74,9 +61,7 @@ function b64decode(str) {
     let s = str.replace(/-/g, '+').replace(/_/g, '/');
     while (s.length % 4) s += '=';
     return atob(s);
-  } catch (_) {
-    return null;
-  }
+  } catch (_) { return null; }
 }
 
 function parseSubscriptionBody(txt) {
@@ -95,7 +80,6 @@ function parseSubscriptionBody(txt) {
   }
 
   if (/^vless:\/\//m.test(txt)) return { format: "vless", data: txt };
-
   return null;
 }
 
@@ -110,12 +94,9 @@ async function fetchChkav() {
     try {
       const res = await fetch(CHKAV_URL, { headers: h, redirect: "follow", cf: { cacheTtl: 0 } });
       if (!res.ok) continue;
-
       const userInfo = normalizeUserinfo(res.headers.get("Subscription-Userinfo"));
       const txt = await res.text();
-      
       if (txt.includes("00000000-0000-0000-0000-000000000000") || txt.includes("0.0.0.0:1")) continue;
-
       const parsed = parseSubscriptionBody(txt);
       if (parsed) return { userInfo, ...parsed };
     } catch (_) {}
@@ -125,34 +106,27 @@ async function fetchChkav() {
 
 async function fetchMobileBalancer() {
   try {
-    const res = await fetch(MOBILE_SUB_URL, {
-      headers: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" },
-      cf: { cacheTtl: 0 }
-    });
+    const res = await fetch(MOBILE_SUB_URL, { headers: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*" }, cf: { cacheTtl: 0 } });
     if (!res.ok) return null;
-
     const txt = await res.text();
     const parsed = parseSubscriptionBody(txt);
     if (!parsed) return null;
 
     let outbounds = [];
-
     if (parsed.format === "json") {
       const data = parsed.data;
       if (Array.isArray(data)) {
         data.forEach(cfg => {
-          if (cfg.outbounds) {
-            cfg.outbounds.forEach(ob => {
-              if (ob.protocol === "vless" || ob.protocol === "vmess" || ob.protocol === "trojan") {
-                ob.tag = `mobile-${outbounds.length + 1}`;
-                outbounds.push(ob);
-              }
-            });
-          }
+          if (cfg.outbounds) cfg.outbounds.forEach(ob => {
+            if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
+              ob.tag = `mobile-${outbounds.length + 1}`;
+              outbounds.push(ob);
+            }
+          });
         });
       } else if (data.outbounds) {
         data.outbounds.forEach(ob => {
-          if (ob.protocol === "vless" || ob.protocol === "vmess" || ob.protocol === "trojan") {
+          if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
             ob.tag = `mobile-${outbounds.length + 1}`;
             outbounds.push(ob);
           }
@@ -164,46 +138,19 @@ async function fetchMobileBalancer() {
         try {
           const url = new URL(line);
           const params = url.searchParams;
-          const address = url.hostname;
-          const port = parseInt(url.port) || 443;
-          const id = url.username;
-          const flow = params.get("flow") || "";
-          const sni = params.get("sni") || address;
-          const pbk = params.get("pbk") || "";
-          const sid = params.get("sid") || "";
-          const fp = params.get("fp") || "chrome";
-          const type = params.get("type") || "tcp";
-          const path = params.get("path") || "/";
-          const serviceName = params.get("serviceName") || "";
-
           const ob = {
             "tag": `mobile-${outbounds.length + 1}`,
             "protocol": "vless",
-            "settings": {
-              "vnext": [{
-                "address": address,
-                "port": port,
-                "users": [{ "id": id, "encryption": "none", "flow": flow }]
-              }]
-            },
+            "settings": { "vnext": [{ "address": url.hostname, "port": parseInt(url.port) || 443, "users": [{ "id": url.username, "encryption": "none", "flow": params.get("flow") || "" }] }] },
             "streamSettings": {
-              "network": type,
+              "network": params.get("type") || "tcp",
               "security": "reality",
-              "realitySettings": {
-                "serverName": sni,
-                "publicKey": pbk,
-                "shortId": sid,
-                "fingerprint": fp
-              }
+              "realitySettings": { "serverName": params.get("sni") || url.hostname, "publicKey": params.get("pbk") || "", "shortId": params.get("sid") || "", "fingerprint": params.get("fp") || "chrome" }
             }
           };
-
-          if (type === "xhttp") {
-            ob.streamSettings.xhttpSettings = { "mode": "auto", "path": path };
-          } else if (type === "grpc") {
-            ob.streamSettings.grpcSettings = { "serviceName": serviceName, "authority": "", "multiMode": false };
-          }
-
+          const type = params.get("type") || "tcp";
+          if (type === "xhttp") ob.streamSettings.xhttpSettings = { "mode": "auto", "path": params.get("path") || "/" };
+          else if (type === "grpc") ob.streamSettings.grpcSettings = { "serviceName": params.get("serviceName") || "", "authority": "", "multiMode": false };
           outbounds.push(ob);
         } catch (_) {}
       });
@@ -213,95 +160,90 @@ async function fetchMobileBalancer() {
 
     return {
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
-      "routing": {
-        "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "mobile_balancer" }],
-        "balancers": [{ 
-          "tag": "mobile_balancer", 
-          "selector": ["mobile-"], 
-          "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, 
-          "fallbackTag": "mobile-1" 
-        }],
-        "domainStrategy": "AsIs"
-      },
-      "inbounds": [
-        { "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } },
-        { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }
-      ],
+      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "mobile_balancer" }], "balancers": [{ "tag": "mobile_balancer", "selector": ["mobile-"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "mobile-1" }], "domainStrategy": "AsIs" },
+      "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
       "outbounds": outbounds,
       "remarks": "🇷🇺 📱 Обход глушилок",
       "meta": { "serverDescription": "WLVPN · Работает при белых списках" },
-      "burstObservatory": {
-        "subjectSelector": ["mobile-"],
-        "pingConfig": {
-          "destination": "https://connectivitycheck.gstatic.com/generate_204",
-          "interval": "1m",
-          "sampling": 10,
-          "timeout": "5s",
-          "httpMethod": "HEAD"
-        }
-      }
+      "burstObservatory": { "subjectSelector": ["mobile-"], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
     };
-  } catch (_) {
-    return null;
-  }
+  } catch (_) { return null; }
 }
 
-function isDonationServer(s) {
-  const r = (s.remarks || "").toLowerCase();
-  const d = ((s.meta && s.meta.serverDescription) || "").toLowerCase();
-  return r.includes("поддержите") || r.includes("владельца") || d.includes("2202206778971874");
-}
+// Функция собирает все ноды в балансировщики по локациям
+function buildLocationBalancers(chkavServers) {
+  const locOutbounds = { fi8: [], de21: [], nl4: [], pl6: [], es7: [] };
+  const otherServers = [];
 
-function applyBrandingJson(server) {
-  if (isDonationServer(server)) return null;
+  // Раскидываем сервера по локациям
+  chkavServers.forEach(s => {
+    let host = "";
+    if (s.outbounds) {
+      const proxy = s.outbounds.find(o => o.tag === "proxy" || o.tag.startsWith("proxy-"));
+      if (proxy && proxy.settings?.vnext?.[0]) host = proxy.settings.vnext[0].address;
+    }
+    let found = false;
+    for (const loc in LOCATIONS) {
+      if (host.includes(`.${loc}.`)) {
+        // Переименовываем тег, чтобы он попал в селектор балансировщика
+        s.outbounds.forEach(ob => {
+          if (["vless", "vmess", "trojan"].includes(ob.protocol)) {
+            ob.tag = LOCATIONS[loc].selector + (locOutbounds[loc].length + 1);
+            locOutbounds[loc].push(ob);
+          }
+        });
+        found = true;
+        break;
+      }
+    }
+    if (!found && !s.routing?.balancers?.length) {
+      // Незнакомые сервера (не донат и не балансировщик) добавляем как есть
+      otherServers.push(s);
+    }
+  });
 
-  if (server.routing && Array.isArray(server.routing.balancers) && server.routing.balancers.length > 0) {
-    server.remarks = "🔁 Авто - самый быстрый";
-    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · Лучше выбрать его" });
-    return server;
+  // Создаем сервера-балансировщики для каждой локации
+  const result = [];
+  for (const loc in LOCATIONS) {
+    if (locOutbounds[loc].length === 0) continue;
+    const info = LOCATIONS[loc];
+    result.push({
+      "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
+      "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": `balancer-${loc}` }], "balancers": [{ "tag": `balancer-${loc}`, "selector": [info.selector], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": locOutbounds[loc][0].tag }], "domainStrategy": "AsIs" },
+      "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }, { "tag": "http", "port": 10809, "listen": "127.0.0.1", "protocol": "http", "settings": { "allowTransparent": false }, "sniffing": { "enabled": true, "routeOnly": false, "destOverride": ["http", "tls", "quic"] } }],
+      "outbounds": locOutbounds[loc],
+      "remarks": `${info.flag} ${info.name}`,
+      "meta": { "serverDescription": info.tag },
+      "burstObservatory": { "subjectSelector": [info.selector], "pingConfig": { "destination": "https://connectivitycheck.gstatic.com/generate_204", "interval": "1m", "sampling": 10, "timeout": "5s", "httpMethod": "HEAD" } }
+    });
   }
 
-  const proxy = (server.outbounds || []).find(o => o.tag === "proxy" || (o.tag || "").startsWith("proxy-"));
-  const host = proxy && proxy.settings && proxy.settings.vnext && proxy.settings.vnext[0] && proxy.settings.vnext[0].address;
-
-  if (host && HOST_MAP[host]) {
-    server.remarks = HOST_MAP[host].remarks;
-    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN · " + HOST_MAP[host].category });
-  } else {
-    // Незнакомый сервер — просто оставляем как есть, но меняем описание на WLVPN
-    server.meta = Object.assign({}, server.meta || {}, { serverDescription: "WLVPN" });
-  }
-
-  return server;
+  return result.concat(otherServers);
 }
 
 async function serveSubscription() {
-  // 1. Забираем трафик и сервера из основной подписки chkav
   const chkav = await fetchChkav();
   const userInfo = chkav.userInfo || "upload=0; download=0; total=0; expire=0";
+  let finalServers = [];
 
-  let servers;
-  
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
-    // Если chkav вернул JSON — парсим и брендируем сервера
-    servers = chkav.data.map(applyBrandingJson).filter(Boolean);
+    // Если chkav вернул данные — группируем их по странам
+    finalServers = buildLocationBalancers(chkav.data);
     
-    // Проверяем, есть ли балансировщик. Если нет — добавляем наш «Авто»
-    if (!servers.some(s => s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0)) {
-      servers.unshift(JSON.parse(JSON.stringify(SERVERS[0])));
+    // Добавляем главный «Авто», если его нет
+    if (!finalServers.some(s => s.remarks?.includes("Авто"))) {
+      finalServers.unshift(JSON.parse(JSON.stringify(SERVERS[0])));
     }
   } else {
-    // Если chkav упал или вернул формат vless, используем хардкод
-    servers = JSON.parse(JSON.stringify(SERVERS));
+    // Если chkav упал — отдаем статику
+    finalServers = JSON.parse(JSON.stringify(SERVERS));
   }
 
-  // 2. Забираем мобильный балансировщик
+  // Добавляем мобильный балансировщик
   const mobileBalancer = await fetchMobileBalancer();
-  if (mobileBalancer) {
-    servers.push(mobileBalancer);
-  }
+  if (mobileBalancer) finalServers.push(mobileBalancer);
 
-  return new Response(JSON.stringify(servers, null, 2), {
+  return new Response(JSON.stringify(finalServers, null, 2), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Profile-Title": "wlvpn",
@@ -386,6 +328,8 @@ export default {
     }
   }
 };
+
+// ... CSS и renderLanding остаются без изменений ...
 
 // ============================================================
 // LANDING PAGE (ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ)
