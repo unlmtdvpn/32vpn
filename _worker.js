@@ -314,7 +314,6 @@ async function serveSubscription(env) {
       return s;
     }).filter(Boolean);
 
-    // Отфильтровать скрытые + переименовать
     servers = servers.map(s => {
       const isBalancer =
         (s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0) ||
@@ -482,6 +481,13 @@ async function handleAdmin(request, url, env) {
   const authed = await isAuthed(request, config);
   if (!authed) return htmlResponse(renderAdminLogin());
 
+  if (method === "POST" && path === "/admin/reset") {
+    const defaultConf = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    defaultConf.adminPassword = config.adminPassword; // Keep current password
+    await saveConfig(env, defaultConf);
+    return new Response(null, { status: 302, headers: { "Location": "/admin?reset=1" } });
+  }
+
   if (method === "POST" && path === "/admin/save") {
     const form = await request.formData();
     const oldPassword = config.adminPassword;
@@ -604,6 +610,7 @@ function renderAdminLogin(error) {
 
 function renderAdminPanel(config, url) {
   const saved = url.searchParams.get("saved");
+  const reset = url.searchParams.get("reset");
   const pwdIsDefault = config.adminPassword === DEFAULT_CONFIG.adminPassword;
 
   const hmRows = (config.hostMap || []).map((s) => `
@@ -705,6 +712,7 @@ function renderAdminPanel(config, url) {
 </header>
 <div class="wrap">
   ${saved ? `<div class="alert alert-ok">Настройки сохранены.</div>` : ""}
+  ${reset ? `<div class="alert alert-warn">Настройки сброшены до заводских. Все сервера и группы восстановлены.</div>` : ""}
   ${pwdIsDefault ? `<div class="alert alert-warn">⚠ Пароль по умолчанию. Смените его в блоке «Безопасность»!</div>` : ""}
 
   <form method="POST" action="/admin/save" id="admin-form">
@@ -809,9 +817,10 @@ function renderAdminPanel(config, url) {
       <p class="hint">После смены пароля все старые сессии сбросятся (кроме текущей).</p>
     </div>
 
-    <div class="btn-row" style="margin-top:8px">
+    <div class="btn-row" style="margin-top:8px; align-items:center;">
       <button type="submit" class="btn btn-primary">Сохранить настройки</button>
       <button type="button" class="btn btn-ghost" onclick="testSources()">Проверить источники</button>
+      <button type="button" class="btn btn-danger" onclick="resetSettings()" style="margin-left:auto;">Сбросить всё</button>
     </div>
     <div id="test-result" class="result" style="display:none"></div>
   </form>
@@ -922,6 +931,16 @@ document.getElementById('admin-form').addEventListener('submit', function() {
   });
   document.getElementById('hiddenHostsInput').value = hidden.join(',');
 });
+
+function resetSettings() {
+  if (confirm('⚠ ВНИМАНИЕ! Это действие удалит все ваши сервера, группы и настройки, вернув их к заводским. Пароль останется прежним. Продолжить?')) {
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/admin/reset';
+    document.body.appendChild(form);
+    form.submit();
+  }
+}
 
 async function testSources() {
   var el = document.getElementById('test-result');
