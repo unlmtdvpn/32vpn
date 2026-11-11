@@ -308,7 +308,6 @@ async function serveSubscription(env) {
       if (item.host) hostMapObj[item.host] = item;
     }
 
-    // 1. Собираем все сервера, помечая скрытые
     let allServers = chkav.data.map(s => {
       if (s.remarks && (s.remarks.includes("поддержите") || s.remarks.includes("владельца"))) return null;
       if (s.meta && s.meta.serverDescription && s.meta.serverDescription.includes("2202206778971874")) return null;
@@ -342,7 +341,6 @@ async function serveSubscription(env) {
       return s;
     });
 
-    // 2. Мерж-группы используют ВСЕ сервера (включая скрытые)
     const consumed = new Set();
     const mergedBalancers = [];
 
@@ -365,7 +363,6 @@ async function serveSubscription(env) {
       }
     }
 
-    // 3. Формируем финал: только не скрытые и не поглощенные
     finalServers = allServers.filter((s, idx) => !s.__hidden && !consumed.has(idx));
     finalServers.push(...mergedBalancers);
 
@@ -660,43 +657,41 @@ function renderAdminPanel(config, url) {
     `;
   }).join('');
 
+  // Порядок серверов — только видимые
   const allTokens = [];
   const tokenLabels = {};
-  const tokenHidden = {};
-  allTokens.push('__balancer__');
-  tokenLabels['__balancer__'] = config.balancerName || '🔁 Авто - самый быстрый';
-  tokenHidden['__balancer__'] = !!config.balancerHidden;
-  allTokens.push('__mobile__');
-  tokenLabels['__mobile__'] = config.mobileBalancerName || '🇷🇺 📱 Обход глушилок';
-  tokenHidden['__mobile__'] = !!config.mobileHidden;
+  if (!config.balancerHidden) {
+    allTokens.push('__balancer__');
+    tokenLabels['__balancer__'] = config.balancerName || '🔁 Авто - самый быстрый';
+  }
+  if (!config.mobileHidden) {
+    allTokens.push('__mobile__');
+    tokenLabels['__mobile__'] = config.mobileBalancerName || '🇷🇺 📱 Обход глушилок';
+  }
   (config.hostMap || []).forEach(item => {
-    if (item.host) {
+    if (item.host && !item.hidden) {
       allTokens.push(item.host);
       tokenLabels[item.host] = item.remarks || item.host;
-      tokenHidden[item.host] = !!item.hidden;
     }
   });
   (config.mergeGroups || []).forEach(g => {
     allTokens.push('__merge__' + g.id);
     tokenLabels['__merge__' + g.id] = g.name || ('Мерж ' + g.id);
-    tokenHidden['__merge__' + g.id] = false;
   });
 
   let order = (config.serverOrder || []).filter(t => allTokens.includes(t));
   allTokens.forEach(t => { if (!order.includes(t)) order.push(t); });
 
-  const orderRows = order.map(token => {
-    const isHidden = tokenHidden[token];
-    return `
-    <div class="order-row" draggable="true" data-token="${esc(token)}" style="${isHidden ? 'opacity:0.55' : ''}">
+  const orderRows = order.map(token => `
+    <div class="order-row" draggable="true" data-token="${esc(token)}">
       <span class="order-handle">☰</span>
-      <span class="order-label">${esc(tokenLabels[token] || token)}${isHidden ? ' <span class="order-tag">скрыт</span>' : ''}</span>
+      <span class="order-label">${esc(tokenLabels[token] || token)}</span>
       <div class="order-actions">
         <button type="button" class="btn btn-ghost" style="padding:6px 10px" onclick="moveOrder(this,-1)">↑</button>
         <button type="button" class="btn btn-ghost" style="padding:6px 10px" onclick="moveOrder(this,1)">↓</button>
       </div>
-    </div>`;
-  }).join('');
+    </div>
+  `).join('');
 
   return `<!doctype html>
 <html lang="ru">
@@ -812,7 +807,7 @@ function renderAdminPanel(config, url) {
 
     <div class="card">
       <h2>Порядок серверов в подписке</h2>
-      <p class="hint" style="margin-bottom:16px">Перетаскивай строки или используй стрелки. Скрытые сервера показаны приглушёнными — их порядок сохраняется, и он вступит в силу, если ты их снова покажешь.</p>
+      <p class="hint" style="margin-bottom:16px">Перетаскивай строки или используй стрелки. Скрытые сервера здесь не отображаются — при включении они попадут в конец списка.</p>
       <div id="order-container">${orderRows}</div>
     </div>
 
