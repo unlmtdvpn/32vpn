@@ -3,21 +3,21 @@
 // ============================================================
 
 const DEFAULT_HOST_MAP = [
-  { host: "e308b5t.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #1",  category: "Нейросети" },
-  { host: "52ee46g.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
-  { host: "6b83b0x.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
-  { host: "5f9abbt.de21.h1clayd.click", remarks: "🇩🇪 Германия #1",   category: "Скоростной" },
-  { host: "403e8ag.de21.h1clayd.click", remarks: "🇩🇪 Германия #2",   category: "Скоростной" },
-  { host: "e1efc1x.de21.h1clayd.click", remarks: "🇩🇪 Германия #3",   category: "Скоростной" },
-  { host: "defc63t.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
-  { host: "fca7d7g.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
-  { host: "b3a336x.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
-  { host: "e900bbt.es7.h1clayd.click",  remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
-  { host: "c190afg.es7.h1clayd.click",  remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
-  { host: "7c5fbcx.es7.h1clayd.click",  remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
-  { host: "c84a94t.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #1",     category: "YouTube" },
-  { host: "0e6251g.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
-  { host: "bd5c13x.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #3",     category: "Нейросети" }
+  { host: "e308b5t.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #1",  category: "Нейросети",   hidden: false },
+  { host: "52ee46g.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #2",  category: "Нейросети",   hidden: false },
+  { host: "6b83b0x.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #3",  category: "Нейросети",   hidden: false },
+  { host: "5f9abbt.de21.h1clayd.click", remarks: "🇩🇪 Германия #1",   category: "Скоростной",  hidden: false },
+  { host: "403e8ag.de21.h1clayd.click", remarks: "🇩🇪 Германия #2",   category: "Скоростной",  hidden: false },
+  { host: "e1efc1x.de21.h1clayd.click", remarks: "🇩🇪 Германия #3",   category: "Скоростной",  hidden: false },
+  { host: "defc63t.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #1", category: "Скоростной",  hidden: false },
+  { host: "fca7d7g.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #2", category: "Скоростной",  hidden: false },
+  { host: "b3a336x.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #3", category: "Нейросети",   hidden: false },
+  { host: "e900bbt.es7.h1clayd.click",  remarks: "🇪🇸 Испания #1",    category: "Нейросети",   hidden: false },
+  { host: "c190afg.es7.h1clayd.click",  remarks: "🇪🇸 Испания #2",    category: "Нейросети",   hidden: false },
+  { host: "7c5fbcx.es7.h1clayd.click",  remarks: "🇪🇸 Испания #3",    category: "Нейросети",   hidden: false },
+  { host: "c84a94t.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #1",     category: "YouTube",     hidden: false },
+  { host: "0e6251g.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #2",     category: "Нейросети",   hidden: false },
+  { host: "bd5c13x.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #3",     category: "Нейросети",   hidden: false }
 ];
 
 const DEFAULT_CONFIG = {
@@ -31,8 +31,10 @@ const DEFAULT_CONFIG = {
   fallbackDescription: "WLVPN · Скоро вернёмся",
   balancerName: "🔁 Авто - самый быстрый",
   balancerDescription: "WLVPN · Лучше выбрать его",
+  balancerHidden: false,
   mobileBalancerName: "🇷🇺 📱 Обход глушилок",
   mobileBalancerDescription: "WLVPN · Работает при белых списках",
+  mobileHidden: false,
   hostMap: JSON.parse(JSON.stringify(DEFAULT_HOST_MAP)),
   mergeGroups: [],
   serverOrder: [],
@@ -45,26 +47,19 @@ const DEFAULT_CONFIG = {
 function isVpnClient(ua) {
   return /incy|happ|v2ray|clash|sing-box|nekobox|stash|streisand|karing|matsuri|shadowrocket|nekoray|v2rayng|ko*ng/i.test(ua);
 }
-
 function isBrowser(ua) {
   if (!ua) return false;
   if (isVpnClient(ua)) return false;
   return /mozilla|chrome|safari|firefox|edg|opera|msie|trident/i.test(ua);
 }
-
 function htmlResponse(content, status = 200) {
-  return new Response(content, {
-    status,
-    headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" }
-  });
+  return new Response(content, { status, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
 }
-
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
 }
-
 function b64decode(str) {
   try {
     let s = str.replace(/-/g, '+').replace(/_/g, '/');
@@ -72,7 +67,6 @@ function b64decode(str) {
     return atob(s);
   } catch (_) { return null; }
 }
-
 function normalizeUserinfo(raw) {
   if (!raw) return null;
   const up = (raw.match(/upload=(\d+)/i) || [])[1] || "0";
@@ -80,13 +74,11 @@ function normalizeUserinfo(raw) {
   const total = (raw.match(/total=(\d+)/i) || [])[1] || "0";
   return `upload=${up}; download=${down}; total=${total}; expire=0`;
 }
-
 function parseSubscriptionBody(txt) {
   try {
     const arr = JSON.parse(txt);
     if (Array.isArray(arr) && arr.length > 0) return { format: "json", data: arr };
   } catch (_) {}
-
   const dec1 = b64decode(txt.trim());
   if (dec1) {
     try {
@@ -95,11 +87,9 @@ function parseSubscriptionBody(txt) {
     } catch (_) {}
     if (/^vless:\/\//m.test(dec1)) return { format: "vless", data: dec1 };
   }
-
   if (/^vless:\/\//m.test(txt)) return { format: "vless", data: txt };
   return null;
 }
-
 function getServerHost(s) {
   if (!s || !s.outbounds) return null;
   const proxy = s.outbounds.find(o =>
@@ -121,7 +111,7 @@ async function loadConfig(env) {
     if (raw) {
       const config = JSON.parse(raw);
       if (config.hostMap && !Array.isArray(config.hostMap)) {
-        config.hostMap = Object.entries(config.hostMap).map(([host, data]) => ({ host, ...data }));
+        config.hostMap = Object.entries(config.hostMap).map(([host, data]) => ({ host, hidden: false, ...data }));
       }
       if (config.mergeGroups) {
         config.mergeGroups = config.mergeGroups.map(g => {
@@ -144,7 +134,6 @@ async function loadConfig(env) {
   } catch (_) {}
   return Object.assign({}, DEFAULT_CONFIG);
 }
-
 async function saveConfig(env, config) {
   await env.KV.put("config:main", JSON.stringify(config));
 }
@@ -157,14 +146,12 @@ async function hashPassword(pw) {
   const buf = await crypto.subtle.digest("SHA-256", data);
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
 }
-
 function timingSafeEqual(a, b) {
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
 }
-
 async function isAuthed(request, config) {
   const cookie = request.headers.get("Cookie") || "";
   const m = cookie.match(/wlvpn_auth=([a-f0-9]+)/);
@@ -184,7 +171,6 @@ async function fetchChkav(config) {
     { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": HWID },
     { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": HWID }
   ];
-
   for (const h of variants) {
     try {
       const res = await fetch(CHKAV_URL, { headers: h, redirect: "follow", cf: { cacheTtl: 0 } });
@@ -210,7 +196,6 @@ async function fetchMobileBalancer(config) {
     const txt = await res.text();
     const parsed = parseSubscriptionBody(txt);
     if (!parsed) return null;
-
     let outbounds = [];
     if (parsed.format === "json") {
       const data = parsed.data;
@@ -254,9 +239,7 @@ async function fetchMobileBalancer(config) {
         } catch (_) {}
       });
     }
-
     if (outbounds.length === 0) return null;
-
     return {
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
       "routing": { "rules": [{ "type": "field", "network": "tcp,udp", "balancerTag": "mobile_balancer" }], "balancers": [{ "tag": "mobile_balancer", "selector": ["mobile-"], "strategy": { "type": "leastLoad", "settings": { "maxRTT": "1s", "expected": 1, "tolerance": 0.15 } }, "fallbackTag": "mobile-1" }], "domainStrategy": "AsIs" },
@@ -277,7 +260,6 @@ function buildMergedBalancer(group, matchedServers) {
   const prefix = `merged-${safeId}-`;
   let counter = 1;
   const outbounds = [];
-
   for (const s of matchedServers) {
     if (!s.outbounds) continue;
     for (const ob of s.outbounds) {
@@ -287,9 +269,7 @@ function buildMergedBalancer(group, matchedServers) {
       outbounds.push(clone);
     }
   }
-
   if (outbounds.length === 0) return null;
-
   return {
     dns: { servers: ["1.1.1.1", "1.0.0.1"], queryStrategy: "UseIP" },
     routing: {
@@ -334,27 +314,32 @@ async function serveSubscription(env) {
       return s;
     }).filter(Boolean);
 
-    servers.forEach(s => {
+    // Отфильтровать скрытые + переименовать
+    servers = servers.map(s => {
       const isBalancer =
         (s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0) ||
         (s.routing && Array.isArray(s.routing.rules) && s.routing.rules.some(r => r.balancerTag));
 
       if (isBalancer) {
+        if (config.balancerHidden) return null;
         s.remarks = config.balancerName;
         s.meta = Object.assign({}, s.meta || {}, { serverDescription: config.balancerDescription });
         s.__token = '__balancer__';
-      } else {
-        const host = getServerHost(s);
-        if (host && hostMapObj[host]) {
-          s.remarks = hostMapObj[host].remarks;
-          s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · " + hostMapObj[host].category });
-          s.__token = host;
-        } else {
-          s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN" });
-          s.__token = host ? 'host_' + host : 'unknown_' + Math.random().toString(36).slice(2);
-        }
+        return s;
       }
-    });
+
+      const host = getServerHost(s);
+      if (host && hostMapObj[host]) {
+        if (hostMapObj[host].hidden) return null;
+        s.remarks = hostMapObj[host].remarks;
+        s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · " + hostMapObj[host].category });
+        s.__token = host;
+      } else {
+        s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN" });
+        s.__token = host ? 'host_' + host : 'unknown_' + Math.random().toString(36).slice(2);
+      }
+      return s;
+    }).filter(Boolean);
 
     const consumed = new Set();
     const mergedBalancers = [];
@@ -391,12 +376,14 @@ async function serveSubscription(env) {
     }];
   }
 
-  const mobileBalancer = await fetchMobileBalancer(config);
-  if (mobileBalancer) {
-    mobileBalancer.remarks = config.mobileBalancerName;
-    mobileBalancer.meta = Object.assign({}, mobileBalancer.meta || {}, { serverDescription: config.mobileBalancerDescription });
-    mobileBalancer.__token = "__mobile__";
-    finalServers.push(mobileBalancer);
+  if (!config.mobileHidden) {
+    const mobileBalancer = await fetchMobileBalancer(config);
+    if (mobileBalancer) {
+      mobileBalancer.remarks = config.mobileBalancerName;
+      mobileBalancer.meta = Object.assign({}, mobileBalancer.meta || {}, { serverDescription: config.mobileBalancerDescription });
+      mobileBalancer.__token = "__mobile__";
+      finalServers.push(mobileBalancer);
+    }
   }
 
   const order = config.serverOrder || [];
@@ -441,7 +428,6 @@ async function debugTraffic(env) {
     { name: "query ?device_id=",      h: { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": HWID }, url: CHKAV_URL + "?device_id=" + encodeURIComponent(HWID) },
     { name: "browser + no hwid",      h: { "User-Agent": "Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36" } }
   ];
-
   const results = [];
   for (const v of variants) {
     const r = { name: v.name };
@@ -458,15 +444,10 @@ async function debugTraffic(env) {
       r.headers = headers;
       let buf;
       try { buf = await res.arrayBuffer(); r.bodyLen = buf.byteLength; } catch (_) { r.bodyLen = -1; }
-      if (buf && buf.byteLength > 0) {
-        r.bodyText = new TextDecoder().decode(buf).slice(0, 500);
-      }
-    } catch (e) {
-      r.error = String((e && e.message) || e);
-    }
+      if (buf && buf.byteLength > 0) r.bodyText = new TextDecoder().decode(buf).slice(0, 500);
+    } catch (e) { r.error = String((e && e.message) || e); }
     results.push(r);
   }
-
   return new Response(JSON.stringify({ url: CHKAV_URL, hwid: HWID, results }, null, 2), {
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
   });
@@ -499,9 +480,7 @@ async function handleAdmin(request, url, env) {
   }
 
   const authed = await isAuthed(request, config);
-  if (!authed) {
-    return htmlResponse(renderAdminLogin());
-  }
+  if (!authed) return htmlResponse(renderAdminLogin());
 
   if (method === "POST" && path === "/admin/save") {
     const form = await request.formData();
@@ -517,25 +496,31 @@ async function handleAdmin(request, url, env) {
       fallbackDescription: String(form.get("fallbackDescription") || "").trim(),
       balancerName: String(form.get("balancerName") || "").trim(),
       balancerDescription: String(form.get("balancerDescription") || "").trim(),
+      balancerHidden: form.get("balancerHidden") === "on",
       mobileBalancerName: String(form.get("mobileBalancerName") || "").trim(),
       mobileBalancerDescription: String(form.get("mobileBalancerDescription") || "").trim(),
+      mobileHidden: form.get("mobileHidden") === "on",
       adminPassword: oldPassword,
       mergeGroups: [],
       hostMap: [],
       serverOrder: []
     };
 
+    const hiddenHostsStr = String(form.get("hiddenHosts") || "");
+    const hiddenHostsSet = new Set(hiddenHostsStr.split(",").map(s => s.trim()).filter(Boolean));
+
     const hm_hosts = form.getAll("hm_host[]");
     const hm_remarks = form.getAll("hm_remarks[]");
     const hm_categories = form.getAll("hm_category[]");
     for (let i = 0; i < hm_hosts.length; i++) {
-      if (hm_hosts[i].trim()) {
-        newConfig.hostMap.push({
-          host: hm_hosts[i].trim(),
-          remarks: hm_remarks[i].trim(),
-          category: hm_categories[i].trim()
-        });
-      }
+      const host = hm_hosts[i].trim();
+      if (!host) continue;
+      newConfig.hostMap.push({
+        host,
+        remarks: hm_remarks[i].trim(),
+        category: hm_categories[i].trim(),
+        hidden: hiddenHostsSet.has(host)
+      });
     }
 
     const mg_ids = form.getAll("mg_id[]");
@@ -574,7 +559,6 @@ async function handleAdmin(request, url, env) {
       const token = await hashPassword(newConfig.adminPassword);
       setCookie = `wlvpn_auth=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800${url.protocol === "https:" ? "; Secure" : ""}`;
     }
-
     const headers = { "Location": "/admin?saved=1" };
     if (setCookie) headers["Set-Cookie"] = setCookie;
     return new Response(null, { status: 302, headers });
@@ -584,16 +568,8 @@ async function handleAdmin(request, url, env) {
     const chkav = await fetchChkav(config);
     const mobile = await fetchMobileBalancer(config);
     return new Response(JSON.stringify({
-      main: {
-        ok: !!(chkav.format && chkav.data),
-        format: chkav.format,
-        servers: Array.isArray(chkav.data) ? chkav.data.length : (chkav.format ? 1 : 0),
-        userInfo: chkav.userInfo
-      },
-      mobile: {
-        ok: !!mobile,
-        servers: mobile ? mobile.outbounds.length : 0
-      }
+      main: { ok: !!(chkav.format && chkav.data), format: chkav.format, servers: Array.isArray(chkav.data) ? chkav.data.length : (chkav.format ? 1 : 0), userInfo: chkav.userInfo },
+      mobile: { ok: !!mobile, servers: mobile ? mobile.outbounds.length : 0 }
     }, null, 2), {
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
     });
@@ -630,19 +606,21 @@ function renderAdminPanel(config, url) {
   const saved = url.searchParams.get("saved");
   const pwdIsDefault = config.adminPassword === DEFAULT_CONFIG.adminPassword;
 
-  // HOST_MAP (без стрелок)
   const hmRows = (config.hostMap || []).map((s) => `
-    <div class="host-row" style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+    <div class="host-row" style="display:flex; gap:8px; margin-bottom:8px; align-items:center; ${s.hidden ? 'opacity:0.55' : ''}">
       <input name="hm_host[]" value="${esc(s.host)}" placeholder="host" style="flex:2">
       <input name="hm_remarks[]" value="${esc(s.remarks)}" placeholder="Название (🇫🇮 Финляндия #1)" style="flex:2">
       <input name="hm_category[]" value="${esc(s.category)}" placeholder="Категория" style="flex:1">
+      <label class="hm-hide-toggle" title="Скрыть этот сервер из подписки">
+        <input type="checkbox" name="hm_hidden_cb" ${s.hidden ? 'checked' : ''}>
+        <span>Скрыть</span>
+      </label>
       <button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest('.host-row').remove()">✕</button>
     </div>
   `).join('');
 
-  // Merge Groups (чекбоксы по названиям)
   const mgRows = (config.mergeGroups || []).map(g => {
-    const allRemarks = (config.hostMap || []).map(s => s.remarks).filter(Boolean);
+    const allRemarks = (config.hostMap || []).filter(h => !h.hidden).map(s => s.remarks).filter(Boolean);
     const checks = allRemarks.map(r => `
       <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px; font-size:0.85rem; color:var(--text); margin-bottom:6px;">
         <input type="checkbox" name="mg_match_${g.id}[]" value="${esc(r)}" ${g.matchNames.includes(r) ? 'checked' : ''}>
@@ -657,7 +635,7 @@ function renderAdminPanel(config, url) {
           <input name="mg_description[]" placeholder="Описание" value="${esc(g.description)}">
         </div>
         <div style="margin:10px 0;">
-          <span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения:</span>
+          <span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения (скрытые не показываются):</span>
           <div class="checkbox-group">${checks || '<span style="color:var(--muted); font-size:0.8rem;">Сначала добавьте сервера в HOST_MAP</span>'}</div>
         </div>
         <div class="mg-row-actions">
@@ -670,36 +648,41 @@ function renderAdminPanel(config, url) {
   // Порядок серверов
   const allTokens = [];
   const tokenLabels = {};
+  const tokenHidden = {};
   allTokens.push('__balancer__');
   tokenLabels['__balancer__'] = config.balancerName || '🔁 Авто - самый быстрый';
+  tokenHidden['__balancer__'] = !!config.balancerHidden;
   allTokens.push('__mobile__');
   tokenLabels['__mobile__'] = config.mobileBalancerName || '🇷🇺 📱 Обход глушилок';
+  tokenHidden['__mobile__'] = !!config.mobileHidden;
   (config.hostMap || []).forEach(item => {
     if (item.host) {
       allTokens.push(item.host);
       tokenLabels[item.host] = item.remarks || item.host;
+      tokenHidden[item.host] = !!item.hidden;
     }
   });
   (config.mergeGroups || []).forEach(g => {
     allTokens.push('__merge__' + g.id);
     tokenLabels['__merge__' + g.id] = g.name || ('Мерж ' + g.id);
+    tokenHidden['__merge__' + g.id] = false;
   });
 
   let order = (config.serverOrder || []).filter(t => allTokens.includes(t));
-  allTokens.forEach(t => {
-    if (!order.includes(t)) order.push(t);
-  });
+  allTokens.forEach(t => { if (!order.includes(t)) order.push(t); });
 
-  const orderRows = order.map(token => `
-    <div class="order-row" draggable="true" data-token="${esc(token)}">
+  const orderRows = order.map(token => {
+    const isHidden = tokenHidden[token];
+    return `
+    <div class="order-row" draggable="true" data-token="${esc(token)}" style="${isHidden ? 'opacity:0.55' : ''}">
       <span class="order-handle">☰</span>
-      <span class="order-label">${esc(tokenLabels[token] || token)}</span>
+      <span class="order-label">${esc(tokenLabels[token] || token)}${isHidden ? ' <span class="order-tag">скрыт</span>' : ''}</span>
       <div class="order-actions">
         <button type="button" class="btn btn-ghost" style="padding:6px 10px" onclick="moveOrder(this,-1)">↑</button>
         <button type="button" class="btn btn-ghost" style="padding:6px 10px" onclick="moveOrder(this,1)">↓</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 
   return `<!doctype html>
 <html lang="ru">
@@ -725,6 +708,9 @@ function renderAdminPanel(config, url) {
   ${pwdIsDefault ? `<div class="alert alert-warn">⚠ Пароль по умолчанию. Смените его в блоке «Безопасность»!</div>` : ""}
 
   <form method="POST" action="/admin/save" id="admin-form">
+    <input type="hidden" name="hiddenHosts" id="hiddenHostsInput" value="">
+    <input type="hidden" name="serverOrder" id="serverOrderInput" value="${esc(order.join(','))}">
+
     <div class="card">
       <h2>Источники подписок</h2>
       <label><span>Основная подписка (URL)</span>
@@ -754,7 +740,7 @@ function renderAdminPanel(config, url) {
     </div>
 
     <div class="card">
-      <h2>Балансировщики — названия</h2>
+      <h2>Балансировщики — названия и видимость</h2>
       <div class="grid2">
         <label><span>Основной «Авто» — название</span>
           <input name="balancerName" value="${esc(config.balancerName)}">
@@ -767,6 +753,16 @@ function renderAdminPanel(config, url) {
         </label>
         <label><span>Мобильный — описание</span>
           <input name="mobileBalancerDescription" value="${esc(config.mobileBalancerDescription)}">
+        </label>
+      </div>
+      <div class="toggle-row">
+        <label class="toggle-item">
+          <input type="checkbox" name="balancerHidden" ${config.balancerHidden ? 'checked' : ''}>
+          <span>Скрыть основной балансировщик «Авто»</span>
+        </label>
+        <label class="toggle-item">
+          <input type="checkbox" name="mobileHidden" ${config.mobileHidden ? 'checked' : ''}>
+          <span>Скрыть мобильный балансировщик «Обход глушилок»</span>
         </label>
       </div>
     </div>
@@ -784,8 +780,8 @@ function renderAdminPanel(config, url) {
     </div>
 
     <div class="card">
-      <h2>HOST_MAP — серверы и категории</h2>
-      <p class="hint" style="margin-bottom:16px">Управляйте названиями и категориями серверов. Порядок отображения в подписке настраивается ниже.</p>
+      <h2>HOST_MAP — серверы, категории и видимость</h2>
+      <p class="hint" style="margin-bottom:16px">Ставь галочку «Скрыть», чтобы сервер не попадал в подписку. Скрытые сервера также исключаются из мерж-групп.</p>
       <div id="hostmap-container">
         ${hmRows}
       </div>
@@ -794,21 +790,15 @@ function renderAdminPanel(config, url) {
 
     <div class="card">
       <h2>Объединение серверов в балансировщики</h2>
-      <p class="hint" style="margin-bottom:16px">
-        Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием.
-      </p>
+      <p class="hint" style="margin-bottom:16px">Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием.</p>
       <div id="mg-container">${mgRows}</div>
       <button type="button" class="btn btn-ghost" onclick="addMG()">+ Добавить группу</button>
     </div>
 
     <div class="card">
       <h2>Порядок серверов в подписке</h2>
-      <p class="hint" style="margin-bottom:16px">
-        Перетаскивайте строки или используйте стрелки. Сверху — идут первыми, снизу — последними.
-        Сюда включены все сервера, балансировщики и мобильный сервер.
-      </p>
+      <p class="hint" style="margin-bottom:16px">Перетаскивай строки или используй стрелки. Скрытые сервера показаны приглушёнными — их порядок сохраняется, и он вступит в силу, если ты их снова покажешь.</p>
       <div id="order-container">${orderRows}</div>
-      <input type="hidden" name="serverOrder" id="serverOrderInput" value="${esc(order.join(','))}">
     </div>
 
     <div class="card">
@@ -845,6 +835,10 @@ function addHostRow() {
   d.innerHTML = '<input name="hm_host[]" placeholder="host" style="flex:2">' +
     '<input name="hm_remarks[]" placeholder="Название" style="flex:2">' +
     '<input name="hm_category[]" placeholder="Категория" style="flex:1">' +
+    '<label class="hm-hide-toggle" title="Скрыть этот сервер из подписки">' +
+      '<input type="checkbox" name="hm_hidden_cb">' +
+      '<span>Скрыть</span>' +
+    '</label>' +
     '<button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest(\\'.host-row\\').remove()">✕</button>';
   c.appendChild(d);
 }
@@ -861,7 +855,7 @@ function addMG() {
       '<input name="mg_description[]" placeholder="Описание">' +
     '</div>' +
     '<div style="margin:10px 0;">' +
-      '<span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения:</span>' +
+      '<span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию):</span>' +
       '<div class="checkbox-group" id="cbs_' + id + '">Загрузка...</div>' +
     '</div>' +
     '<div class="mg-row-actions">' +
@@ -870,8 +864,10 @@ function addMG() {
   c.appendChild(d);
   
   var allRemarks = [];
-  document.querySelectorAll('input[name="hm_remarks[]"]').forEach(function(inp) {
-    if (inp.value.trim()) allRemarks.push(inp.value.trim());
+  document.querySelectorAll('#hostmap-container .host-row').forEach(function(row) {
+    var hCb = row.querySelector('input[name="hm_hidden_cb"]');
+    var rInp = row.querySelector('input[name="hm_remarks[]"]');
+    if (hCb && !hCb.checked && rInp && rInp.value.trim()) allRemarks.push(rInp.value.trim());
   });
   var cbContainer = document.getElementById('cbs_' + id);
   if (allRemarks.length === 0) {
@@ -884,7 +880,7 @@ function addMG() {
   }
 }
 
-// Drag and drop для порядка
+// Drag and drop
 var dragOrderEl = null;
 document.querySelectorAll('#order-container .order-row').forEach(function(row) {
   row.addEventListener('dragstart', function(e) {
@@ -915,6 +911,16 @@ document.getElementById('admin-form').addEventListener('submit', function() {
     tokens.push(row.getAttribute('data-token'));
   });
   document.getElementById('serverOrderInput').value = tokens.join(',');
+
+  var hidden = [];
+  document.querySelectorAll('#hostmap-container .host-row').forEach(function(row) {
+    var cb = row.querySelector('input[name="hm_hidden_cb"]');
+    var hostInp = row.querySelector('input[name="hm_host[]"]');
+    if (cb && cb.checked && hostInp && hostInp.value.trim()) {
+      hidden.push(hostInp.value.trim());
+    }
+  });
+  document.getElementById('hiddenHostsInput').value = hidden.join(',');
 });
 
 async function testSources() {
@@ -939,14 +945,15 @@ async function testSources() {
 // ============================================================
 function renderServerCards(hostMap) {
   const entries = Array.isArray(hostMap) ? hostMap : Object.entries(hostMap || {}).map(([host, data]) => ({ host, ...data }));
-  if (entries.length === 0) {
+  const visible = entries.filter(e => !e.hidden);
+  if (visible.length === 0) {
     return `<div class="server-card tilt reveal">
       <div class="server-flag">🛠</div>
       <div class="server-name">Серверы в подписке</div>
       <div class="server-stats"><div class="server-stat"><span>Доступны по ссылке-подписке</span></div></div>
     </div>`;
   }
-  return entries.map((m) => {
+  return visible.map((m) => {
     const parts = (m.remarks || "").split(" ");
     const flag = parts[0] || "🌐";
     const name = parts.slice(1).join(" ") || m.remarks || m.host;
@@ -1054,15 +1061,11 @@ function renderLanding(url, config) {
       <h2 class="sec">Максимальная скорость.<br>Один протокол.</h2>
       <p>Все серверы WLVPN работают на VLESS — лёгком протоколе, который маскирует трафик под обычный HTTPS и не оставляет следов для DPI.</p>
     </div>
-
     <div class="servers-note reveal">
       <span class="dot"></span>
       <span>Пинг обновляется в реальном времени · <strong>VLESS</strong> на всех нодах</span>
     </div>
-
-    <div class="servers-grid">
-      ${serverCards}
-    </div>
+    <div class="servers-grid">${serverCards}</div>
   </div>
 </section>
 
@@ -1073,74 +1076,26 @@ function renderLanding(url, config) {
       <h2 class="sec">Всё, чтобы интернет был свободным</h2>
       <p>Бесплатно. Без компромиссов между скоростью, приватностью и доступом к контенту.</p>
     </div>
-
     <div class="grid">
-      <div class="card tilt reveal">
-        <div class="card-icon">⚡</div>
-        <h3>Протокол VLESS</h3>
-        <p>Легче и быстрее OpenVPN и WireGuard. Меньше задержек, ниже нагрузка на устройство, маскировка под HTTPS.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🔓</div>
-        <h3>Обход блокировок</h3>
-        <p>Доступ к <b>YouTube, Discord, Telegram</b> и другим заблокированным соцсетям и сервисам — без танцев с бубном.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🛡️</div>
-        <h3>Обход белых списков</h3>
-        <p>Когда провайдер оставляет только «разрешённые» сайты — WLVPN возвращает вам весь интернет. VLESS маскирует трафик так, что DPI не видит разницы.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">📶</div>
-        <h3>Сервер «Обход глушилок»</h3>
-        <p>Отдельный сервер для мобильного интернета. Обходит ограничения операторов, когда оставлены только «разрешённые» сайты — и возвращает весь интернет даже на улице.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🚀</div>
-        <h3>Скорость до 10 Гбит/с</h3>
-        <p>Стриминг в 4K, игры без лагов, скачивание без ожидания. Каналы серверов рассчитаны на пиковые нагрузки.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">♾️</div>
-        <h3>Без лимитов трафика</h3>
-        <p>Скачивайте, смотрите и играйте сколько угодно. Мы не считаем трафик, не режем скорость и не блокируем за перерасход.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🔒</div>
-        <h3>Защита от утечек</h3>
-        <p>На уровне VLESS блокируются утечки <b>DNS</b>, <b>IPv6</b> и <b>WebRTC</b>. Ваш реальный IP не просочится даже при сбое.</p>
-      </div>
-      <div class="card tilt reveal">
-        <div class="card-icon">🎛️</div>
-        <h3>Настройка в один клик</h3>
-        <p>Скопировал ссылку, вставил в клиент, нажал «Подключиться». VLESS включается автоматически, конфиг — по QR-коду.</p>
-      </div>
+      <div class="card tilt reveal"><div class="card-icon">⚡</div><h3>Протокол VLESS</h3><p>Легче и быстрее OpenVPN и WireGuard. Меньше задержек, ниже нагрузка на устройство, маскировка под HTTPS.</p></div>
+      <div class="card tilt reveal"><div class="card-icon">🔓</div><h3>Обход блокировок</h3><p>Доступ к <b>YouTube, Discord, Telegram</b> и другим заблокированным соцсетям и сервисам — без танцев с бубном.</p></div>
+      <div class="card tilt reveal"><div class="card-icon">🛡️</div><h3>Обход белых списков</h3><p>Когда провайдер оставляет только «разрешённые» сайты — WLVPN возвращает вам весь интернет. VLESS маскирует трафик так, что DPI не видит разницы.</p></div>
+      <div class="card tilt reveal"><div class="card-icon">📶</div><h3>Сервер «Обход глушилок»</h3><p>Отдельный сервер для мобильного интернета. Обходит ограничения операторов, когда оставлены только «разрешённые» сайты.</p></div>
+      <div class="card tilt reveal"><div class="card-icon">🚀</div><h3>Скорость до 10 Гбит/с</h3><p>Стриминг в 4K, игры без лагов, скачивание без ожидания. Каналы серверов рассчитаны на пиковые нагрузки.</p></div>
+      <div class="card tilt reveal"><div class="card-icon">♾️</div><h3>Без лимитов трафика</h3><p>Скачивайте, смотрите и играйте сколько угодно. Мы не считаем трафик, не режем скорость и не блокируем за перерасход.</p></div>
+      <div class="card tilt reveal"><div class="card-icon">🔒</div><h3>Защита от утечек</h3><p>На уровне VLESS блокируются утечки <b>DNS</b>, <b>IPv6</b> и <b>WebRTC</b>. Ваш реальный IP не просочится даже при сбое.</p></div>
+      <div class="card tilt reveal"><div class="card-icon">🎛️</div><h3>Настройка в один клик</h3><p>Скопировал ссылку, вставил в клиент, нажал «Подключиться». VLESS включается автоматически, конфиг — по QR-коду.</p></div>
     </div>
   </div>
 </section>
 
 <section id="steps">
   <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="sec-tag">Как это работает</span>
-      <h2 class="sec">Три шага до свободного интернета</h2>
-    </div>
+    <div class="sec-head reveal"><span class="sec-tag">Как это работает</span><h2 class="sec">Три шага до свободного интернета</h2></div>
     <div class="steps">
-      <div class="step reveal">
-        <div class="step-num">1</div>
-        <h3>Скачай приложение</h3>
-        <p>Happ, Incy, v2rayNG, Streisand, sing-box, Karing — на Windows, macOS, iOS, Android или Linux.</p>
-      </div>
-      <div class="step reveal">
-        <div class="step-num">2</div>
-        <h3>Скопируй ссылку</h3>
-        <p>Возьми ссылку-подписку в блоке выше — она универсальная и бессрочная. Или отсканируй QR-код.</p>
-      </div>
-      <div class="step reveal">
-        <div class="step-num">3</div>
-        <h3>Вставь в клиент</h3>
-        <p>Добавь ссылку в VPN-клиент — серверы подтянутся автоматически. Нажми «Подключиться», и VLESS уже работает.</p>
-      </div>
+      <div class="step reveal"><div class="step-num">1</div><h3>Скачай приложение</h3><p>Happ, Incy, v2rayNG, Streisand, sing-box, Karing — на Windows, macOS, iOS, Android или Linux.</p></div>
+      <div class="step reveal"><div class="step-num">2</div><h3>Скопируй ссылку</h3><p>Возьми ссылку-подписку в блоке выше — она универсальная и бессрочная. Или отсканируй QR-код.</p></div>
+      <div class="step reveal"><div class="step-num">3</div><h3>Вставь в клиент</h3><p>Добавь ссылку в VPN-клиент — серверы подтянутся автоматически. Нажми «Подключиться», и VLESS уже работает.</p></div>
     </div>
   </div>
 </section>
@@ -1165,78 +1120,27 @@ function renderLanding(url, config) {
 
 <section>
   <div class="wrap">
-    <div class="sec-head reveal">
-      <span class="sec-tag">Отзывы</span>
-      <h2 class="sec">Что говорят пользователи</h2>
-    </div>
+    <div class="sec-head reveal"><span class="sec-tag">Отзывы</span><h2 class="sec">Что говорят пользователи</h2></div>
     <div class="reviews">
-      <div class="review reveal">
-        <div class="review-stars">★★★★★</div>
-        <p>Наконец-то YouTube в 4K без буферизации. VLESS реально быстрее того, что я пробовал раньше.</p>
-        <div class="review-author">
-          <div class="review-avatar">АК</div>
-          <div><div class="review-name">Алексей К.</div><div class="review-role">Москва</div></div>
-        </div>
-      </div>
-      <div class="review reveal">
-        <div class="review-stars">★★★★★</div>
-        <p>Discord снова работает без лагов. Подключил на ноутбуке и телефоне — интернет на улице тоже летает.</p>
-        <div class="review-author">
-          <div class="review-avatar">МД</div>
-          <div><div class="review-name">Марина Д.</div><div class="review-role">Санкт-Петербург</div></div>
-        </div>
-      </div>
-      <div class="review reveal">
-        <div class="review-stars">★★★★★</div>
-        <p>Когда провайдер оставил только «разрешённые» сайты — WLVPN вернул весь интернет. Telegram снова со мной.</p>
-        <div class="review-author">
-          <div class="review-avatar">ИС</div>
-          <div><div class="review-name">Игорь С.</div><div class="review-role">Новосибирск</div></div>
-        </div>
-      </div>
+      <div class="review reveal"><div class="review-stars">★★★★★</div><p>Наконец-то YouTube в 4K без буферизации. VLESS реально быстрее того, что я пробовал раньше.</p><div class="review-author"><div class="review-avatar">АК</div><div><div class="review-name">Алексей К.</div><div class="review-role">Москва</div></div></div></div>
+      <div class="review reveal"><div class="review-stars">★★★★★</div><p>Discord снова работает без лагов. Подключил на ноутбуке и телефоне — интернет на улице тоже летает.</p><div class="review-author"><div class="review-avatar">МД</div><div><div class="review-name">Марина Д.</div><div class="review-role">Санкт-Петербург</div></div></div></div>
+      <div class="review reveal"><div class="review-stars">★★★★★</div><p>Когда провайдер оставил только «разрешённые» сайты — WLVPN вернул весь интернет. Telegram снова со мной.</p><div class="review-author"><div class="review-avatar">ИС</div><div><div class="review-name">Игорь С.</div><div class="review-role">Новосибирск</div></div></div></div>
     </div>
   </div>
 </section>
 
 <section id="faq">
   <div class="wrap">
-    <div class="sec-head reveal" style="text-align:center;margin-left:auto;margin-right:auto">
-      <span class="sec-tag">FAQ</span>
-      <h2 class="sec">Частые вопросы</h2>
-    </div>
+    <div class="sec-head reveal" style="text-align:center;margin-left:auto;margin-right:auto"><span class="sec-tag">FAQ</span><h2 class="sec">Частые вопросы</h2></div>
     <div class="faq">
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Сервис правда бесплатный?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. WLVPN полностью бесплатен — без скрытых платежей, без премиум-тарифов, без регистрации и без ограничений по трафику. Ссылка-подписка бессрочная.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Что такое VLESS и чем он лучше OpenVPN?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">VLESS — современный лёгкий протокол. Он не использует тяжёлое шифрование на транспортном уровне, поэтому работает быстрее, потребляет меньше батареи и не оставляет характерных сигнатур, по которым DPI распознаёт VPN. При этом трафик маскируется под обычный HTTPS.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Как подключиться?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Скопируй ссылку-подписку с главной страницы и вставь её в свой VPN-клиент (Happ, Incy, v2rayNG, Streisand, sing-box, Karing и др.). Клиент сам подтянет все серверы. Выбери любой и нажми «Подключиться».</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Насколько падает скорость?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Минимально. Пинг на всех серверах держится в диапазоне 30–60 мс. Каналы рассчитаны на пиковые нагрузки и стриминг в 4K.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Работает ли обход блокировок для YouTube, Discord и Telegram?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. VLESS маскирует трафик так, что провайдер не может отличить ваш сеанс от обычного визита на разрешённый сайт. Это позволяет обходить как обычные блокировки, так и режим «белых списков».</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Есть ли лимит трафика?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Нет. Трафик не ограничен — качайте, смотрите и играйте сколько хотите. Мы не считаем гигабайты и не режем скорость за перерасход.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Можно ли пользоваться на нескольких устройствах?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да, одну ссылку-подписку можно добавить на неограниченное число устройств. Приложения есть для Windows, macOS, iOS, Android и Linux.</div></div>
-      </div>
-      <div class="faq-item reveal">
-        <div class="faq-q"><span>Работает ли на мобильном интернете и при ограничениях оператора?</span><span class="faq-icon">+</span></div>
-        <div class="faq-a"><div class="faq-a-inner">Да. Для мобильных сетей у нас есть сервер «Обход глушилок» — он обходит ограничения мобильного интернета и режим «белых списков», когда оператор оставляет доступ только к разрешённым сайтам. Работает в роуминге и на общественном Wi-Fi.</div></div>
-      </div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Сервис правда бесплатный?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">Да. WLVPN полностью бесплатен — без скрытых платежей, без премиум-тарифов, без регистрации и без ограничений по трафику. Ссылка-подписка бессрочная.</div></div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Что такое VLESS и чем он лучше OpenVPN?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">VLESS — современный лёгкий протокол. Он не использует тяжёлое шифрование на транспортном уровне, поэтому работает быстрее, потребляет меньше батареи и не оставляет характерных сигнатур, по которым DPI распознаёт VPN. При этом трафик маскируется под обычный HTTPS.</div></div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Как подключиться?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">Скопируй ссылку-подписку с главной страницы и вставь её в свой VPN-клиент (Happ, Incy, v2rayNG, Streisand, sing-box, Karing и др.). Клиент сам подтянет все серверы. Выбери любой и нажми «Подключиться».</div></div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Насколько падает скорость?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">Минимально. Пинг на всех серверах держится в диапазоне 30–60 мс. Каналы рассчитаны на пиковые нагрузки и стриминг в 4K.</div></div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Работает ли обход блокировок для YouTube, Discord и Telegram?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">Да. VLESS маскирует трафик так, что провайдер не может отличить ваш сеанс от обычного визита на разрешённый сайт. Это позволяет обходить как обычные блокировки, так и режим «белых списков».</div></div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Есть ли лимит трафика?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">Нет. Трафик не ограничен — качайте, смотрите и играйте сколько хотите. Мы не считаем гигабайты и не режем скорость за перерасход.</div></div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Можно ли пользоваться на нескольких устройствах?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">Да, одну ссылку-подписку можно добавить на неограниченное число устройств. Приложения есть для Windows, macOS, iOS, Android и Linux.</div></div></div>
+      <div class="faq-item reveal"><div class="faq-q"><span>Работает ли на мобильном интернете и при ограничениях оператора?</span><span class="faq-icon">+</span></div><div class="faq-a"><div class="faq-a-inner">Да. Для мобильных сетей у нас есть сервер «Обход глушилок» — он обходит ограничения мобильного интернета и режим «белых списков», когда оператор оставляет доступ только к разрешённым сайтам. Работает в роуминге и на общественном Wi-Fi.</div></div></div>
     </div>
   </div>
 </section>
@@ -1273,20 +1177,14 @@ function copySub(e) {
   input.setSelectionRange(0, url.length);
   let ok = false;
   try {
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(url);
-      ok = true;
-    }
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(url); ok = true; }
   } catch(_) {}
-  if (!ok) {
-    try { document.execCommand('copy'); ok = true; } catch(_) {}
-  }
+  if (!ok) { try { document.execCommand('copy'); ok = true; } catch(_) {} }
   const btn = e.currentTarget;
   const orig = btn.textContent;
   btn.textContent = ok ? '✓ Скопировано' : 'Не удалось';
   setTimeout(() => { btn.textContent = orig; }, 1800);
 }
-
 (function initQR() {
   const box = document.getElementById('qr-box');
   const input = document.getElementById('sub-url');
@@ -1303,7 +1201,6 @@ const canvas = document.getElementById('stars');
 const ctx = canvas.getContext('2d');
 let stars = [], w, h, dpr;
 const mouse = { x: -9999, y: -9999 };
-
 function resize(){
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   w = canvas.width = innerWidth * dpr;
@@ -1319,7 +1216,6 @@ function resize(){
 }
 resize();
 addEventListener('resize', resize);
-
 function draw(){
   ctx.clearRect(0, 0, w, h);
   const linkDist = 130 * dpr;
@@ -1369,10 +1265,8 @@ document.querySelectorAll('a, button, .card, .server-card, .faq-q, .review, .lin
   el.addEventListener('mouseenter', () => cursor.classList.add('hover'));
   el.addEventListener('mouseleave', () => cursor.classList.remove('hover'));
 });
-
 const nav = document.getElementById('nav');
 addEventListener('scroll', () => { nav.classList.toggle('scrolled', scrollY > 40); });
-
 const io = new IntersectionObserver(entries => {
   entries.forEach((e, i) => {
     if (e.isIntersecting){
@@ -1388,7 +1282,6 @@ setTimeout(() => {
     el.classList.add('in'); el.style.transitionDelay = '0ms';
   });
 }, 3000);
-
 document.querySelectorAll('.tilt').forEach(card => {
   card.addEventListener('mousemove', e => {
     const r = card.getBoundingClientRect();
@@ -1401,7 +1294,6 @@ document.querySelectorAll('.tilt').forEach(card => {
   });
   card.addEventListener('mouseleave', () => { card.style.transform = ''; });
 });
-
 const pingEls = document.querySelectorAll('[data-ping]');
 function updatePings(){
   pingEls.forEach(el => {
@@ -1412,17 +1304,13 @@ function updatePings(){
 }
 updatePings();
 setInterval(updatePings, 2500);
-
 document.querySelectorAll('.faq-item').forEach(item => {
   const q = item.querySelector('.faq-q');
   const a = item.querySelector('.faq-a');
   q.addEventListener('click', () => {
     const isOpen = item.classList.contains('open');
     document.querySelectorAll('.faq-item.open').forEach(other => {
-      if (other !== item){
-        other.classList.remove('open');
-        other.querySelector('.faq-a').style.maxHeight = null;
-      }
+      if (other !== item){ other.classList.remove('open'); other.querySelector('.faq-a').style.maxHeight = null; }
     });
     if (isOpen){ item.classList.remove('open'); a.style.maxHeight = null; }
     else { item.classList.add('open'); a.style.maxHeight = a.scrollHeight + 'px'; }
@@ -1442,10 +1330,7 @@ async function handle(request, env) {
   const ua = request.headers.get("User-Agent") || "";
 
   if (path === "/__debug") return debugTraffic(env);
-
-  if (path === "/admin" || path === "/admin/" || path.startsWith("/admin/")) {
-    return handleAdmin(request, url, env);
-  }
+  if (path === "/admin" || path === "/admin/" || path.startsWith("/admin/")) return handleAdmin(request, url, env);
 
   if (path === "/" || path === "") {
     if (isBrowser(ua)) {
@@ -1459,17 +1344,13 @@ async function handle(request, env) {
     if (isBrowser(ua)) return Response.redirect(url.origin + "/", 302);
     return serveSubscription(env);
   }
-
   return new Response("Not Found", { status: 404 });
 }
 
 export default {
   async fetch(request, env) {
-    try {
-      return await handle(request, env);
-    } catch (e) {
-      return new Response("Internal Error: " + (e.message || e), { status: 500 });
-    }
+    try { return await handle(request, env); }
+    catch (e) { return new Response("Internal Error: " + (e.message || e), { status: 500 }); }
   }
 };
 
@@ -1532,6 +1413,15 @@ textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82re
 .order-handle{color:var(--muted);font-size:1rem;user-select:none}
 .order-label{flex:1;font-size:0.9rem;color:var(--text)}
 .order-actions{display:flex;gap:4px}
+.order-tag{display:inline-block;padding:2px 8px;font-size:0.7rem;font-weight:600;border-radius:100px;background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3);margin-left:6px;text-transform:uppercase;letter-spacing:.05em;}
+.hm-hide-toggle{display:flex !important; flex-direction:column; align-items:center; gap:2px; margin:0 !important; padding:6px 10px; border:1px solid var(--stroke); border-radius:8px; cursor:pointer; font-size:0.7rem; color:var(--muted); user-select:none; min-width:70px; background:rgba(0,0,0,.25);}
+.hm-hide-toggle:hover{border-color:rgba(0,224,255,.5);}
+.hm-hide-toggle input[type="checkbox"]{width:auto !important; margin:0 !important; cursor:pointer; accent-color: var(--red);}
+.hm-hide-toggle input[type="checkbox"]:checked ~ span{color:var(--red);}
+.toggle-row{display:flex; flex-direction:column; gap:8px; margin-top:16px; padding-top:16px; border-top:1px dashed var(--stroke);}
+.toggle-item{display:flex !important; align-items:center; gap:10px; margin:0 !important; padding:10px 14px; background:rgba(0,0,0,.25); border:1px solid var(--stroke); border-radius:8px; cursor:pointer; font-size:0.9rem; color:var(--text); transition:border-color .2s;}
+.toggle-item:hover{border-color:rgba(255,77,109,.4);}
+.toggle-item input[type="checkbox"]{width:auto !important; margin:0 !important; cursor:pointer; accent-color: var(--red);}
 `;
 
 // ============================================================
