@@ -2,23 +2,23 @@
 // WLVPN — Free VPN Service (Cloudflare Worker)
 // ============================================================
 
-const HOST_MAP = {
-  "e308b5t.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #1",  category: "Нейросети" },
-  "52ee46g.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
-  "6b83b0x.fi8.h1clayd.click":  { remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
-  "5f9abbt.de21.h1clayd.click": { remarks: "🇩🇪 Германия #1",   category: "Скоростной" },
-  "403e8ag.de21.h1clayd.click": { remarks: "🇩🇪 Германия #2",   category: "Скоростной" },
-  "e1efc1x.de21.h1clayd.click": { remarks: "🇩🇪 Германия #3",   category: "Скоростной" },
-  "defc63t.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
-  "fca7d7g.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
-  "b3a336x.nl4.h1clayd.click":  { remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
-  "e900bbt.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
-  "c190afg.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
-  "7c5fbcx.es7.h1clayd.click":  { remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
-  "c84a94t.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #1",     category: "YouTube" },
-  "0e6251g.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
-  "bd5c13x.pl6.h1clayd.click":  { remarks: "🇵🇱 Польша #3",     category: "Нейросети" }
-};
+const DEFAULT_HOST_MAP = [
+  { host: "e308b5t.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #1",  category: "Нейросети" },
+  { host: "52ee46g.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #2",  category: "Нейросети" },
+  { host: "6b83b0x.fi8.h1clayd.click",  remarks: "🇫🇮 Финляндия #3",  category: "Нейросети" },
+  { host: "5f9abbt.de21.h1clayd.click", remarks: "🇩🇪 Германия #1",   category: "Скоростной" },
+  { host: "403e8ag.de21.h1clayd.click", remarks: "🇩🇪 Германия #2",   category: "Скоростной" },
+  { host: "e1efc1x.de21.h1clayd.click", remarks: "🇩🇪 Германия #3",   category: "Скоростной" },
+  { host: "defc63t.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #1", category: "Скоростной" },
+  { host: "fca7d7g.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #2", category: "Скоростной" },
+  { host: "b3a336x.nl4.h1clayd.click",  remarks: "🇳🇱 Нидерланды #3", category: "Нейросети" },
+  { host: "e900bbt.es7.h1clayd.click",  remarks: "🇪🇸 Испания #1",    category: "Нейросети" },
+  { host: "c190afg.es7.h1clayd.click",  remarks: "🇪🇸 Испания #2",    category: "Нейросети" },
+  { host: "7c5fbcx.es7.h1clayd.click",  remarks: "🇪🇸 Испания #3",    category: "Нейросети" },
+  { host: "c84a94t.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #1",     category: "YouTube" },
+  { host: "0e6251g.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #2",     category: "Нейросети" },
+  { host: "bd5c13x.pl6.h1clayd.click",  remarks: "🇵🇱 Польша #3",     category: "Нейросети" }
+];
 
 const DEFAULT_CONFIG = {
   mainSourceUrl: "https://newsub.chkav-vpn.space/9zfbEsqma0tkNfc2",
@@ -33,7 +33,7 @@ const DEFAULT_CONFIG = {
   balancerDescription: "WLVPN · Лучше выбрать его",
   mobileBalancerName: "🇷🇺 📱 Обход глушилок",
   mobileBalancerDescription: "WLVPN · Работает при белых списках",
-  hostMap: JSON.parse(JSON.stringify(HOST_MAP)),
+  hostMap: JSON.parse(JSON.stringify(DEFAULT_HOST_MAP)),
   mergeGroups: [],
   adminPassword: "wlvpn-admin"
 };
@@ -117,7 +117,30 @@ function getServerHost(s) {
 async function loadConfig(env) {
   try {
     const raw = await env.KV.get("config:main");
-    if (raw) return Object.assign({}, DEFAULT_CONFIG, JSON.parse(raw));
+    if (raw) {
+      const config = JSON.parse(raw);
+      // Миграция старого формата hostMap (object -> array)
+      if (config.hostMap && !Array.isArray(config.hostMap)) {
+        config.hostMap = Object.entries(config.hostMap).map(([host, data]) => ({ host, ...data }));
+      }
+      // Миграция старых mergeGroups (match -> matchNames)
+      if (config.mergeGroups) {
+        config.mergeGroups = config.mergeGroups.map(g => {
+          if (g.match && !g.matchNames) {
+            const names = [];
+            g.match.forEach(h => {
+              const found = (config.hostMap || []).find(x => x.host === h);
+              if (found) names.push(found.remarks);
+            });
+            g.matchNames = names;
+            delete g.match;
+          }
+          if (!g.matchNames) g.matchNames = [];
+          return g;
+        });
+      }
+      return Object.assign({}, DEFAULT_CONFIG, config);
+    }
   } catch (_) {}
   return Object.assign({}, DEFAULT_CONFIG);
 }
@@ -282,7 +305,11 @@ function buildMergedBalancer(group, matchedServers) {
     inbounds: [{ tag: "socks", port: 10808, listen: "127.0.0.1", protocol: "socks", settings: { udp: true, auth: "noauth" } }],
     outbounds,
     remarks: group.name,
-    meta: { serverDescription: group.description }
+    meta: { serverDescription: group.description },
+    burstObservatory: {
+      subjectSelector: [prefix],
+      pingConfig: { destination: "https://connectivitycheck.gstatic.com/generate_204", interval: "1m", sampling: 10, timeout: "5s", httpMethod: "HEAD" }
+    }
   };
 }
 
@@ -296,22 +323,47 @@ async function serveSubscription(env) {
   let finalServers = [];
 
   if (chkav.format === "json" && Array.isArray(chkav.data) && chkav.data.length > 0) {
+    const hostMapObj = {};
+    for (const item of (config.hostMap || [])) {
+      if (item.host) hostMapObj[item.host] = item;
+    }
+
     let servers = chkav.data.map(s => {
       if (s.remarks && (s.remarks.includes("поддержите") || s.remarks.includes("владельца"))) return null;
       if (s.meta && s.meta.serverDescription && s.meta.serverDescription.includes("2202206778971874")) return null;
       return s;
     }).filter(Boolean);
 
+    // 1. Резолвим названия заранее, чтобы можно было по ним мержить
+    servers.forEach(s => {
+      const isBalancer =
+        (s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0) ||
+        (s.routing && Array.isArray(s.routing.rules) && s.routing.rules.some(r => r.balancerTag));
+
+      if (isBalancer) {
+        s.remarks = config.balancerName;
+        s.meta = Object.assign({}, s.meta || {}, { serverDescription: config.balancerDescription });
+      } else {
+        const host = getServerHost(s);
+        if (host && hostMapObj[host]) {
+          s.remarks = hostMapObj[host].remarks;
+          s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · " + hostMapObj[host].category });
+        } else {
+          s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN" });
+        }
+      }
+    });
+
+    // 2. Мержим по именам
     const consumed = new Set();
     const mergedBalancers = [];
 
     for (const group of (config.mergeGroups || [])) {
-      if (!group || !Array.isArray(group.match) || group.match.length === 0) continue;
+      if (!group || !Array.isArray(group.matchNames) || group.matchNames.length === 0) continue;
       const matched = [];
       servers.forEach((s, idx) => {
         if (consumed.has(idx)) return;
-        const host = getServerHost(s);
-        if (host && group.match.includes(host)) {
+        if (s.remarks && group.matchNames.includes(s.remarks)) {
           matched.push(s);
           consumed.add(idx);
         }
@@ -321,27 +373,7 @@ async function serveSubscription(env) {
       if (balancer) mergedBalancers.push(balancer);
     }
 
-    finalServers = servers.filter((_, i) => !consumed.has(i)).map(s => {
-      const isBalancer =
-        (s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0) ||
-        (s.routing && Array.isArray(s.routing.rules) && s.routing.rules.some(r => r.balancerTag));
-
-      if (isBalancer) {
-        s.remarks = config.balancerName;
-        s.meta = Object.assign({}, s.meta || {}, { serverDescription: config.balancerDescription });
-        return s;
-      }
-
-      const host = getServerHost(s);
-      if (host && config.hostMap && config.hostMap[host]) {
-        s.remarks = config.hostMap[host].remarks;
-        s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · " + config.hostMap[host].category });
-      } else {
-        s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN" });
-      }
-      return s;
-    });
-
+    finalServers = servers.filter((_, i) => !consumed.has(i));
     finalServers.push(...mergedBalancers);
   } else {
     finalServers = [{
@@ -472,35 +504,38 @@ async function handleAdmin(request, url, env) {
       mobileBalancerDescription: String(form.get("mobileBalancerDescription") || "").trim(),
       adminPassword: oldPassword,
       mergeGroups: [],
-      hostMap: config.hostMap
+      hostMap: []
     };
 
-    try {
-      const hmRaw = String(form.get("hostMap") || "").trim();
-      if (hmRaw) {
-        const parsed = JSON.parse(hmRaw);
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          newConfig.hostMap = parsed;
-        }
+    // Парсим HOST_MAP
+    const hm_hosts = form.getAll("hm_host[]");
+    const hm_remarks = form.getAll("hm_remarks[]");
+    const hm_categories = form.getAll("hm_category[]");
+    for (let i = 0; i < hm_hosts.length; i++) {
+      if (hm_hosts[i].trim()) {
+        newConfig.hostMap.push({
+          host: hm_hosts[i].trim(),
+          remarks: hm_remarks[i].trim(),
+          category: hm_categories[i].trim()
+        });
       }
-    } catch (_) {}
+    }
 
+    // Парсим Merge Groups
     const mg_ids = form.getAll("mg_id[]");
     const mg_names = form.getAll("mg_name[]");
     const mg_descriptions = form.getAll("mg_description[]");
-    const mg_matches = form.getAll("mg_match[]");
     for (let i = 0; i < mg_names.length; i++) {
-      const name = String(mg_names[i] || "").trim();
+      const name = mg_names[i].trim();
       if (!name) continue;
-      const rawId = String(mg_ids[i] || "").trim();
-      const id = rawId ? rawId.replace(/[^a-zA-Z0-9_-]/g, "_") : ("mg_" + Date.now() + "_" + i);
-      const match = String(mg_matches[i] || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      if (match.length === 0) continue;
+      const id = mg_ids[i].trim();
+      const matchNames = form.getAll(`mg_match_${id}[]`);
+      if (matchNames.length === 0) continue;
       newConfig.mergeGroups.push({
         id,
         name,
-        description: String(mg_descriptions[i] || "").trim() || ("WLVPN · " + name),
-        match
+        description: mg_descriptions[i].trim() || ("WLVPN · " + name),
+        matchNames
       });
     }
 
@@ -570,22 +605,44 @@ function renderAdminPanel(config, url) {
   const saved = url.searchParams.get("saved");
   const pwdIsDefault = config.adminPassword === DEFAULT_CONFIG.adminPassword;
 
-  const mgRows = (config.mergeGroups || []).map((g) => `
-    <div class="mg-row">
-      <input type="hidden" name="mg_id[]" value="${esc(g.id)}">
-      <div class="mg-row-head">
-        <input name="mg_name[]" placeholder="Название (например 🇩🇪 Все немецкие)" value="${esc(g.name)}">
-        <input name="mg_description[]" placeholder="Описание" value="${esc(g.description)}">
-      </div>
-      <label style="margin-bottom:0">
-        <span>Хосты для объединения (по одному на строку)</span>
-        <textarea name="mg_match[]" rows="4" placeholder="host1.example.com&#10;host2.example.com">${esc((g.match || []).join("\n"))}</textarea>
-      </label>
-      <div class="mg-row-actions">
-        <button type="button" class="btn btn-danger" onclick="this.closest('.mg-row').remove()">Удалить</button>
+  const hmRows = (config.hostMap || []).map((s) => `
+    <div class="host-row" style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
+      <input name="hm_host[]" value="${esc(s.host)}" placeholder="host" style="flex:2">
+      <input name="hm_remarks[]" value="${esc(s.remarks)}" placeholder="Название (🇫🇮 Финляндия #1)" style="flex:2">
+      <input name="hm_category[]" value="${esc(s.category)}" placeholder="Категория" style="flex:1">
+      <div style="display:flex; gap:4px;">
+        <button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, -1)">↑</button>
+        <button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, 1)">↓</button>
+        <button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest('.host-row').remove()">✕</button>
       </div>
     </div>
-  `).join("");
+  `).join('');
+
+  const mgRows = (config.mergeGroups || []).map(g => {
+    const allRemarks = (config.hostMap || []).map(s => s.remarks).filter(Boolean);
+    const checks = allRemarks.map(r => `
+      <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px; font-size:0.85rem; color:var(--text); margin-bottom:6px;">
+        <input type="checkbox" name="mg_match_${g.id}[]" value="${esc(r)}" ${g.matchNames.includes(r) ? 'checked' : ''}>
+        ${esc(r)}
+      </label>
+    `).join('');
+    return `
+      <div class="mg-row" data-id="${g.id}">
+        <input type="hidden" name="mg_id[]" value="${esc(g.id)}">
+        <div class="mg-row-head">
+          <input name="mg_name[]" placeholder="Название группы (например 🇩🇪 Все немцы)" value="${esc(g.name)}">
+          <input name="mg_description[]" placeholder="Описание" value="${esc(g.description)}">
+        </div>
+        <div style="margin:10px 0;">
+          <span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения:</span>
+          <div class="checkbox-group">${checks || '<span style="color:var(--muted); font-size:0.8rem;">Сначала добавьте сервера в HOST_MAP</span>'}</div>
+        </div>
+        <div class="mg-row-actions">
+          <button type="button" class="btn btn-danger" onclick="this.closest('.mg-row').remove()">Удалить</button>
+        </div>
+      </div>
+    `;
+  }).join('');
 
   return `<!doctype html>
 <html lang="ru">
@@ -670,18 +727,18 @@ function renderAdminPanel(config, url) {
     </div>
 
     <div class="card">
-      <h2>HOST_MAP — словарь серверов</h2>
-      <label>
-        <span>JSON: <code>{ "host": { "remarks": "...", "category": "..." } }</code></span>
-        <textarea name="hostMap" rows="14" style="min-height:240px">${esc(JSON.stringify(config.hostMap, null, 2))}</textarea>
-      </label>
+      <h2>HOST_MAP — серверы и порядок</h2>
+      <p class="hint" style="margin-bottom:16px">Управляйте названиями, категориями и порядком серверов. Порядок строк влияет на сортировку в подписке.</p>
+      <div id="hostmap-container">
+        ${hmRows}
+      </div>
+      <button type="button" class="btn btn-ghost" onclick="addHostRow()">+ Добавить сервер</button>
     </div>
 
     <div class="card">
       <h2>Объединение серверов в балансировщики</h2>
       <p class="hint" style="margin-bottom:16px">
-        Сервера, у которых <code>host</code> совпадает с одним из указанных — будут собраны в один балансировщик
-        с заданным названием и описанием. Балансировщик добавляется в конец списка.
+        Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием. Балансировщик добавляется в конец списка.
       </p>
       <div id="mg-container">${mgRows}</div>
       <button type="button" class="btn btn-ghost" onclick="addMG()">+ Добавить группу</button>
@@ -704,23 +761,65 @@ function renderAdminPanel(config, url) {
 </div>
 
 <script>
+function moveRow(btn, dir) {
+  var row = btn.closest('.host-row');
+  if (dir === -1 && row.previousElementSibling) {
+    row.parentNode.insertBefore(row, row.previousElementSibling);
+  } else if (dir === 1 && row.nextElementSibling) {
+    row.parentNode.insertBefore(row.nextElementSibling, row);
+  }
+}
+
+function addHostRow() {
+  var c = document.getElementById('hostmap-container');
+  var d = document.createElement('div');
+  d.className = 'host-row';
+  d.style.cssText = 'display:flex; gap:8px; margin-bottom:8px; align-items:center;';
+  d.innerHTML = '<input name="hm_host[]" placeholder="host" style="flex:2">' +
+    '<input name="hm_remarks[]" placeholder="Название" style="flex:2">' +
+    '<input name="hm_category[]" placeholder="Категория" style="flex:1">' +
+    '<div style="display:flex; gap:4px;">' +
+      '<button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, -1)">↑</button>' +
+      '<button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, 1)">↓</button>' +
+      '<button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest(\\'.host-row\\').remove()">✕</button>' +
+    '</div>';
+  c.appendChild(d);
+}
+
 function addMG() {
   var c = document.getElementById('mg-container');
   var d = document.createElement('div');
+  var id = 'mg_' + Date.now();
   d.className = 'mg-row';
-  d.innerHTML = '<input type="hidden" name="mg_id[]" value="">' +
+  d.setAttribute('data-id', id);
+  d.innerHTML = '<input type="hidden" name="mg_id[]" value="' + id + '">' +
     '<div class="mg-row-head">' +
-      '<input name="mg_name[]" placeholder="Название">' +
+      '<input name="mg_name[]" placeholder="Название группы">' +
       '<input name="mg_description[]" placeholder="Описание">' +
     '</div>' +
-    '<label style="margin-bottom:0">' +
-      '<span>Хосты для объединения (по одному на строку)</span>' +
-      '<textarea name="mg_match[]" rows="4" placeholder="host1.example.com&#10;host2.example.com"></textarea>' +
-    '</label>' +
+    '<div style="margin:10px 0;">' +
+      '<span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения:</span>' +
+      '<div class="checkbox-group" id="cbs_' + id + '">Загрузка...</div>' +
+    '</div>' +
     '<div class="mg-row-actions">' +
       '<button type="button" class="btn btn-danger" onclick="this.closest(\\'.mg-row\\').remove()">Удалить</button>' +
     '</div>';
   c.appendChild(d);
+  
+  // populate checkboxes
+  var allRemarks = [];
+  document.querySelectorAll('input[name="hm_remarks[]"]').forEach(function(inp) {
+    if (inp.value.trim()) allRemarks.push(inp.value.trim());
+  });
+  var cbContainer = document.getElementById('cbs_' + id);
+  if (allRemarks.length === 0) {
+    cbContainer.innerHTML = '<span style="color:var(--muted); font-size:0.8rem;">Сначала добавьте сервера в HOST_MAP</span>';
+  } else {
+    cbContainer.innerHTML = allRemarks.map(function(r) {
+      return '<label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px; font-size:0.85rem; color:var(--text); margin-bottom:6px;">' +
+        '<input type="checkbox" name="mg_match_' + id + '[]" value="' + r + '">' + r + '</label>';
+    }).join('');
+  }
 }
 
 async function testSources() {
@@ -744,7 +843,7 @@ async function testSources() {
 // LANDING
 // ============================================================
 function renderServerCards(hostMap) {
-  const entries = Object.entries(hostMap || {});
+  const entries = Array.isArray(hostMap) ? hostMap : Object.entries(hostMap || {}).map(([host, data]) => ({ host, ...data }));
   if (entries.length === 0) {
     return `<div class="server-card tilt reveal">
       <div class="server-flag">🛠</div>
@@ -752,10 +851,10 @@ function renderServerCards(hostMap) {
       <div class="server-stats"><div class="server-stat"><span>Доступны по ссылке-подписке</span></div></div>
     </div>`;
   }
-  return entries.map(([host, m]) => {
+  return entries.map((m) => {
     const parts = (m.remarks || "").split(" ");
     const flag = parts[0] || "🌐";
-    const name = parts.slice(1).join(" ") || m.remarks || host;
+    const name = parts.slice(1).join(" ") || m.remarks || m.host;
     return `<div class="server-card tilt reveal">
       <div class="server-flag">${esc(flag)}</div>
       <div class="server-name">${esc(name)} <span class="server-tag">${esc(m.category || "")}</span></div>
