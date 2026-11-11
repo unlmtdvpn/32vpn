@@ -35,6 +35,7 @@ const DEFAULT_CONFIG = {
   mobileBalancerDescription: "WLVPN · Работает при белых списках",
   hostMap: JSON.parse(JSON.stringify(DEFAULT_HOST_MAP)),
   mergeGroups: [],
+  serverOrder: [],
   adminPassword: "wlvpn-admin"
 };
 
@@ -119,11 +120,9 @@ async function loadConfig(env) {
     const raw = await env.KV.get("config:main");
     if (raw) {
       const config = JSON.parse(raw);
-      // Миграция старого формата hostMap (object -> array)
       if (config.hostMap && !Array.isArray(config.hostMap)) {
         config.hostMap = Object.entries(config.hostMap).map(([host, data]) => ({ host, ...data }));
       }
-      // Миграция старых mergeGroups (match -> matchNames)
       if (config.mergeGroups) {
         config.mergeGroups = config.mergeGroups.map(g => {
           if (g.match && !g.matchNames) {
@@ -139,6 +138,7 @@ async function loadConfig(env) {
           return g;
         });
       }
+      if (!Array.isArray(config.serverOrder)) config.serverOrder = [];
       return Object.assign({}, DEFAULT_CONFIG, config);
     }
   } catch (_) {}
@@ -334,7 +334,6 @@ async function serveSubscription(env) {
       return s;
     }).filter(Boolean);
 
-    // 1. Резолвим названия заранее, чтобы можно было по ним мержить
     servers.forEach(s => {
       const isBalancer =
         (s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0) ||
@@ -343,18 +342,20 @@ async function serveSubscription(env) {
       if (isBalancer) {
         s.remarks = config.balancerName;
         s.meta = Object.assign({}, s.meta || {}, { serverDescription: config.balancerDescription });
+        s.__token = '__balancer__';
       } else {
         const host = getServerHost(s);
         if (host && hostMapObj[host]) {
           s.remarks = hostMapObj[host].remarks;
           s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · " + hostMapObj[host].category });
+          s.__token = host;
         } else {
           s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN" });
+          s.__token = host ? 'host_' + host : 'unknown_' + Math.random().toString(36).slice(2);
         }
       }
     });
 
-    // 2. Мержим по именам
     const consumed = new Set();
     const mergedBalancers = [];
 
@@ -370,7 +371,10 @@ async function serveSubscription(env) {
       });
       if (matched.length === 0) continue;
       const balancer = buildMergedBalancer(group, matched);
-      if (balancer) mergedBalancers.push(balancer);
+      if (balancer) {
+        balancer.__token = '__merge__' + group.id;
+        mergedBalancers.push(balancer);
+      }
     }
 
     finalServers = servers.filter((_, i) => !consumed.has(i));
@@ -382,7 +386,8 @@ async function serveSubscription(env) {
       "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" } }],
       "outbounds": [{ "tag": "block", "protocol": "blackhole" }],
       "remarks": config.fallbackName,
-      "meta": { "serverDescription": config.fallbackDescription }
+      "meta": { "serverDescription": config.fallbackDescription },
+      "__token": "fallback"
     }];
   }
 
@@ -390,8 +395,20 @@ async function serveSubscription(env) {
   if (mobileBalancer) {
     mobileBalancer.remarks = config.mobileBalancerName;
     mobileBalancer.meta = Object.assign({}, mobileBalancer.meta || {}, { serverDescription: config.mobileBalancerDescription });
+    mobileBalancer.__token = "__mobile__";
     finalServers.push(mobileBalancer);
   }
+
+  const order = config.serverOrder || [];
+  finalServers.forEach((s, i) => { s.__origIndex = i; });
+  finalServers.sort((a, b) => {
+    let ia = order.indexOf(a.__token);
+    let ib = order.indexOf(b.__token);
+    if (ia === -1) ia = 100000 + a.__origIndex;
+    if (ib === -1) ib = 100000 + b.__origIndex;
+    return ia - ib;
+  });
+  finalServers.forEach(s => { delete s.__token; delete s.__origIndex; });
 
   return new Response(JSON.stringify(finalServers, null, 2), {
     headers: {
@@ -504,10 +521,10 @@ async function handleAdmin(request, url, env) {
       mobileBalancerDescription: String(form.get("mobileBalancerDescription") || "").trim(),
       adminPassword: oldPassword,
       mergeGroups: [],
-      hostMap: []
+      hostMap: [],
+      serverOrder: []
     };
 
-    // Парсим HOST_MAP
     const hm_hosts = form.getAll("hm_host[]");
     const hm_remarks = form.getAll("hm_remarks[]");
     const hm_categories = form.getAll("hm_category[]");
@@ -521,7 +538,6 @@ async function handleAdmin(request, url, env) {
       }
     }
 
-    // Парсим Merge Groups
     const mg_ids = form.getAll("mg_id[]");
     const mg_names = form.getAll("mg_name[]");
     const mg_descriptions = form.getAll("mg_description[]");
@@ -538,6 +554,15 @@ async function handleAdmin(request, url, env) {
         matchNames
       });
     }
+
+    const serverOrderRaw = String(form.get("serverOrder") || "");
+    const serverOrder = serverOrderRaw.split(",").map(s => s.trim()).filter(Boolean);
+    const validTokens = new Set();
+    validTokens.add('__balancer__');
+    validTokens.add('__mobile__');
+    (newConfig.hostMap || []).forEach(item => validTokens.add(item.host));
+    (newConfig.mergeGroups || []).forEach(g => validTokens.add('__merge__' + g.id));
+    newConfig.serverOrder = serverOrder.filter(t => validTokens.has(t));
 
     const newPassword = String(form.get("newPassword") || "").trim();
     if (newPassword) newConfig.adminPassword = newPassword;
@@ -605,19 +630,17 @@ function renderAdminPanel(config, url) {
   const saved = url.searchParams.get("saved");
   const pwdIsDefault = config.adminPassword === DEFAULT_CONFIG.adminPassword;
 
+  // HOST_MAP (без стрелок)
   const hmRows = (config.hostMap || []).map((s) => `
     <div class="host-row" style="display:flex; gap:8px; margin-bottom:8px; align-items:center;">
       <input name="hm_host[]" value="${esc(s.host)}" placeholder="host" style="flex:2">
       <input name="hm_remarks[]" value="${esc(s.remarks)}" placeholder="Название (🇫🇮 Финляндия #1)" style="flex:2">
       <input name="hm_category[]" value="${esc(s.category)}" placeholder="Категория" style="flex:1">
-      <div style="display:flex; gap:4px;">
-        <button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, -1)">↑</button>
-        <button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, 1)">↓</button>
-        <button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest('.host-row').remove()">✕</button>
-      </div>
+      <button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest('.host-row').remove()">✕</button>
     </div>
   `).join('');
 
+  // Merge Groups (чекбоксы по названиям)
   const mgRows = (config.mergeGroups || []).map(g => {
     const allRemarks = (config.hostMap || []).map(s => s.remarks).filter(Boolean);
     const checks = allRemarks.map(r => `
@@ -644,6 +667,40 @@ function renderAdminPanel(config, url) {
     `;
   }).join('');
 
+  // Порядок серверов
+  const allTokens = [];
+  const tokenLabels = {};
+  allTokens.push('__balancer__');
+  tokenLabels['__balancer__'] = config.balancerName || '🔁 Авто - самый быстрый';
+  allTokens.push('__mobile__');
+  tokenLabels['__mobile__'] = config.mobileBalancerName || '🇷🇺 📱 Обход глушилок';
+  (config.hostMap || []).forEach(item => {
+    if (item.host) {
+      allTokens.push(item.host);
+      tokenLabels[item.host] = item.remarks || item.host;
+    }
+  });
+  (config.mergeGroups || []).forEach(g => {
+    allTokens.push('__merge__' + g.id);
+    tokenLabels['__merge__' + g.id] = g.name || ('Мерж ' + g.id);
+  });
+
+  let order = (config.serverOrder || []).filter(t => allTokens.includes(t));
+  allTokens.forEach(t => {
+    if (!order.includes(t)) order.push(t);
+  });
+
+  const orderRows = order.map(token => `
+    <div class="order-row" draggable="true" data-token="${esc(token)}">
+      <span class="order-handle">☰</span>
+      <span class="order-label">${esc(tokenLabels[token] || token)}</span>
+      <div class="order-actions">
+        <button type="button" class="btn btn-ghost" style="padding:6px 10px" onclick="moveOrder(this,-1)">↑</button>
+        <button type="button" class="btn btn-ghost" style="padding:6px 10px" onclick="moveOrder(this,1)">↓</button>
+      </div>
+    </div>
+  `).join('');
+
   return `<!doctype html>
 <html lang="ru">
 <head>
@@ -667,7 +724,7 @@ function renderAdminPanel(config, url) {
   ${saved ? `<div class="alert alert-ok">Настройки сохранены.</div>` : ""}
   ${pwdIsDefault ? `<div class="alert alert-warn">⚠ Пароль по умолчанию. Смените его в блоке «Безопасность»!</div>` : ""}
 
-  <form method="POST" action="/admin/save">
+  <form method="POST" action="/admin/save" id="admin-form">
     <div class="card">
       <h2>Источники подписок</h2>
       <label><span>Основная подписка (URL)</span>
@@ -727,8 +784,8 @@ function renderAdminPanel(config, url) {
     </div>
 
     <div class="card">
-      <h2>HOST_MAP — серверы и порядок</h2>
-      <p class="hint" style="margin-bottom:16px">Управляйте названиями, категориями и порядком серверов. Порядок строк влияет на сортировку в подписке.</p>
+      <h2>HOST_MAP — серверы и категории</h2>
+      <p class="hint" style="margin-bottom:16px">Управляйте названиями и категориями серверов. Порядок отображения в подписке настраивается ниже.</p>
       <div id="hostmap-container">
         ${hmRows}
       </div>
@@ -738,10 +795,20 @@ function renderAdminPanel(config, url) {
     <div class="card">
       <h2>Объединение серверов в балансировщики</h2>
       <p class="hint" style="margin-bottom:16px">
-        Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием. Балансировщик добавляется в конец списка.
+        Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием.
       </p>
       <div id="mg-container">${mgRows}</div>
       <button type="button" class="btn btn-ghost" onclick="addMG()">+ Добавить группу</button>
+    </div>
+
+    <div class="card">
+      <h2>Порядок серверов в подписке</h2>
+      <p class="hint" style="margin-bottom:16px">
+        Перетаскивайте строки или используйте стрелки. Сверху — идут первыми, снизу — последними.
+        Сюда включены все сервера, балансировщики и мобильный сервер.
+      </p>
+      <div id="order-container">${orderRows}</div>
+      <input type="hidden" name="serverOrder" id="serverOrderInput" value="${esc(order.join(','))}">
     </div>
 
     <div class="card">
@@ -761,8 +828,8 @@ function renderAdminPanel(config, url) {
 </div>
 
 <script>
-function moveRow(btn, dir) {
-  var row = btn.closest('.host-row');
+function moveOrder(btn, dir) {
+  var row = btn.closest('.order-row');
   if (dir === -1 && row.previousElementSibling) {
     row.parentNode.insertBefore(row, row.previousElementSibling);
   } else if (dir === 1 && row.nextElementSibling) {
@@ -778,11 +845,7 @@ function addHostRow() {
   d.innerHTML = '<input name="hm_host[]" placeholder="host" style="flex:2">' +
     '<input name="hm_remarks[]" placeholder="Название" style="flex:2">' +
     '<input name="hm_category[]" placeholder="Категория" style="flex:1">' +
-    '<div style="display:flex; gap:4px;">' +
-      '<button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, -1)">↑</button>' +
-      '<button type="button" class="btn btn-ghost" style="padding:8px 12px" onclick="moveRow(this, 1)">↓</button>' +
-      '<button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest(\\'.host-row\\').remove()">✕</button>' +
-    '</div>';
+    '<button type="button" class="btn btn-danger" style="padding:8px 12px" onclick="this.closest(\\'.host-row\\').remove()">✕</button>';
   c.appendChild(d);
 }
 
@@ -806,7 +869,6 @@ function addMG() {
     '</div>';
   c.appendChild(d);
   
-  // populate checkboxes
   var allRemarks = [];
   document.querySelectorAll('input[name="hm_remarks[]"]').forEach(function(inp) {
     if (inp.value.trim()) allRemarks.push(inp.value.trim());
@@ -821,6 +883,39 @@ function addMG() {
     }).join('');
   }
 }
+
+// Drag and drop для порядка
+var dragOrderEl = null;
+document.querySelectorAll('#order-container .order-row').forEach(function(row) {
+  row.addEventListener('dragstart', function(e) {
+    dragOrderEl = this;
+    this.style.opacity = '0.4';
+  });
+  row.addEventListener('dragend', function() {
+    this.style.opacity = '1';
+    dragOrderEl = null;
+  });
+  row.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    if (dragOrderEl && dragOrderEl !== this) {
+      var rect = this.getBoundingClientRect();
+      var midpoint = rect.top + rect.height / 2;
+      if (e.clientY < midpoint) {
+        this.parentNode.insertBefore(dragOrderEl, this);
+      } else {
+        this.parentNode.insertBefore(dragOrderEl, this.nextSibling);
+      }
+    }
+  });
+});
+
+document.getElementById('admin-form').addEventListener('submit', function() {
+  var tokens = [];
+  document.querySelectorAll('#order-container .order-row').forEach(function(row) {
+    tokens.push(row.getAttribute('data-token'));
+  });
+  document.getElementById('serverOrderInput').value = tokens.join(',');
+});
 
 async function testSources() {
   var el = document.getElementById('test-result');
@@ -1432,6 +1527,11 @@ textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82re
 .hint code{background:rgba(0,224,255,.1);color:var(--cyan);padding:1px 6px;border-radius:4px;font-size:.78rem}
 .login-box{max-width:380px;margin:80px auto;padding:32px}
 .result{font-family:ui-monospace,Menlo,monospace;font-size:.82rem;white-space:pre-wrap;padding:12px;background:rgba(0,0,0,.4);border-radius:8px;border:1px solid var(--stroke);color:var(--muted);margin-top:10px;min-height:40px}
+.order-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(0,0,0,.25);border:1px solid var(--stroke);border-radius:8px;margin-bottom:6px;cursor:grab;transition:background .2s}
+.order-row:hover{background:rgba(0,224,255,.05)}
+.order-handle{color:var(--muted);font-size:1rem;user-select:none}
+.order-label{flex:1;font-size:0.9rem;color:var(--text)}
+.order-actions{display:flex;gap:4px}
 `;
 
 // ============================================================
