@@ -640,20 +640,23 @@ function renderAdminPanel(config, url) {
       </label>
     `).join('');
     return `
-      <div class="mg-row" data-id="${g.id}">
-        <input type="hidden" name="mg_id[]" value="${esc(g.id)}">
-        <div class="mg-row-head">
-          <input name="mg_name[]" placeholder="Название группы (например 🇩🇪 Все немцы)" value="${esc(g.name)}">
-          <input name="mg_description[]" placeholder="Описание" value="${esc(g.description)}">
+      <details class="mg-row" data-id="${esc(g.id)}">
+        <summary>
+          <span>${esc(g.name || 'Без названия')}</span>
+          <button type="button" class="btn btn-danger btn-sm" onclick="event.preventDefault(); this.closest('.mg-row').remove()">✕</button>
+        </summary>
+        <div class="mg-row-content">
+          <input type="hidden" name="mg_id[]" value="${esc(g.id)}">
+          <div class="mg-row-head">
+            <input name="mg_name[]" placeholder="Название группы (например 🇩🇪 Все немцы)" value="${esc(g.name)}">
+            <input name="mg_description[]" placeholder="Описание" value="${esc(g.description)}">
+          </div>
+          <div style="margin:10px 0;">
+            <span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения:</span>
+            <div class="checkbox-group">${checks || '<span style="color:var(--muted); font-size:0.8rem;">Сначала добавьте сервера в HOST_MAP</span>'}</div>
+          </div>
         </div>
-        <div style="margin:10px 0;">
-          <span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения:</span>
-          <div class="checkbox-group">${checks || '<span style="color:var(--muted); font-size:0.8rem;">Сначала добавьте сервера в HOST_MAP</span>'}</div>
-        </div>
-        <div class="mg-row-actions">
-          <button type="button" class="btn btn-danger" onclick="this.closest('.mg-row').remove()">Удалить</button>
-        </div>
-      </div>
+      </details>
     `;
   }).join('');
 
@@ -800,7 +803,7 @@ function renderAdminPanel(config, url) {
 
     <div class="card">
       <h2>Объединение серверов в балансировщики</h2>
-      <p class="hint" style="margin-bottom:16px">Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием. Скрытые сервера также доступны для выбора.</p>
+      <p class="hint" style="margin-bottom:16px">Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием.</p>
       <div id="mg-container">${mgRows}</div>
       <button type="button" class="btn btn-ghost" onclick="addMG()">+ Добавить группу</button>
     </div>
@@ -856,23 +859,27 @@ function addHostRow() {
 
 function addMG() {
   var c = document.getElementById('mg-container');
-  var d = document.createElement('div');
+  var d = document.createElement('details');
   var id = 'mg_' + Date.now();
   d.className = 'mg-row';
   d.setAttribute('data-id', id);
-  d.innerHTML = '<input type="hidden" name="mg_id[]" value="' + id + '">' +
-    '<div class="mg-row-head">' +
-      '<input name="mg_name[]" placeholder="Название группы">' +
-      '<input name="mg_description[]" placeholder="Описание">' +
-    '</div>' +
-    '<div style="margin:10px 0;">' +
-      '<span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию):</span>' +
-      '<div class="checkbox-group" id="cbs_' + id + '">Загрузка...</div>' +
-    '</div>' +
-    '<div class="mg-row-actions">' +
-      '<button type="button" class="btn btn-danger" onclick="this.closest(\\'.mg-row\\').remove()">Удалить</button>' +
+  d.innerHTML = '<summary>' +
+      '<span>Новая группа</span>' +
+      '<button type="button" class="btn btn-danger btn-sm" onclick="event.preventDefault(); this.closest(\\'.mg-row\\').remove()">✕</button>' +
+    '</summary>' +
+    '<div class="mg-row-content">' +
+      '<input type="hidden" name="mg_id[]" value="' + id + '">' +
+      '<div class="mg-row-head">' +
+        '<input name="mg_name[]" placeholder="Название группы">' +
+        '<input name="mg_description[]" placeholder="Описание">' +
+      '</div>' +
+      '<div style="margin:10px 0;">' +
+        '<span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию):</span>' +
+        '<div class="checkbox-group" id="cbs_' + id + '">Загрузка...</div>' +
+      '</div>' +
     '</div>';
   c.appendChild(d);
+  d.open = true;
   
   var allRemarks = [];
   document.querySelectorAll('#hostmap-container .host-row').forEach(function(row) {
@@ -1412,11 +1419,17 @@ textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82re
 .btn-ghost:hover{border-color:rgba(0,224,255,.5)}
 .btn-danger{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.35)}
 .btn-danger:hover{background:rgba(255,77,109,.25)}
+.btn-sm{padding:4px 8px !important; font-size:0.75rem !important;}
 .btn-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.mg-row{padding:14px;border-radius:12px;background:rgba(0,0,0,.25);border:1px dashed var(--stroke);margin-bottom:10px}
+.mg-row{background:rgba(0,0,0,.25);border:1px solid var(--stroke);border-radius:12px;margin-bottom:10px;overflow:hidden}
+.mg-row summary{display:flex;justify-content:space-between;align-items:center;padding:14px;cursor:pointer;background:rgba(120,180,255,.05);font-weight:600;color:var(--text);list-style:none;user-select:none}
+.mg-row summary::-webkit-details-marker{display:none}
+.mg-row summary::before{content:'▶';display:inline-block;margin-right:10px;transition:transform .3s;font-size:0.8em;color:var(--cyan)}
+.mg-row[open] summary::before{transform:rotate(90deg)}
+.mg-row summary span{flex:1;}
+.mg-row-content{padding:14px;border-top:1px dashed var(--stroke)}
 .mg-row-head{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .mg-row-head input{flex:1;min-width:200px}
-.mg-row-actions{display:flex;justify-content:flex-end;margin-top:8px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:640px){.grid2{grid-template-columns:1fr}}
 .alert{padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:.88rem;line-height:1.5}
