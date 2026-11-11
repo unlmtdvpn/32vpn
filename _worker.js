@@ -308,45 +308,48 @@ async function serveSubscription(env) {
       if (item.host) hostMapObj[item.host] = item;
     }
 
-    let servers = chkav.data.map(s => {
+    // 1. Собираем все сервера, помечая скрытые
+    let allServers = chkav.data.map(s => {
       if (s.remarks && (s.remarks.includes("поддержите") || s.remarks.includes("владельца"))) return null;
       if (s.meta && s.meta.serverDescription && s.meta.serverDescription.includes("2202206778971874")) return null;
       return s;
     }).filter(Boolean);
 
-    servers = servers.map(s => {
+    allServers = allServers.map(s => {
       const isBalancer =
         (s.routing && Array.isArray(s.routing.balancers) && s.routing.balancers.length > 0) ||
         (s.routing && Array.isArray(s.routing.rules) && s.routing.rules.some(r => r.balancerTag));
 
       if (isBalancer) {
-        if (config.balancerHidden) return null;
         s.remarks = config.balancerName;
         s.meta = Object.assign({}, s.meta || {}, { serverDescription: config.balancerDescription });
         s.__token = '__balancer__';
+        s.__hidden = config.balancerHidden;
         return s;
       }
 
       const host = getServerHost(s);
       if (host && hostMapObj[host]) {
-        if (hostMapObj[host].hidden) return null;
         s.remarks = hostMapObj[host].remarks;
         s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN · " + hostMapObj[host].category });
         s.__token = host;
+        s.__hidden = hostMapObj[host].hidden;
       } else {
         s.meta = Object.assign({}, s.meta || {}, { serverDescription: "WLVPN" });
         s.__token = host ? 'host_' + host : 'unknown_' + Math.random().toString(36).slice(2);
+        s.__hidden = false;
       }
       return s;
-    }).filter(Boolean);
+    });
 
+    // 2. Мерж-группы используют ВСЕ сервера (включая скрытые)
     const consumed = new Set();
     const mergedBalancers = [];
 
     for (const group of (config.mergeGroups || [])) {
       if (!group || !Array.isArray(group.matchNames) || group.matchNames.length === 0) continue;
       const matched = [];
-      servers.forEach((s, idx) => {
+      allServers.forEach((s, idx) => {
         if (consumed.has(idx)) return;
         if (s.remarks && group.matchNames.includes(s.remarks)) {
           matched.push(s);
@@ -357,12 +360,15 @@ async function serveSubscription(env) {
       const balancer = buildMergedBalancer(group, matched);
       if (balancer) {
         balancer.__token = '__merge__' + group.id;
+        balancer.__hidden = false;
         mergedBalancers.push(balancer);
       }
     }
 
-    finalServers = servers.filter((_, i) => !consumed.has(i));
+    // 3. Формируем финал: только не скрытые и не поглощенные
+    finalServers = allServers.filter((s, idx) => !s.__hidden && !consumed.has(idx));
     finalServers.push(...mergedBalancers);
+
   } else {
     finalServers = [{
       "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
@@ -371,7 +377,8 @@ async function serveSubscription(env) {
       "outbounds": [{ "tag": "block", "protocol": "blackhole" }],
       "remarks": config.fallbackName,
       "meta": { "serverDescription": config.fallbackDescription },
-      "__token": "fallback"
+      "__token": "fallback",
+      "__hidden": false
     }];
   }
 
@@ -381,6 +388,7 @@ async function serveSubscription(env) {
       mobileBalancer.remarks = config.mobileBalancerName;
       mobileBalancer.meta = Object.assign({}, mobileBalancer.meta || {}, { serverDescription: config.mobileBalancerDescription });
       mobileBalancer.__token = "__mobile__";
+      mobileBalancer.__hidden = false;
       finalServers.push(mobileBalancer);
     }
   }
@@ -394,7 +402,7 @@ async function serveSubscription(env) {
     if (ib === -1) ib = 100000 + b.__origIndex;
     return ia - ib;
   });
-  finalServers.forEach(s => { delete s.__token; delete s.__origIndex; });
+  finalServers.forEach(s => { delete s.__token; delete s.__origIndex; delete s.__hidden; });
 
   return new Response(JSON.stringify(finalServers, null, 2), {
     headers: {
@@ -483,7 +491,7 @@ async function handleAdmin(request, url, env) {
 
   if (method === "POST" && path === "/admin/reset") {
     const defaultConf = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-    defaultConf.adminPassword = config.adminPassword; // Keep current password
+    defaultConf.adminPassword = config.adminPassword;
     await saveConfig(env, defaultConf);
     return new Response(null, { status: 302, headers: { "Location": "/admin?reset=1" } });
   }
@@ -627,7 +635,7 @@ function renderAdminPanel(config, url) {
   `).join('');
 
   const mgRows = (config.mergeGroups || []).map(g => {
-    const allRemarks = (config.hostMap || []).filter(h => !h.hidden).map(s => s.remarks).filter(Boolean);
+    const allRemarks = (config.hostMap || []).map(s => s.remarks).filter(Boolean);
     const checks = allRemarks.map(r => `
       <label style="display:inline-flex; align-items:center; gap:6px; margin-right:16px; font-size:0.85rem; color:var(--text); margin-bottom:6px;">
         <input type="checkbox" name="mg_match_${g.id}[]" value="${esc(r)}" ${g.matchNames.includes(r) ? 'checked' : ''}>
@@ -642,7 +650,7 @@ function renderAdminPanel(config, url) {
           <input name="mg_description[]" placeholder="Описание" value="${esc(g.description)}">
         </div>
         <div style="margin:10px 0;">
-          <span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения (скрытые не показываются):</span>
+          <span style="display:block; font-size:0.8rem; color:var(--muted); margin-bottom:6px;">Выберите сервера (по названию) для объединения:</span>
           <div class="checkbox-group">${checks || '<span style="color:var(--muted); font-size:0.8rem;">Сначала добавьте сервера в HOST_MAP</span>'}</div>
         </div>
         <div class="mg-row-actions">
@@ -652,7 +660,6 @@ function renderAdminPanel(config, url) {
     `;
   }).join('');
 
-  // Порядок серверов
   const allTokens = [];
   const tokenLabels = {};
   const tokenHidden = {};
@@ -766,11 +773,11 @@ function renderAdminPanel(config, url) {
       <div class="toggle-row">
         <label class="toggle-item">
           <input type="checkbox" name="balancerHidden" ${config.balancerHidden ? 'checked' : ''}>
-          <span>Скрыть основной балансировщик «Авто»</span>
+          <span>Скрыть основной балансировщик «Авто» из клиента</span>
         </label>
         <label class="toggle-item">
           <input type="checkbox" name="mobileHidden" ${config.mobileHidden ? 'checked' : ''}>
-          <span>Скрыть мобильный балансировщик «Обход глушилок»</span>
+          <span>Скрыть мобильный балансировщик «Обход глушилок» из клиента</span>
         </label>
       </div>
     </div>
@@ -788,8 +795,8 @@ function renderAdminPanel(config, url) {
     </div>
 
     <div class="card">
-      <h2>HOST_MAP — серверы, категории и видимость</h2>
-      <p class="hint" style="margin-bottom:16px">Ставь галочку «Скрыть», чтобы сервер не попадал в подписку. Скрытые сервера также исключаются из мерж-групп.</p>
+      <h2>HOST_MAP — все сервера</h2>
+      <p class="hint" style="margin-bottom:16px">Ставь галочку «Скрыть», чтобы сервер не отдавался клиенту напрямую. Скрытые сервера остаются здесь и могут быть использованы в балансировщиках ниже.</p>
       <div id="hostmap-container">
         ${hmRows}
       </div>
@@ -798,7 +805,7 @@ function renderAdminPanel(config, url) {
 
     <div class="card">
       <h2>Объединение серверов в балансировщики</h2>
-      <p class="hint" style="margin-bottom:16px">Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием.</p>
+      <p class="hint" style="margin-bottom:16px">Выберите сервера по их названиям. Они склеятся в один балансировщик с заданным названием и описанием. Скрытые сервера также доступны для выбора.</p>
       <div id="mg-container">${mgRows}</div>
       <button type="button" class="btn btn-ghost" onclick="addMG()">+ Добавить группу</button>
     </div>
@@ -874,9 +881,8 @@ function addMG() {
   
   var allRemarks = [];
   document.querySelectorAll('#hostmap-container .host-row').forEach(function(row) {
-    var hCb = row.querySelector('input[name="hm_hidden_cb"]');
     var rInp = row.querySelector('input[name="hm_remarks[]"]');
-    if (hCb && !hCb.checked && rInp && rInp.value.trim()) allRemarks.push(rInp.value.trim());
+    if (rInp && rInp.value.trim()) allRemarks.push(rInp.value.trim());
   });
   var cbContainer = document.getElementById('cbs_' + id);
   if (allRemarks.length === 0) {
@@ -889,7 +895,6 @@ function addMG() {
   }
 }
 
-// Drag and drop
 var dragOrderEl = null;
 document.querySelectorAll('#order-container .order-row').forEach(function(row) {
   row.addEventListener('dragstart', function(e) {
