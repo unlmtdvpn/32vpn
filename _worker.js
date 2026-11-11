@@ -708,6 +708,7 @@ function renderAdminPanel(config, url) {
 <header class="admin-nav">
   <h1>WLVPN · Admin</h1>
   <div class="btn-row">
+    <button type="button" class="btn btn-ghost" onclick="toggleAllDetails()">Свернуть/Развернуть всё</button>
     <a href="/" class="btn btn-ghost" target="_blank" rel="noopener">Сайт</a>
     <a href="/sub" class="btn btn-ghost" target="_blank" rel="noopener">Подписка</a>
     <form method="POST" action="/admin/logout" style="display:inline">
@@ -792,14 +793,16 @@ function renderAdminPanel(config, url) {
       </div>
     </div>
 
-    <div class="card">
-      <h2>HOST_MAP — все сервера</h2>
-      <p class="hint" style="margin-bottom:16px">Ставь галочку «Скрыть», чтобы сервер не отдавался клиенту напрямую. Скрытые сервера остаются здесь и могут быть использованы в балансировщиках ниже.</p>
-      <div id="hostmap-container">
-        ${hmRows}
+    <details class="card" open>
+      <summary><h2>HOST_MAP — все сервера</h2></summary>
+      <div class="details-content">
+        <p class="hint" style="margin-bottom:16px">Ставь галочку «Скрыть», чтобы сервер не отдавался клиенту напрямую. Скрытые сервера остаются здесь и могут быть использованы в балансировщиках ниже.</p>
+        <div id="hostmap-container">
+          ${hmRows}
+        </div>
+        <button type="button" class="btn btn-ghost" onclick="addHostRow()">+ Добавить сервер</button>
       </div>
-      <button type="button" class="btn btn-ghost" onclick="addHostRow()">+ Добавить сервер</button>
-    </div>
+    </details>
 
     <div class="card">
       <h2>Объединение серверов в балансировщики</h2>
@@ -832,6 +835,12 @@ function renderAdminPanel(config, url) {
 </div>
 
 <script>
+function toggleAllDetails() {
+  var details = document.querySelectorAll('details.card, details.mg-row');
+  var anyOpen = Array.from(details).some(function(d) { return d.open; });
+  details.forEach(function(d) { d.open = !anyOpen; });
+}
+
 function moveOrder(btn, dir) {
   var row = btn.closest('.order-row');
   if (dir === -1 && row.previousElementSibling) {
@@ -1399,6 +1408,13 @@ h1{font-size:1.2rem;font-weight:700;letter-spacing:-.01em;display:flex;align-ite
 h1::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--mint);box-shadow:0 0 10px var(--mint)}
 h2{font-size:.78rem;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:.15em;margin-bottom:16px}
 .card{background:var(--glass);border:1px solid var(--stroke);border-radius:16px;padding:22px;margin-bottom:18px;backdrop-filter:blur(10px)}
+details.card{padding:0;margin-bottom:18px;}
+details.card summary{padding:22px;cursor:pointer;display:flex;align-items:center;list-style:none;user-select:none;outline:none;}
+details.card summary::-webkit-details-marker{display:none;}
+details.card summary h2{margin-bottom:0;}
+details.card summary::before{content:'▶';display:inline-block;margin-right:12px;transition:transform .3s;font-size:0.75em;color:var(--cyan);}
+details.card[open] summary::before{transform:rotate(90deg);}
+details.card .details-content{padding:0 22px 22px;}
 label{display:block;margin-bottom:14px;font-size:.85rem;color:var(--muted)}
 label span{display:block;margin-bottom:6px;color:var(--text);font-weight:500;font-size:.88rem}
 input,textarea,select{
