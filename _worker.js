@@ -6,7 +6,7 @@ const WIFI_URL = "https://newsub.chkav-vpn.space/q2k7Z1gtSjJ68LRM";
 const LTE_URL  = "https://sub.chkav-vpn.space/?id=4874ba3740b54be89eae0f339a781480";
 const HWID     = "1BEF4F22-1340-8D05-2641-3CC6D7CC1B27";
 
-const CACHE_KEY = "sub_cache_v1";
+const CACHE_KEY = "sub_cache_v2";
 const EXPIRE_MS = 15 * 60 * 1000; // 15 минут
 
 function htmlResponse(content, status = 200) {
@@ -22,6 +22,88 @@ function normalizeUserinfo(raw) {
   const down = (raw.match(/download=(\d+)/i) || [])[1] || "0";
   const total = (raw.match(/total=(\d+)/i) || [])[1] || "0";
   return `upload=${up}; download=${down}; total=${total}; expire=0`;
+}
+
+function b64decode(str) {
+  try {
+    let s = str.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return atob(s);
+  } catch (_) { return null; }
+}
+
+// Парсер сырых VLESS-ссылок (LTE) в JSON-конфиги
+function parseLteRawToJson(rawText) {
+  let txt = rawText.trim();
+  
+  // 1. Пробуем декодировать Base64
+  const dec1 = b64decode(txt);
+  if (dec1) {
+    if (/^vless:\/\//m.test(dec1)) {
+      txt = dec1;
+    } else {
+      try {
+        const parsed = JSON.parse(dec1);
+        if (Array.isArray(parsed)) return parsed;
+      } catch(_) {}
+    }
+  }
+
+  // 2. Пробуем распарсить как обычный JSON
+  try {
+    const parsed = JSON.parse(txt);
+    if (Array.isArray(parsed)) return parsed;
+  } catch(_) {}
+
+  // 3. Если это vless:// - собираем конфиги вручную
+  if (/^vless:\/\//m.test(txt)) {
+    const lines = txt.split(/\r?\n/).filter(l => l.trim().startsWith("vless://"));
+    const configs = [];
+    
+    lines.forEach((line) => {
+      try {
+        const url = new URL(line);
+        const params = url.searchParams;
+        const ob = {
+          "tag": `mobile-${configs.length + 1}`,
+          "protocol": "vless",
+          "settings": { 
+            "vnext": [{ 
+              "address": url.hostname, 
+              "port": parseInt(url.port) || 443, 
+              "users": [{ "id": url.username, "encryption": "none", "flow": params.get("flow") || "" }] 
+            }] 
+          },
+          "streamSettings": {
+            "network": params.get("type") || "tcp",
+            "security": params.get("security") || "reality",
+            "realitySettings": { 
+              "serverName": params.get("sni") || url.hostname, 
+              "publicKey": params.get("pbk") || "", 
+              "shortId": params.get("sid") || "", 
+              "fingerprint": params.get("fp") || "chrome" 
+            }
+          }
+        };
+        
+        const type = params.get("type") || "tcp";
+        if (type === "xhttp") ob.streamSettings.xhttpSettings = { "mode": "auto", "path": params.get("path") || "/" };
+        else if (type === "grpc") ob.streamSettings.grpcSettings = { "serviceName": params.get("serviceName") || "", "authority": "", "multiMode": false };
+        
+        configs.push({
+          "dns": { "servers": ["1.1.1.1", "1.0.0.1"], "queryStrategy": "UseIP" },
+          "routing": { "domainStrategy": "AsIs" },
+          "inbounds": [{ "tag": "socks", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": { "udp": true, "auth": "noauth" } }],
+          "outbounds": [ob],
+          "remarks": url.hash ? decodeURIComponent(url.hash.slice(1)) : `LTE Server ${configs.length + 1}`,
+          "meta": { "serverDescription": "WLVPN · LTE" }
+        });
+      } catch (_) {}
+    });
+    return configs;
+  }
+
+  return null;
 }
 
 async function fetchSingleSource(url) {
@@ -60,6 +142,7 @@ async function fetchAllSources() {
   let combined = [];
   let userinfo = null;
 
+  // WiFi (основной JSON)
   if (wifi && wifi.data) {
     combined.push(...wifi.data);
     if (wifi.userinfo) userinfo = wifi.userinfo;
@@ -67,8 +150,14 @@ async function fetchAllSources() {
     return { ok: true, body: wifi.raw, userinfo: wifi.userinfo || "upload=0; download=0; total=0; expire=0" };
   }
 
+  // LTE (парсим Base64 или JSON)
   if (lte && lte.data) {
     combined.push(...lte.data);
+  } else if (lte && lte.raw) {
+    const parsedLte = parseLteRawToJson(lte.raw);
+    if (parsedLte && parsedLte.length > 0) {
+      combined.push(...parsedLte);
+    }
   }
 
   if (combined.length > 0) {
@@ -101,7 +190,7 @@ async function updateCache(env) {
   return null;
 }
 
-// Получение кэша (если старый — отдаем сразу, а обновляем в фоне)
+// Получение кэша (Stale-While-Revalidate)
 async function getCache(env, ctx) {
   const raw = await env.KV.get(CACHE_KEY);
   let cache = null;
@@ -113,7 +202,6 @@ async function getCache(env, ctx) {
   const now = Date.now();
 
   if (cache && cache.body) {
-    // Если данные старше 15 минут — запускаем фоновое обновление
     if (!cache.updatedAt || (now - cache.updatedAt > EXPIRE_MS)) {
       if (ctx && ctx.waitUntil) {
         ctx.waitUntil(updateCache(env));
@@ -124,12 +212,10 @@ async function getCache(env, ctx) {
     return cache;
   }
 
-  // Если кэша нет вообще (первый запуск), ждем загрузки
   return await updateCache(env);
 }
 
 async function serveSub(env, ctx) {
-  // Если KV не привязан, делаем прямой запрос (на всякий случай)
   if (!env || !env.KV) {
     const src = await fetchAllSources();
     if (!src.ok) return new Response("Service unavailable", { status: 503 });
@@ -225,7 +311,6 @@ export default {
     }
   },
   
-  // Этот блок срабатывает по крону (каждые 15 минут)
   async scheduled(event, env, ctx) {
     await updateCache(env);
   }
