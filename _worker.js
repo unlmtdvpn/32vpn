@@ -32,11 +32,26 @@ function b64decode(str) {
   } catch (_) { return null; }
 }
 
-// Парсер сырых VLESS-ссылок (LTE) в JSON-конфиги
+// Таймаут для запросов к chkav
+async function fetchWithTimeout(resource, options = {}, timeout = 7000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
+
 function parseLteRawToJson(rawText) {
   let txt = rawText.trim();
   
-  // 1. Пробуем декодировать Base64
   const dec1 = b64decode(txt);
   if (dec1) {
     if (/^vless:\/\//m.test(dec1)) {
@@ -49,13 +64,11 @@ function parseLteRawToJson(rawText) {
     }
   }
 
-  // 2. Пробуем распарсить как обычный JSON
   try {
     const parsed = JSON.parse(txt);
     if (Array.isArray(parsed)) return parsed;
   } catch(_) {}
 
-  // 3. Если это vless:// - собираем конфиги вручную
   if (/^vless:\/\//m.test(txt)) {
     const lines = txt.split(/\r?\n/).filter(l => l.trim().startsWith("vless://"));
     const configs = [];
@@ -113,36 +126,45 @@ async function fetchSingleSource(url) {
     { "User-Agent": "v2rayNG/1.9.16", "Accept": "*/*", "X-Hwid": HWID }
   ];
 
-  for (const headers of headersList) {
+  // Запускаем все 3 запроса с разными User-Agent одновременно
+  const fetchPromises = headersList.map(async (headers) => {
+    const res = await fetchWithTimeout(url, { headers, redirect: "follow", cf: { cacheTtl: 0 } }, 7000);
+    if (!res.ok) throw new Error("Not OK");
+    
+    const text = await res.text();
+    if (!text) throw new Error("Empty");
+    if (text.includes("00000000-0000-0000-0000-000000000000") || text.includes("0.0.0.0:1")) throw new Error("Dummy");
+
     try {
-      const res = await fetch(url, { headers, redirect: "follow", cf: { cacheTtl: 0 } });
-      if (!res.ok) continue;
-      const text = await res.text();
-      if (!text) continue;
-      
-      try {
-        const arr = JSON.parse(text);
-        if (Array.isArray(arr)) {
-          return { data: arr, userinfo: res.headers.get("Subscription-Userinfo") };
-        }
-      } catch (_) {
-        return { raw: text, userinfo: res.headers.get("Subscription-Userinfo") };
-      }
-    } catch (_) {}
+      const arr = JSON.parse(text);
+      if (Array.isArray(arr)) return { data: arr, userinfo: res.headers.get("Subscription-Userinfo") };
+      throw new Error("Not array");
+    } catch (_) {
+      return { raw: text, userinfo: res.headers.get("Subscription-Userinfo") };
+    }
+  });
+
+  // Возвращаем результат того запроса, который ответил первым и без ошибок
+  try {
+    return await Promise.any(fetchPromises);
+  } catch (_) {
+    return null;
   }
-  return null;
 }
 
 async function fetchAllSources() {
-  const [wifi, lte] = await Promise.all([
+  // allSettled чтобы если один источник упал по таймауту, второй все равно отработал
+  const [wifiRes, lteRes] = await Promise.allSettled([
     fetchSingleSource(WIFI_URL),
     fetchSingleSource(LTE_URL)
   ]);
 
+  const wifi = wifiRes.status === "fulfilled" ? wifiRes.value : null;
+  const lte = lteRes.status === "fulfilled" ? lteRes.value : null;
+
   let combined = [];
   let userinfo = null;
 
-  // WiFi (основной JSON)
   if (wifi && wifi.data) {
     combined.push(...wifi.data);
     if (wifi.userinfo) userinfo = wifi.userinfo;
@@ -150,7 +172,6 @@ async function fetchAllSources() {
     return { ok: true, body: wifi.raw, userinfo: wifi.userinfo || "upload=0; download=0; total=0; expire=0" };
   }
 
-  // LTE (парсим Base64 или JSON)
   if (lte && lte.data) {
     combined.push(...lte.data);
   } else if (lte && lte.raw) {
@@ -171,7 +192,6 @@ async function fetchAllSources() {
   return { ok: false };
 }
 
-// Фоновая функция обновления кэша
 async function updateCache(env) {
   try {
     const data = await fetchAllSources();
@@ -190,7 +210,6 @@ async function updateCache(env) {
   return null;
 }
 
-// Получение кэша (Stale-While-Revalidate)
 async function getCache(env, ctx) {
   const raw = await env.KV.get(CACHE_KEY);
   let cache = null;
