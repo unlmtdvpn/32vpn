@@ -1,8 +1,8 @@
 // ============================================================
-// WLVPN — Pure JSON Sub (VLESS + Custom JSON)
+// WLVPN — Static JSON Sub + Userinfo from Source
 // ============================================================
 
-// ТВОИ ССЫЛКИ:
+// ВСТАВЛЯЙ ССЫЛКИ СЮДА:
 const VLESS_LINKS = [
   "vless://b8a0974b-7d22-4636-99c8-6d7b277ef2e2@217.60.80.39:2083?flow=xtls-rprx-vision&type=tcp&security=reality&fp=firefox&sni=static.elbfiles.com&pbk=mSKSj1Vh2gP46y7a7XgCa7pghof57XgaczmvdS7G3B0&sid=dee7296368479ee8#%F0%9F%87%A9%F0%9F%87%AA+%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F",
   "vless://b8a0974b-7d22-4636-99c8-6d7b277ef2e2@217.60.82.35:2083?flow=xtls-rprx-vision&type=tcp&security=reality&fp=firefox&sni=assets.grachtenhub.com&pbk=vLtYoU12dFEcX2XeufESX-a4dRIPDD8I9HKkd4FtC0s&sid=c83312388adc77b5#%F0%9F%87%B3%F0%9F%87%B1+%D0%9D%D0%B8%D0%B4%D0%B5%D1%80%D0%BB%D0%B0%D0%BD%D0%B4%D1%8B",
@@ -11,7 +11,7 @@ const VLESS_LINKS = [
   "vless://b8a0974b-7d22-4636-99c8-6d7b277ef2e2@31.56.16.89:2083?flow=xtls-rprx-vision&type=tcp&security=reality&fp=firefox&sni=taunusfiles.com&pbk=rk4ArdGU9zYrwrJntFGoZptT0Rc333S5BRO2fDjremo&sid=92132169ef33d72c#%F0%9F%87%B8%F0%9F%87%AA+%D0%A8%D0%B2%D0%B5%D1%86%D0%B8%D1%8F"
 ];
 
-// ТВОЙ КАСТОМНЫЙ JSON-СЕРВЕР (Белый список)
+// ТВОЙ КАСТОМНЫЙ JSON-СЕРВЕР
 const CUSTOM_JSON_SERVER = {
   "remarks": "🇪🇺 Белый список",
   "log": { "loglevel": "warning" },
@@ -41,17 +41,44 @@ const CUSTOM_JSON_SERVER = {
   ]
 };
 
-// Фейковый трафик
-const USERINFO = "upload=0; download=0; total=0; expire=0";
+const SOURCE_URL = "https://subs.tgflow.me/a21BGxU1fug3Bg4C";
+const HWID = "1BEF4F22-1340-8D05-2641-3CC6D7CC1B27";
 
-// Превращает vless:// в JSON-объект
+async function fetchWithTimeout(url, options, timeout = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return res;
+  } catch (e) {
+    clearTimeout(id);
+    return null;
+  }
+}
+
+async function fetchUserInfo() {
+  const headersList = [
+    { "User-Agent": "INCY/3.9.7/android", "Accept": "*/*", "X-Hwid": HWID },
+    { "User-Agent": "Happ/1.6.0", "Accept": "*/*", "X-Hwid": HWID }
+  ];
+
+  for (const headers of headersList) {
+    const res = await fetchWithTimeout(SOURCE_URL, { headers, cf: { cacheTtl: 0 } });
+    if (res && res.ok) {
+      const ui = res.headers.get("Subscription-Userinfo");
+      if (ui) return ui;
+    }
+  }
+  return "upload=0; download=0; total=0; expire=0";
+}
+
 function parseVlessToJson(urlStr) {
   try {
     const url = new URL(urlStr);
     const params = url.searchParams;
     
     let remarkName = "⚡ Сервер";
-    // Исправление знака + в названии
     if (url.hash) remarkName = decodeURIComponent(url.hash.slice(1)).replace(/\+/g, ' ');
 
     const ob = {
@@ -100,18 +127,19 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
 
+    const userinfoPromise = fetchUserInfo();
     const finalServers = [];
 
-    // 1. Парсим все ссылки из массива
     VLESS_LINKS.forEach((link) => {
       const srv = parseVlessToJson(link);
       if (srv) finalServers.push(srv);
     });
 
-    // 2. Добавляем твой кастомный JSON-сервер (Белый список) в конец
     if (CUSTOM_JSON_SERVER) {
       finalServers.push(CUSTOM_JSON_SERVER);
     }
+
+    const userinfo = await userinfoPromise;
 
     return new Response(JSON.stringify(finalServers, null, 2), {
       status: 200,
@@ -119,7 +147,7 @@ export default {
         "Content-Type": "application/json; charset=utf-8",
         "Profile-Title": "wlvpn",
         "Profile-Update-Interval": "6",
-        "Subscription-Userinfo": USERINFO,
+        "Subscription-Userinfo": userinfo,
         "announce": "wlvpn — бесплатный VPN сервис.",
         "Cache-Control": "no-cache",
         "Access-Control-Allow-Origin": "*"
