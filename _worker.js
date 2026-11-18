@@ -51,7 +51,8 @@ function parseVlessToJson(urlStr) {
     const params = url.searchParams;
     
     let remarkName = "⚡ Сервер";
-    if (url.hash) remarkName = decodeURIComponent(url.hash.slice(1));
+    // Исправление знака + в названии
+    if (url.hash) remarkName = decodeURIComponent(url.hash.slice(1)).replace(/\+/g, ' ');
 
     const ob = {
       "tag": "proxy",
