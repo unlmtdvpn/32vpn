@@ -6,7 +6,6 @@ export default {
       return new Response('Not Found', { status: 404 });
     }
 
-    // Стандартные инбаунды для одиночных нод
     const defaultInbounds = [
       {
         "tag": "socks-in",
@@ -26,43 +25,13 @@ export default {
       }
     ];
 
-    // Функция для сборки отдельной ноды из VLESS-параметров
-    function makeNode(remarks, address, port, uuid, flow, sniper, pubKey, shortId) {
+    function makeSingleNode(remarks, outboundConfig) {
       return {
         "remarks": remarks,
         "log": { "loglevel": "warning" },
         "inbounds": defaultInbounds,
         "outbounds": [
-          {
-            "tag": "proxy",
-            "protocol": "vless",
-            "settings": {
-              "vnext": [
-                {
-                  "address": address,
-                  "port": port,
-                  "users": [
-                    {
-                      "id": uuid,
-                      "encryption": "none",
-                      ...(flow ? { "flow": flow } : {})
-                    }
-                  ]
-                }
-              ]
-            },
-            "streamSettings": {
-              "network": "tcp",
-              "security": "reality",
-              "realitySettings": {
-                "fingerprint": "firefox",
-                "serverName": sniper,
-                "publicKey": pubKey,
-                "shortId": shortId,
-                "spiderX": "/"
-              }
-            }
-          },
+          { ...outboundConfig, "tag": "proxy" },
           { "tag": "direct", "protocol": "freedom", "settings": {} },
           { "tag": "block", "protocol": "blackhole", "settings": {} }
         ],
@@ -76,18 +45,59 @@ export default {
       };
     }
 
-    // 1. Твои исходные одиночные ноды с правильными названиями и флагами
-    const nodes = [
-      makeNode("🇩🇪 Германия", "217.60.80.39", 2083, "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "xtls-rprx-vision", "static.elbfiles.com", "mSKSj1Vh2gP46y7a7XgCa7pghof57XgaczmvdS7G3B0", "dee7296368479ee0"),
-      makeNode("🇳🇱 Нидерланды", "217.60.82.35", 2083, "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "xtls-rprx-vision", "assets.grachtenhub.com", "vLtYoU12dFEcX2XeufESX-a4dRIPDD8I9HKkd4FtC0s", "c83312388adc77b5"),
-      makeNode("🇺🇸 США", "191.217.243.101", 8443, "b8a0974b-7d22-1b59-99c8-6d7b277ef2e2", "xtls-rprx-vision", "www.farlinehub.com", "QfEH-lQ71mDj47vu3axYma_GfoJjogiZ3EWzZu2U0V8", "d994c2f49fdd1168"),
-      makeNode("🇬🇧 Великобритания", "191.217.243.101", 8443, "b8a0974b-7d22-1b5d-99c8-6d7b277ef2e2", "xtls-rprx-vision", "www.farlinehub.com", "QfEH-lQ71mDj47vu3axYma_GfoJjogiZ3EWzZu2U0V8", "d994c2f49fdd1168"),
-      makeNode("🇸🇪 Швеция", "31.56.16.89", 2083, "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "xtls-rprx-vision", "taunusfiles.com", "rk4ArdGU9zYrwrJntFGoZptT0Rc333S5BRO2fDjremo", "92132169ef33d72c")
-    ];
+    // 7 серверов из твоего рабочего JSON
+    const s1 = {
+      "tag": "whitelist-1",
+      "protocol": "vless",
+      "settings": { "vnext": [{ "address": "178.248.236.236", "port": 443, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none" }] }] },
+      "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "dune.4ch.pro", "publicKey": "VSPUhEWTrbOypXn-YmjkdMqgtUrNeE5tCUOIo2lftCw", "shortId": "5324abeeeefc38d4", "spiderX": "/" } }
+    };
 
-    // 2. Твой JSON-балансировщик со всеми его outbounds
+    const s2 = {
+      "tag": "whitelist-2",
+      "protocol": "vless",
+      "settings": { "vnext": [{ "address": "194.55.239.251", "port": 8443, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none" }] }] },
+      "streamSettings": { "network": "grpc", "security": "reality", "realitySettings": { "fingerprint": "qq", "serverName": "wl16.4ch.pro", "publicKey": "h2vIM44s19FA-k0no8itsUoHRePcpbOg8cn5Mz7tqxw", "shortId": "6fefe0d395a8d22a", "spiderX": "/" }, "grpcSettings": { "serviceName": "x5.lk.v1.AccountService" } }
+    };
+
+    const s3 = {
+      "tag": "whitelist-3",
+      "protocol": "vless",
+      "settings": { "vnext": [{ "address": "194.55.239.109", "port": 443, "users": [{ "id": "b8a0974b-7d22-f243-99c8-6d7b277ef2e2", "encryption": "none" }] }] },
+      "streamSettings": { "network": "grpc", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "cloud.4ch.pro", "publicKey": "zpG3tgdseNoxANrk4Ec0TLRrnJ_8KU2DVu1a3hqDeyg", "shortId": "3b78ffb4514cfc4b", "spiderX": "/" }, "grpcSettings": { "serviceName": "x5.lk.v1.AccountService" } }
+    };
+
+    const s4 = {
+      "tag": "whitelist-4",
+      "protocol": "vless",
+      "settings": { "vnext": [{ "address": "46.243.233.19", "port": 2096, "users": [{ "id": "b8a0974b-7d22-1bbe-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
+      "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "inkwell.4ch.pro", "publicKey": "DggZ5FLY91EcoGTdw_3kssW6V424nnacm2ZN1UDi5So", "shortId": "cac9c3372b2051ef", "spiderX": "/" } }
+    };
+
+    const s5 = {
+      "tag": "whitelist-5",
+      "protocol": "vless",
+      "settings": { "vnext": [{ "address": "assets57.mega-play.app", "port": 443, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
+      "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "assets57.mega-play.app", "publicKey": "6RW54R1rJu0oqvh_Ag5WAYYnyDiclypogyU79nCBMUo", "shortId": "eef4ec246e2defa8", "spiderX": "/" } }
+    };
+
+    const s6 = {
+      "tag": "whitelist-6",
+      "protocol": "vless",
+      "settings": { "vnext": [{ "address": "185.178.208.167", "port": 443, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none" }] }] },
+      "streamSettings": { "network": "ws", "security": "tls", "tlsSettings": { "serverName": "upload.4ch.pro", "fingerprint": "firefox", "alpn": ["http/1.1"] }, "wsSettings": { "path": "/v1/sync/16a0156e37cf5cb781a41f10", "headers": { "Host": "upload.4ch.pro" } } }
+    };
+
+    const s7 = {
+      "tag": "whitelist-7",
+      "protocol": "vless",
+      "settings": { "vnext": [{ "address": "188.225.47.178", "port": 443, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
+      "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "wl26.4ch.pro", "publicKey": "LpDKpTXSH5wZAfkSYoINlFAYzGI2AiEfdpFbiUAekQo", "shortId": "439a6bd97870c88a", "spiderX": "/" } }
+    };
+
+    // Балансировщик с твоим оригинальным названием
     const balancerConfig = {
-      "remarks": "🇪🇺 Белый список (Балансировщик)",
+      "remarks": "🇪🇺 Белый список",
       "log": { "loglevel": "warning" },
       "inbounds": defaultInbounds,
       "observatory": {
@@ -111,44 +121,21 @@ export default {
         ]
       },
       "outbounds": [
-        {
-          "tag": "whitelist-1",
-          "protocol": "vless",
-          "settings": { "vnext": [{ "address": "217.60.80.39", "port": 2083, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
-          "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "static.elbfiles.com", "publicKey": "mSKSj1Vh2gP46y7a7XgCa7pghof57XgaczmvdS7G3B0", "shortId": "dee7296368479ee0", "spiderX": "/" } }
-        },
-        {
-          "tag": "whitelist-2",
-          "protocol": "vless",
-          "settings": { "vnext": [{ "address": "217.60.82.35", "port": 2083, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
-          "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "assets.grachtenhub.com", "publicKey": "vLtYoU12dFEcX2XeufESX-a4dRIPDD8I9HKkd4FtC0s", "shortId": "c83312388adc77b5", "spiderX": "/" } }
-        },
-        {
-          "tag": "whitelist-3",
-          "protocol": "vless",
-          "settings": { "vnext": [{ "address": "191.217.243.101", "port": 8443, "users": [{ "id": "b8a0974b-7d22-1b59-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
-          "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "www.farlinehub.com", "publicKey": "QfEH-lQ71mDj47vu3axYma_GfoJjogiZ3EWzZu2U0V8", "shortId": "d994c2f49fdd1168", "spiderX": "/" } }
-        },
-        {
-          "tag": "whitelist-4",
-          "protocol": "vless",
-          "settings": { "vnext": [{ "address": "191.217.243.101", "port": 8443, "users": [{ "id": "b8a0974b-7d22-1b5d-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
-          "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "www.farlinehub.com", "publicKey": "QfEH-lQ71mDj47vu3axYma_GfoJjogiZ3EWzZu2U0V8", "shortId": "d994c2f49fdd1168", "spiderX": "/" } }
-        },
-        {
-          "tag": "whitelist-5",
-          "protocol": "vless",
-          "settings": { "vnext": [{ "address": "31.56.16.89", "port": 2083, "users": [{ "id": "b8a0974b-7d22-4636-99c8-6d7b277ef2e2", "encryption": "none", "flow": "xtls-rprx-vision" }] }] },
-          "streamSettings": { "network": "tcp", "security": "reality", "realitySettings": { "fingerprint": "firefox", "serverName": "taunusfiles.com", "publicKey": "rk4ArdGU9zYrwrJntFGoZptT0Rc333S5BRO2fDjremo", "shortId": "92132169ef33d72c", "spiderX": "/" } }
-        },
+        s1, s2, s3, s4, s5, s6, s7,
         { "tag": "direct", "protocol": "freedom", "settings": {} },
         { "tag": "block", "protocol": "blackhole", "settings": {} }
       ]
     };
 
-    // 3. Отдаем всё единым массивом: 5 отдельных нод + балансировщик
+    // Массив: 7 отдельных нод с нормальными названиями + балансировщик
     const responseData = [
-      ...nodes,
+      makeSingleNode("🇩🇪 Германия", s1),
+      makeSingleNode("🇳🇱 Нидерланды", s2),
+      makeSingleNode("🇪🇺 Сервер (gRPC Cloud)", s3),
+      makeSingleNode("🇺🇸 США", s4),
+      makeSingleNode("🇪🇺 Сервер (Mega-Play)", s5),
+      makeSingleNode("🇬🇧 Великобритания", s6),
+      makeSingleNode("🇸🇪 Швеция", s7),
       balancerConfig
     ];
 
