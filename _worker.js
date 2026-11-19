@@ -4,7 +4,7 @@
 
 // ВСТАВЛЯЙ ССЫЛКИ СЮДА:
 const VLESS_LINKS = [
-  "vless://b8a0974b-7d22-4636-99c8-6d7b277ef2e2@217.60.80.39:2083?flow=xtls-rprx-vision&type=tcp&security=reality&fp=firefox&sni=static.elbfiles.com&pbk=mSKSj1Vh2gP46y7a7XgCa7pghof57XgaczmvdS7G3B0&sid=dee7296368479ee8#%F0%9F%87%A9%F0%9F%87%AA+%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F",
+  "vless://4aada363-d023-4477-8639-6cdb77c0cad2@6b83b0x.fi8.h1clayd.click:443?encryption=none&pbk=X91DOditRACMv59RWubXujk3CgDjaoZ-XXIPWcBcA0w&sid=a343ae230b063834&security=reality&sni=6b83b0x.fi8.h1clayd.click&fp=firefox&type=xhttp&path=%2F6800998ad1f5&mode=auto#%F0%9F%87%AB%F0%9F%87%AE%20%D0%A4%D0%B8%D0%BD%D0%BB%D1%8F%D0%BD%D0%B4%D0%B8%D1%8F",
   "vless://b8a0974b-7d22-4636-99c8-6d7b277ef2e2@217.60.82.35:2083?flow=xtls-rprx-vision&type=tcp&security=reality&fp=firefox&sni=assets.grachtenhub.com&pbk=vLtYoU12dFEcX2XeufESX-a4dRIPDD8I9HKkd4FtC0s&sid=c83312388adc77b5#%F0%9F%87%B3%F0%9F%87%B1+%D0%9D%D0%B8%D0%B4%D0%B5%D1%80%D0%BB%D0%B0%D0%BD%D0%B4%D1%8B",
   "vless://b8a0974b-7d22-1b59-99c8-6d7b277ef2e2@191.217.243.101:8443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=firefox&sni=www.farlinehub.com&pbk=QfEH-lQ71mDj47vu3axYma_GfoJjogiZ3EWzZu2U0V8&sid=d994c2f49fdd1168#%F0%9F%87%BA%F0%9F%87%B8+%D0%A1%D0%A8%D0%90",
   "vless://b8a0974b-7d22-1b5d-99c8-6d7b277ef2e2@191.217.243.101:8443?flow=xtls-rprx-vision&type=tcp&security=reality&fp=firefox&sni=www.farlinehub.com&pbk=QfEH-lQ71mDj47vu3axYma_GfoJjogiZ3EWzZu2U0V8&sid=d994c2f49fdd1168#%F0%9F%87%AC%F0%9F%87%A7+%D0%92%D0%B5%D0%BB%D0%B8%D0%BA%D0%BE%D0%B1%D1%80%D0%B8%D1%82%D0%B0%D0%BD%D0%B8%D1%8F",
